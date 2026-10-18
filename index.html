@@ -34,27 +34,27 @@
             <span class="btn-title">Salir</span>
           </button>
         </nav>
-        <p class="build-tag">Prototipo · Etapa 1 — Núcleo jugable</p>
+        <p class="build-tag">Prototipo · Etapa 2 — Energía</p>
       </div>
     </section>
 
     <!-- HUD -->
     <section id="hud" class="hidden" aria-hidden="true">
       <div class="hud-map" id="hud-map"></div>
-      <div class="hud-abilities">
-        <div class="ability" id="hud-dodge" title="Esquiva">
-          <span class="key">Ctrl / C</span><span class="name">Esquiva</span>
-          <div class="cooldown"></div>
-        </div>
-        <div class="ability" id="hud-sprint" title="Sprint">
-          <span class="key">Shift</span><span class="name">Sprint</span>
-        </div>
+      <div class="crosshair" id="hud-crosshair">
+        <div class="ch-charge" id="hud-charge"></div>
+        <div class="ch-ring"></div>
+        <div class="ch-dot"></div>
+        <div class="ch-hit" id="hud-hit"></div>
       </div>
-      <div class="hud-hint" id="hud-hint">
-        <b>WASD</b> moverse · <b>Ratón</b> cámara · <b>Espacio</b> saltar · <b>Shift</b> sprint ·
-        <b>Ctrl / C</b> esquivar · <b>Esc</b> pausa · <b>H</b> ocultar ayuda · <b>F3</b> depuración
+      <div class="hud-power" id="hud-power">
+        <div class="power-head"><img id="hud-power-icon" alt="" /><span id="hud-power-name">Energía</span><span class="power-inf" id="hud-power-inf">∞</span></div>
+        <div class="energy-bar"><div class="energy-fill" id="hud-energy-fill"></div></div>
       </div>
+      <div class="hud-abilities" id="hud-abilities"></div>
+      <div class="hud-hint" id="hud-hint"></div>
       <div class="hud-click" id="hud-click">Haz clic para controlar la cámara</div>
+      <div id="hud-floaters"></div>
       <pre class="hud-debug hidden" id="hud-debug"></pre>
       <div class="hud-fps hidden" id="hud-fps"></div>
       <div class="hud-toast" id="hud-toast"></div>
@@ -86,6 +86,7 @@
           </label>
           <label class="check"><input type="checkbox" id="set-invert" /> Invertir eje Y</label>
           <label class="check"><input type="checkbox" id="set-shadows" /> Sombras</label>
+          <label class="check"><input type="checkbox" id="set-bloom" /> Resplandor (bloom)</label>
           <label class="check"><input type="checkbox" id="set-fps" /> Mostrar FPS</label>
         </div>
         <h3>Controles</h3>
@@ -94,6 +95,14 @@
         <nav class="menu-list compact row">
           <button class="menu-btn" data-action="settings-back"><span class="btn-title">Volver</span></button>
         </nav>
+      </div>
+    </section>
+
+    <!-- Depuración -->
+    <section id="screen-debug" class="screen overlay" aria-label="Depuración">
+      <div class="panel wide">
+        <h2>Depuración</h2>
+        <div id="debug-body"></div>
       </div>
     </section>
 

@@ -44,9 +44,27 @@ export class CollisionWorld {
       maxZ: Math.max(min.z, max.z),
       tag: opts.tag ?? null,
       cameraBlocking: opts.cameraBlocking ?? true,
+      // Entidad propietaria (diana, objeto físico, enemigo…) para atribuir impactos.
+      owner: opts.owner ?? null,
+      enabled: true,
     };
     this.boxes.push(box);
     return box;
+  }
+
+  /** Recoloca una caja existente (objetos dinámicos). */
+  setBox(box, min, max) {
+    box.minX = min.x;
+    box.minY = min.y;
+    box.minZ = min.z;
+    box.maxX = max.x;
+    box.maxY = max.y;
+    box.maxZ = max.z;
+  }
+
+  removeBox(box) {
+    const i = this.boxes.indexOf(box);
+    if (i >= 0) this.boxes.splice(i, 1);
   }
 
   /**
@@ -91,7 +109,7 @@ export class CollisionWorld {
     let best = -Infinity;
     const r2 = radius * radius;
     for (const b of this.boxes) {
-      if (b.maxY > maxY || b.maxY <= best) continue;
+      if (!b.enabled || b.maxY > maxY || b.maxY <= best) continue;
       const cx = clamp(x, b.minX, b.maxX);
       const cz = clamp(z, b.minZ, b.maxZ);
       const dx = x - cx;
@@ -118,7 +136,7 @@ export class CollisionWorld {
     let best = Infinity;
     const r2 = radius * radius;
     for (const b of this.boxes) {
-      if (b.minY < minY || b.minY >= best) continue;
+      if (!b.enabled || b.minY < minY || b.minY >= best) continue;
       const cx = clamp(x, b.minX, b.maxX);
       const cz = clamp(z, b.minZ, b.maxZ);
       const dx = x - cx;
@@ -148,7 +166,7 @@ export class CollisionWorld {
     const head = feetY + height;
 
     for (const b of this.boxes) {
-      if (b.maxY <= stepTop || b.minY >= head) continue;
+      if (!b.enabled || b.maxY <= stepTop || b.minY >= head) continue;
       if (this._pushCircleOutOfRect(pos, radius, b)) contacts++;
     }
 
@@ -198,53 +216,97 @@ export class CollisionWorld {
   /**
    * Rayo contra la geometría. Devuelve la distancia al primer impacto o
    * Infinity. `dir` debe estar normalizado.
-   * @param {object} [opts] { cameraOnly: ignora cajas con cameraBlocking=false }
+   * @param {object} [opts] ver raycastHit
    */
   raycast(origin, dir, maxDist, opts = {}) {
+    return this.raycastHit(origin, dir, maxDist, opts)?.t ?? Infinity;
+  }
+
+  /**
+   * Rayo con información del impacto.
+   * @param {object} [opts] {
+   *   cameraOnly: ignora cajas con cameraBlocking=false,
+   *   ignoreTags: array de etiquetas a ignorar (p. ej. ['bounds']),
+   *   ignore: colisionador a ignorar }
+   * @returns {{ t:number, collider:object, normal:{x,y,z} } | null}
+   */
+  raycastHit(origin, dir, maxDist, opts = {}) {
     let best = maxDist;
-    let hit = false;
+    let hit = null;
+    const out = { t: 0, axis: 0 };
     for (const b of this.boxes) {
+      if (!b.enabled || b === opts.ignore) continue;
       if (opts.cameraOnly && !b.cameraBlocking) continue;
-      const t = rayAabb(origin, dir, b, best);
-      if (t !== null && t < best) {
-        best = t;
-        hit = true;
+      if (opts.ignoreTags && b.tag && opts.ignoreTags.includes(b.tag)) continue;
+      if (rayAabb(origin, dir, b, best, out) && out.t < best) {
+        best = out.t;
+        const n = { x: 0, y: 0, z: 0 };
+        if (out.axis < 0) {
+          n.x = -dir.x;
+          n.y = -dir.y;
+          n.z = -dir.z;
+        } else {
+          const key = 'xyz'[out.axis];
+          n[key] = dir[key] > 0 ? -1 : 1;
+        }
+        hit = { t: best, collider: b, normal: n };
       }
     }
     for (const r of this.ramps) {
+      if (opts.ignoreTags && r.tag && opts.ignoreTags.includes(r.tag)) continue;
       const t = rayRampSurface(this, origin, dir, r, best);
       if (t !== null && t < best) {
         best = t;
-        hit = true;
+        const lo = r.axis === 'x' ? r.minX : r.minZ;
+        const hi = r.axis === 'x' ? r.maxX : r.maxZ;
+        const k = (r.y1 - r.y0) / Math.max(hi - lo, EPS);
+        const n = r.axis === 'x' ? { x: -k, y: 1, z: 0 } : { x: 0, y: 1, z: -k };
+        const l = Math.hypot(n.x, n.y, n.z);
+        n.x /= l;
+        n.y /= l;
+        n.z /= l;
+        if (n.x * dir.x + n.y * dir.y + n.z * dir.z > 0) {
+          n.x = -n.x;
+          n.y = -n.y;
+          n.z = -n.z;
+        }
+        hit = { t: best, collider: r, normal: n };
       }
     }
-    return hit ? best : Infinity;
+    return hit;
   }
 }
 
-function rayAabb(o, d, b, maxT) {
+/** Rayo contra AABB (método de slabs). Escribe en `out` { t, axis } (axis -1 si empieza dentro). */
+function rayAabb(o, d, b, maxT, out) {
   let tmin = 0;
   let tmax = maxT;
-  const axes = [
-    [o.x, d.x, b.minX, b.maxX],
-    [o.y, d.y, b.minY, b.maxY],
-    [o.z, d.z, b.minZ, b.maxZ],
-  ];
-  for (const [oa, da, lo, hi] of axes) {
+  let axis = -1;
+  const os = [o.x, o.y, o.z];
+  const ds = [d.x, d.y, d.z];
+  const los = [b.minX, b.minY, b.minZ];
+  const his = [b.maxX, b.maxY, b.maxZ];
+  for (let i = 0; i < 3; i++) {
+    const oa = os[i];
+    const da = ds[i];
     if (Math.abs(da) < EPS) {
-      if (oa < lo || oa > hi) return null;
+      if (oa < los[i] || oa > his[i]) return false;
       continue;
     }
-    let t1 = (lo - oa) / da;
-    let t2 = (hi - oa) / da;
+    let t1 = (los[i] - oa) / da;
+    let t2 = (his[i] - oa) / da;
     if (t1 > t2) [t1, t2] = [t2, t1];
-    if (t1 > tmin) tmin = t1;
+    if (t1 > tmin) {
+      tmin = t1;
+      axis = i;
+    }
     if (t2 < tmax) tmax = t2;
-    if (tmin > tmax) return null;
+    if (tmin > tmax) return false;
   }
-  return tmin;
+  out.t = tmin;
+  out.axis = axis;
+  return true;
 }
-
 /** Intersección con el plano inclinado de la rampa (ignora las caras laterales). */
 function rayRampSurface(world, o, d, r, maxT) {
   const along = r.axis === 'x' ? 'x' : 'z';

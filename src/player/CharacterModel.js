@@ -23,6 +23,8 @@ export class CharacterModel {
     this._dodge = 0;
     this._lean = 0;
     this._land = 0;
+    this._cast = 0;
+    this._waveT = 0;
     this._build();
   }
 
@@ -196,6 +198,12 @@ export class CharacterModel {
     this.destinoMark = { plane: mark, band };
   }
 
+  /** Gestos breves: 'cast' (retroceso del brazo al disparar) y 'wave' (onda expansiva). */
+  trigger(kind) {
+    if (kind === 'cast') this._cast = 1;
+    if (kind === 'wave') this._waveT = 1;
+  }
+
   /**
    * @param {number} dt
    * @param {object} s estado del motor: { speed, grounded, sprinting, dodging, verticalSpeed, landed, landingSpeed }
@@ -237,6 +245,25 @@ export class CharacterModel {
     A.R.shoulder.rotation.z = -0.08 - airTuck * 0.35;
     A.L.elbow.rotation.x = -0.25 - 0.6 * run - airTuck * 0.4;
     A.R.elbow.rotation.x = -0.25 - 0.6 * run - airTuck * 0.4;
+
+    // Brazo derecho apuntando (poderes) y gestos
+    this._cast = Math.max(0, this._cast - dt * 6);
+    this._waveT = Math.max(0, this._waveT - dt * 3);
+    const w = s.aimWeight ?? 0;
+    if (w > 0.001) {
+      const aimX = -Math.PI / 2 - (s.aimPitch ?? 0) + this._cast * 0.25;
+      A.R.shoulder.rotation.x += (aimX - A.R.shoulder.rotation.x) * w;
+      A.R.shoulder.rotation.z += (0.05 - A.R.shoulder.rotation.z) * w;
+      A.R.elbow.rotation.x += (-0.08 - this._cast * 0.3 - A.R.elbow.rotation.x) * w;
+    }
+    if (this._waveT > 0) {
+      const e = Math.sin(this._waveT * Math.PI);
+      A.L.shoulder.rotation.z += 1.2 * e;
+      A.R.shoulder.rotation.z -= 1.2 * e;
+      A.L.shoulder.rotation.x -= 0.3 * e;
+      A.R.shoulder.rotation.x -= 0.3 * e;
+      this._land = Math.max(this._land, 0.5 * e);
+    }
 
     // Torso: inclinación al correr / esquivar, respiración en reposo
     const targetLean = 0.08 * moving + 0.18 * run + this._dodge * 0.55 + airTuck * 0.05;

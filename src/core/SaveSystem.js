@@ -18,6 +18,7 @@ export function createDefaultSave() {
       invertY: false,
       fov: 70,
       shadows: true,
+      bloom: true,
       showFps: false,
     },
     bindings: null, // null = controles por defecto (ver core/Input.js)
@@ -26,6 +27,12 @@ export function createDefaultSave() {
       // Marcas que posee el protagonista. La del Destino es innata.
       marks: ['destino'],
       skillProgress: {},
+    },
+    // Herramientas de depuración del prototipo (menú F2).
+    debug: {
+      grantEnergy: true, // concede Energía hasta que exista la adquisición (Etapa 4)
+      infiniteEnergy: false,
+      maxMarks: false, // fuerza las marcas al máximo para revisar efectos
     },
   };
 }
@@ -76,6 +83,7 @@ export class SaveSystem {
         ...parsed,
         settings: { ...base.settings, ...(parsed.settings || {}) },
         profile: { ...base.profile, ...(parsed.profile || {}) },
+        debug: { ...base.debug, ...(parsed.debug || {}) },
       };
     } catch {
       return base;

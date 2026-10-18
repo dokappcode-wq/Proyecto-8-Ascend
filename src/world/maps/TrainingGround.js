@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import { createSky, createSun } from '../environment.js';
 import { gridTexture, concreteTexture } from '../textures.js';
+import { TrainingTarget } from '../entities/TrainingTarget.js';
+import { TrainingDummy } from '../entities/TrainingDummy.js';
+import { PhysicsProp } from '../entities/PhysicsProp.js';
 
 /**
  * MAPA 1 — CAMPO DE PRUEBAS
  *
  * Entorno técnico y modular para verificar mecánicas.
- * Etapa 1: Zona A (movimiento) y Zona B (recorridos y alturas) jugables.
- * Las zonas C–F están delimitadas y señalizadas, pero su contenido
- * (dianas, enemigos, estación de adquisición, banco de efectos) llega en
- * etapas posteriores; los carteles lo indican.
+ * Zona A (movimiento), B (recorridos), C (poderes) y F (efectos visuales)
+ * son jugables. Las zonas D (combate, Etapa 3) y E (adquisición de marcas,
+ * Etapa 4) están delimitadas y señalizadas a la espera de su contenido.
  */
 
 const HALF = 85; // medio lado del recinto
@@ -19,7 +21,18 @@ export default {
   name: 'Campo de Pruebas',
   description: 'Zona de entrenamiento y experimentación.',
 
-  build({ group, builder: B, scene }) {
+  /** Puntos de teletransporte del menú de depuración. */
+  waypoints: [
+    { id: 'inicio', name: 'Inicio', x: 0, y: 0.3, z: 18, yaw: Math.PI },
+    { id: 'A', name: 'Zona A — Movimiento', x: -38, y: 0.2, z: 6, yaw: Math.PI },
+    { id: 'B', name: 'Zona B — Recorridos', x: 34, y: 0.2, z: 6, yaw: Math.PI },
+    { id: 'C', name: 'Zona C — Poderes', x: -57, y: 0.2, z: -48, yaw: Math.PI },
+    { id: 'C-alcance', name: 'Zona C — Prueba de alcance', x: -80, y: 0.2, z: -79, yaw: Math.PI / 2 },
+    { id: 'F', name: 'Zona F — Efectos visuales', x: 45, y: 0.2, z: -48, yaw: Math.PI },
+  ],
+
+  build(ctx) {
+    const { group, builder: B, scene } = ctx;
     // --- Ambiente ---
     scene.fog = new THREE.Fog(0x8fa3b8, 90, 260);
     group.add(createSky({ top: '#2e5b8f', horizon: '#c9d6e2', bottom: '#5a6470', sunDir: new THREE.Vector3(-0.5, 0.75, 0.3), sunColor: '#fff2d6' }));
@@ -57,11 +70,13 @@ export default {
 
     // --- Núcleo central / punto de aparición ---
     B.block({ x: 0, z: 18, w: 10, d: 10, h: 0.25, mat: M.dark });
-    B.sign(['CAMPO DE PRUEBAS', 'Oeste: Zona A — Movimiento · Este: Zona B — Recorridos', 'Norte: Zonas C–F (próximas etapas)'], { x: 0, y: 3.2, z: 10, w: 9, h: 2.6, facing: 0, opts: { width: 1024, height: 300 } });
+    B.sign(['CAMPO DE PRUEBAS', 'Oeste: Zona A — Movimiento · Este: Zona B — Recorridos', 'Norte: C Poderes · F Efectos · D y E en próximas etapas'], { x: 0, y: 3.2, z: 10, w: 9, h: 2.6, facing: 0, opts: { width: 1024, height: 300 } });
     B.block({ x: 0, z: 10.05, w: 9.4, d: 0.1, y: 0, h: 1.9, mat: M.metal, collide: false });
 
     buildZoneA(B, M);
     buildZoneB(B, M);
+    buildZoneC(B, M, ctx);
+    buildZoneF(B, M, ctx);
     buildFutureZones(B, M);
 
     return {
@@ -173,13 +188,76 @@ function buildZoneB(B, M) {
   B.floorText(['Fachada con cornisas', 'Agarre en Etapa 5'], { x: 54, z: 16, w: 6, h: 3 });
 }
 
-/** Zonas C–F: delimitadas y señalizadas para las etapas siguientes. */
+/** ZONA C — Poderes: dianas, maniquíes con salud, objetos físicos y prueba de alcance. */
+function buildZoneC(B, M, ctx) {
+  B.block({ x: -57, z: -65, w: 50, d: 38, h: 0.06, mat: M.pad, cast: false });
+  B.sign(['ZONA C — PODERES', 'Clic izq. proyectil · Q dash · R (mantener) descarga · G onda · Clic der. apuntar'], {
+    x: -57, y: 3.4, z: -46.2, w: 11, h: 2.4, facing: 0, opts: { width: 1100, height: 240 },
+  });
+  B.block({ x: -57, z: -46.3, w: 0.2, d: 0.2, h: 2.2, mat: M.metal, collide: false });
+
+  // Dianas a distintas alturas
+  [[-76, 1.4], [-70, 2.6], [-64, 1.8], [-58, 3.2], [-52, 1.4]].forEach(([x, y]) => {
+    ctx.addEntity(new TrainingTarget(ctx, { x, y, z: -60, facing: 'z+' }));
+  });
+  B.floorText(['Dianas', 'Precisión a varias alturas'], { x: -64, z: -55, w: 6, h: 3 });
+
+  // Maniquíes con salud (se recuperan a los 4 s)
+  [-46, -41, -36].forEach((x) => ctx.addEntity(new TrainingDummy(ctx, { x, z: -58 })));
+  B.floorText(['Maniquíes', '100 de salud'], { x: -41, z: -54, w: 6, h: 3 });
+
+  // Objetos físicos que reaccionan a impactos y ondas
+  const crate = new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 });
+  const barrel = new THREE.MeshStandardMaterial({ color: 0x2d5f93, roughness: 0.6, metalness: 0.3 });
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 2; j++) {
+      ctx.addEntity(new PhysicsProp(ctx, { x: -68 + i * 1.05, y: 0.06 + j * 1.0, z: -70, w: 1, h: 1, d: 1, mass: 1, mat: crate }));
+    }
+  }
+  ctx.addEntity(new PhysicsProp(ctx, { x: -67, y: 2.06, z: -70, w: 1, h: 1, d: 1, mass: 1, mat: crate }));
+  [[-58, -70], [-56.8, -70.6], [-57.4, -69.2], [-55.6, -69.6]].forEach(([x, z]) => {
+    ctx.addEntity(new PhysicsProp(ctx, { x, y: 0.06, z, w: 0.7, h: 1.1, d: 0.7, mass: 0.8, mat: barrel }));
+  });
+  B.floorText(['Objetos físicos', 'Prueba la onda (G) aquí'], { x: -62, z: -66, w: 6, h: 3 });
+
+  // Prueba de alcance: el proyectil llega a 45 m
+  B.block({ x: -80, z: -79, w: 2, d: 2, h: 0.1, mat: M.stripe });
+  B.floorText(['Disparo', 'mirando al este'], { x: -80, z: -76, w: 4, h: 2 });
+  // Desplazadas lateralmente para que ninguna tape a otra desde el punto de disparo.
+  [[10, 3], [20, -3], [30, -2], [40, 1], [50, 3.5]].forEach(([dist, dz]) => {
+    const x = -80 + dist;
+    ctx.addEntity(new TrainingTarget(ctx, { x, y: 1.6, z: -79 + dz, facing: 'x-', radius: 0.7 }));
+    B.floorText([`${dist} m`, dist > 45 ? 'Fuera de alcance' : ''], { x, z: -79 + dz + (dz > 0 ? 2 : -2), w: 4, h: 2 });
+  });
+}
+
+/** ZONA F — Efectos visuales: nave oscura para revisar marcas, estelas y partículas. */
+function buildZoneF(B, M, ctx) {
+  const dark = new THREE.MeshStandardMaterial({ color: 0x14171c, roughness: 0.95 });
+  const x0 = 45;
+  const z0 = -60;
+  B.block({ x: x0, z: z0, w: 26, d: 30, h: 0.06, mat: dark, cast: false });
+  B.block({ x: x0 - 13.25, z: z0, w: 0.5, d: 30, h: 6, mat: dark });
+  B.block({ x: x0 + 13.25, z: z0, w: 0.5, d: 30, h: 6, mat: dark });
+  B.block({ x: x0, z: z0 - 15.25, w: 27, d: 0.5, h: 6, mat: dark });
+  B.block({ x: x0 - 8, z: z0 + 15.25, w: 10, d: 0.5, h: 6, mat: dark });
+  B.block({ x: x0 + 8, z: z0 + 15.25, w: 10, d: 0.5, h: 6, mat: dark });
+  B.block({ x: x0, z: z0 + 15.25, w: 6, d: 0.5, y: 4, h: 2, mat: dark });
+  B.block({ x: x0, z: z0, w: 27, d: 31, y: 6, h: 0.4, mat: dark });
+  B.sign(['ZONA F — EFECTOS VISUALES', 'Usa los poderes con poca luz · F2: marcas al máximo'], {
+    x: x0, y: 3.4, z: z0 - 14.9, w: 10, h: 2.2, facing: 0, opts: { width: 1024, height: 230 },
+  });
+  B.sign(['ZONA F — EFECTOS VISUALES'], { x: x0, y: 4.9, z: z0 + 15.55, w: 6, h: 1.2, facing: 0, opts: { width: 1024, height: 200 } });
+  ctx.addEntity(new TrainingDummy(ctx, { x: x0 - 5, z: z0 - 8 }));
+  ctx.addEntity(new TrainingDummy(ctx, { x: x0 + 5, z: z0 - 8 }));
+  ctx.addEntity(new TrainingTarget(ctx, { x: x0, y: 2.2, z: z0 - 14.9, facing: 'z+', radius: 0.8, post: false }));
+}
+
+/** Zonas D y E: delimitadas y señalizadas para las etapas siguientes. */
 function buildFutureZones(B, M) {
   const zones = [
-    { id: 'C', name: 'PODERES', stage: 'Etapa 2', x: -45 },
     { id: 'D', name: 'COMBATE', stage: 'Etapa 3', x: -15 },
     { id: 'E', name: 'ADQUISICIÓN DE MARCAS', stage: 'Etapa 4', x: 15 },
-    { id: 'F', name: 'EFECTOS VISUALES', stage: 'Etapa 2', x: 45 },
   ];
   for (const z of zones) {
     B.block({ x: z.x, z: -60, w: 26, d: 30, h: 0.06, mat: M.pad, cast: false });

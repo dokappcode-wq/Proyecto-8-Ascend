@@ -35,6 +35,7 @@ export const DEFAULT_MOTOR_CONFIG = Object.freeze({
  * @property {boolean} dodge  true solo en el frame en que se pulsa.
  * @property {number} [facingX] Dirección hacia la que mira (para esquivar sin moverse).
  * @property {number} [facingZ]
+ * @property {number} [speedScale] Multiplicador de velocidad (apuntar, cargar…). Por defecto 1.
  */
 
 export class CharacterMotor {
@@ -48,16 +49,39 @@ export class CharacterMotor {
 
     this._coyote = 0;
     this._jumpBuffer = 0;
-    this._dodgeTime = 0;
     this._dodgeCooldown = 0;
-    this._dodgeDir = { x: 0, z: 1 };
+    /** Impulso horizontal activo (esquiva o dash): { kind, x, z, speed, time, gravityScale, exitFactor } */
+    this._burst = null;
 
     /** Eventos del último paso (para animación / efectos). */
     this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0 };
   }
 
   get isDodging() {
-    return this._dodgeTime > 0;
+    return this._burst?.kind === 'dodge';
+  }
+
+  get isDashing() {
+    return this._burst?.kind === 'dash';
+  }
+
+  get isBursting() {
+    return this._burst !== null;
+  }
+
+  /**
+   * Inicia un impulso horizontal (usado por habilidades como el dash
+   * energético). Devuelve false si ya hay uno en curso.
+   * @param {object} o { x, z: dirección; speed; duration; gravityScale=0; exitFactor=0.5; kind='dash' }
+   */
+  startBurst({ x, z, speed, duration, gravityScale = 0, exitFactor = 0.5, kind = 'dash' }) {
+    if (this._burst) return false;
+    const l = Math.hypot(x, z);
+    if (l < 1e-6) return false;
+    this._burst = { kind, x: x / l, z: z / l, speed, time: duration, gravityScale, exitFactor };
+    // El dash anula la caída para poder cruzar huecos.
+    if (kind === 'dash' && this.velocity.y < 0) this.velocity.y = 0;
+    return true;
   }
 
   get dodgeCooldownRemaining() {
@@ -74,7 +98,7 @@ export class CharacterMotor {
     this.position.z = p.z;
     this.velocity.x = this.velocity.y = this.velocity.z = 0;
     this.grounded = false;
-    this._dodgeTime = 0;
+    this._burst = null;
     this._dodgeCooldown = 0;
     this._coyote = 0;
     this._jumpBuffer = 0;
@@ -113,32 +137,33 @@ export class CharacterMotor {
     }
 
     // --- Esquiva ---
-    if (input.dodge && this._dodgeCooldown === 0 && this._dodgeTime === 0) {
+    if (input.dodge && this._dodgeCooldown === 0 && !this._burst) {
       let dx = mx;
       let dz = mz;
       if (Math.hypot(dx, dz) < 0.1) {
         dx = input.facingX ?? 0;
         dz = input.facingZ ?? 1;
       }
-      const l = Math.hypot(dx, dz) || 1;
-      this._dodgeDir = { x: dx / l, z: dz / l };
-      this._dodgeTime = c.dodgeDuration;
-      this._dodgeCooldown = c.dodgeCooldown + c.dodgeDuration;
-      ev.dodged = true;
+      if (this.startBurst({ x: dx, z: dz, speed: c.dodgeSpeed, duration: c.dodgeDuration, gravityScale: 0.15, exitFactor: 0.45, kind: 'dodge' })) {
+        this._dodgeCooldown = c.dodgeCooldown + c.dodgeDuration;
+        ev.dodged = true;
+      }
     }
 
     const v = this.velocity;
-    if (this._dodgeTime > 0) {
-      this._dodgeTime = Math.max(0, this._dodgeTime - dt);
-      v.x = this._dodgeDir.x * c.dodgeSpeed;
-      v.z = this._dodgeDir.z * c.dodgeSpeed;
-      if (this._dodgeTime === 0) {
-        // Conserva parte del impulso al salir de la esquiva.
-        v.x *= 0.45;
-        v.z *= 0.45;
+    const burst = this._burst;
+    if (burst) {
+      burst.time = Math.max(0, burst.time - dt);
+      v.x = burst.x * burst.speed;
+      v.z = burst.z * burst.speed;
+      if (burst.time === 0) {
+        // Conserva parte del impulso al terminar.
+        v.x *= burst.exitFactor;
+        v.z *= burst.exitFactor;
+        this._burst = null;
       }
     } else {
-      const maxSpeed = input.sprint ? c.sprintSpeed : c.walkSpeed;
+      const maxSpeed = (input.sprint ? c.sprintSpeed : c.walkSpeed) * (input.speedScale ?? 1);
       const tx = mx * maxSpeed;
       const tz = mz * maxSpeed;
       const hasInput = mLen > 0.01;
@@ -168,9 +193,9 @@ export class CharacterMotor {
       ev.jumped = true;
     }
 
-    // --- Gravedad (la esquiva aérea suspende brevemente la caída) ---
+    // --- Gravedad (los impulsos aéreos suspenden brevemente la caída) ---
     if (!this.grounded) {
-      const g = this._dodgeTime > 0 ? c.gravity * 0.15 : c.gravity;
+      const g = burst && burst.time > 0 ? c.gravity * burst.gravityScale : c.gravity;
       v.y = Math.max(v.y - g * dt, -c.maxFallSpeed);
     }
 

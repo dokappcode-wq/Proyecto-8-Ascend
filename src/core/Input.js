@@ -17,16 +17,18 @@ export const DEFAULT_BINDINGS = Object.freeze({
   dodge: ['ControlLeft', 'ControlRight', 'KeyC'],
   interact: ['KeyE'],
   melee: ['KeyF'],
-  special: ['KeyQ'],
-  charged: ['KeyR'],
+  special: ['KeyQ'], // Energía: dash energético
+  charged: ['KeyR'], // Energía: descarga concentrada (mantener)
+  wave: ['KeyG'], // Energía: onda expansiva
   powerMenu: ['Tab'],
   debug: ['F3'],
+  debugMenu: ['F2', 'Backquote'],
   attack: ['Mouse0'],
   aim: ['Mouse2'],
 });
 
 /** Teclas cuyo comportamiento por defecto en el navegador hay que impedir. */
-const PREVENT = new Set(['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F3', 'KeyC', 'ControlLeft', 'ControlRight']);
+const PREVENT = new Set(['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F3', 'F2', 'KeyC', 'ControlLeft', 'ControlRight']);
 
 export class Input {
   constructor(target, bindings = null) {
@@ -130,7 +132,7 @@ export class Input {
   /** Nombre legible de una tecla para la interfaz. */
   static labelFor(code) {
     const names = {
-      Space: 'Espacio', ShiftLeft: 'Shift', ShiftRight: 'Shift D', ControlLeft: 'Ctrl', ControlRight: 'Ctrl D',
+      Backquote: 'º', Space: 'Espacio', ShiftLeft: 'Shift', ShiftRight: 'Shift D', ControlLeft: 'Ctrl', ControlRight: 'Ctrl D',
       Mouse0: 'Clic izq.', Mouse1: 'Clic central', Mouse2: 'Clic der.', Tab: 'Tab', Escape: 'Esc',
       ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
     };

@@ -37,6 +37,14 @@ export default {
   name: 'Distrito Cero',
   description: 'El corazón de la ciudad. Calles, callejones y azoteas.',
 
+  /** Puntos de teletransporte del menú de depuración. */
+  waypoints: [
+    { id: 'inicio', name: 'Plaza', x: 0, y: 0.3, z: 11, yaw: Math.PI },
+    { id: 'B5', name: 'Escalera de B5', x: 26.2, y: 0.2, z: 46, yaw: Math.PI },
+    { id: 'B8', name: 'Azotea de B8 (torre)', x: -36, y: 24.4, z: -6, yaw: 0 },
+    { id: 'callejon', name: 'Callejón de A2', x: 12.2, y: 0.2, z: -48, yaw: Math.PI },
+  ],
+
   build({ group, builder: B, scene }) {
     // --- Ambiente de atardecer ---
     scene.fog = new THREE.FogExp2(0x3a2f3a, 0.0085);

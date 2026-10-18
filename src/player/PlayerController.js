@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { CharacterMotor } from '../physics/CharacterMotor.js';
 import { CharacterModel } from './CharacterModel.js';
 
@@ -16,6 +17,33 @@ export class PlayerController {
     this.model = new CharacterModel();
     this.facing = 0; // ángulo Y del modelo
     this._fwd = { x: 0, z: -1 };
+    /** Dirección de movimiento deseada (mundo, normalizada o cero). */
+    this.moveIntent = new THREE.Vector3();
+    /** Lo fijan los poderes: apuntando/cargando y multiplicador de velocidad. */
+    this.aiming = false;
+    this.speedScale = 1;
+    this._faceAim = 0;
+    this._aimWeight = 0;
+  }
+
+  /** Orienta el personaje hacia donde mira la cámara durante `seconds`. */
+  faceAim(seconds) {
+    this._faceAim = Math.max(this._faceAim, seconds);
+  }
+
+  facingVector(out = new THREE.Vector3()) {
+    return out.set(Math.sin(this.facing), 0, Math.cos(this.facing));
+  }
+
+  /** Posición en el mundo de la mano derecha (origen de los poderes). */
+  handWorldPosition(out = new THREE.Vector3()) {
+    const w = this.model.anchors.wristR;
+    out.set(0, -0.1, 0.02);
+    return w.localToWorld(out);
+  }
+
+  updateModelMatrices() {
+    this.model.root.updateMatrixWorld(true);
   }
 
   get object3d() {
@@ -31,6 +59,14 @@ export class PlayerController {
     this.motor.teleport(spawn);
     this.facing = spawn.yaw ?? 0;
     // El modelo mira hacia +Z en local; la cámara con yaw=θ mira hacia (-sinθ, -cosθ).
+    this.cameraController.reset(this.facing + Math.PI);
+    this._syncModel();
+  }
+
+  /** Teletransporta sin cambiar el punto de reaparición del mapa. */
+  spawnAt(p) {
+    this.motor.teleport(p);
+    this.facing = p.yaw ?? this.facing;
     this.cameraController.reset(this.facing + Math.PI);
     this._syncModel();
   }
@@ -58,21 +94,46 @@ export class PlayerController {
       mz /= len;
     }
 
-    const sprint = inp.isDown('sprint') && len > 0 && iz >= 0;
-    this.motor.update(dt, {
-      moveX: mx,
-      moveZ: mz,
-      sprint,
-      jump: inp.wasPressed('jump'),
-      dodge: inp.wasPressed('dodge'),
-      facingX: Math.sin(this.facing),
-      facingZ: Math.cos(this.facing),
-    });
+    this.moveIntent.set(mx, 0, mz);
+    const aimLocked = this.aiming || this._faceAim > 0;
+    const sprint = inp.isDown('sprint') && len > 0 && iz >= 0 && !this.aiming;
+    // Pasos fijos (≤ 1/60 s): el movimiento es igual a cualquier tasa de frames.
+    const steps = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6));
+    const sdt = dt / steps;
+    const agg = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0 };
+    for (let i = 0; i < steps; i++) {
+      this.motor.update(sdt, {
+        speedScale: this.speedScale,
+        moveX: mx,
+        moveZ: mz,
+        sprint,
+        jump: i === 0 && inp.wasPressed('jump'),
+        dodge: i === 0 && inp.wasPressed('dodge'),
+        facingX: Math.sin(this.facing),
+        facingZ: Math.cos(this.facing),
+      });
+      const e = this.motor.events;
+      agg.jumped ||= e.jumped;
+      agg.dodged ||= e.dodged;
+      agg.respawned ||= e.respawned;
+      if (e.landed) {
+        agg.landed = true;
+        agg.landingSpeed = Math.max(agg.landingSpeed, e.landingSpeed);
+      }
+    }
+    Object.assign(this.motor.events, agg);
 
-    // Orientación del modelo hacia la dirección de desplazamiento.
+    // Orientación: hacia la cámara al apuntar o usar poderes; si no, hacia
+    // la dirección de desplazamiento.
     const v = this.motor.velocity;
     const hs = Math.hypot(v.x, v.z);
-    if (hs > 0.5) {
+    this._faceAim = Math.max(0, this._faceAim - dt);
+    if (aimLocked && !this.motor.isBursting) {
+      const target = cam.yaw + Math.PI;
+      let d = target - this.facing;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.facing += d * (1 - Math.exp(-dt * 30));
+    } else if (hs > 0.5) {
       const target = Math.atan2(v.x, v.z);
       let d = target - this.facing;
       d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -85,7 +146,11 @@ export class PlayerController {
     if (ev.dodged) this.events.emit('player:dodged');
     if (ev.respawned) this.events.emit('player:respawned');
 
+    this._aimWeight += ((aimLocked ? 1 : 0) - this._aimWeight) * (1 - Math.exp(-dt * 18));
+    cam.setAim(this.aiming ? 1 : 0);
     this.model.animate(dt, {
+      aimWeight: this._aimWeight,
+      aimPitch: cam.pitch,
       speed: hs,
       grounded: this.motor.grounded,
       sprinting: sprint,

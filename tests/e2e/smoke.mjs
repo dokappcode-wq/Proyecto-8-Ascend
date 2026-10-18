@@ -46,6 +46,9 @@ page.on('console', (m) => {
 try {
   await page.goto(`http://localhost:${PORT}/`);
   await page.waitForFunction(() => window.__ascend);
+  // El ratón simulado de Playwright genera movimiento con el puntero bloqueado y
+  // desviaría la cámara; en la prueba se bloquea solo el movimiento (los clics siguen llegando).
+  await page.evaluate(() => window.addEventListener('mousemove', (e) => e.stopImmediatePropagation(), true));
   await page.screenshot({ path: path.join(out, '00-menu.png') });
   check(await page.isVisible('#screen-menu.active'), 'Menú principal visible');
 
@@ -65,15 +68,19 @@ try {
 
     // Caminar con W
     await page.keyboard.down('KeyW');
-    await page.waitForTimeout(700);
+    // Espera a recorrer 1.5 m (el render por software puede ir a pocos FPS).
+    await page.waitForFunction(([x, z]) => {
+      const p = window.__ascend.player.motor.position;
+      return Math.hypot(p.x - x, p.z - z) > 1.5;
+    }, [s0.x, s0.z], { timeout: 10000 }).catch(() => {});
     const sWalk = await st();
     await page.keyboard.down('ShiftLeft');
-    await page.waitForTimeout(700);
+    await page.waitForFunction(() => window.__ascend.player.motor.horizontalSpeed > 9, null, { timeout: 10000 }).catch(() => {});
     const sSprint = await st();
     await page.keyboard.up('ShiftLeft');
     await page.keyboard.up('KeyW');
     const moved = Math.hypot(sWalk.x - s0.x, sWalk.z - s0.z);
-    check(moved > 0.5, `WASD desplaza al personaje (${moved.toFixed(2)} m)`);
+    check(moved > 1.5, `WASD desplaza al personaje (${moved.toFixed(2)} m)`);
     check(sSprint.speed > sWalk.speed + 2, `Sprint más rápido (${sWalk.speed.toFixed(1)} → ${sSprint.speed.toFixed(1)} m/s)`);
 
     // Salto
@@ -92,6 +99,21 @@ try {
     await page.waitForTimeout(100);
     const cd = await page.evaluate(() => window.__ascend.player.motor.dodgeCooldownRemaining);
     check(cd > 0, `Ctrl activa la esquiva (enfriamiento ${cd.toFixed(2)} s)`);
+
+    // Poderes disponibles en este mapa (mismos sistemas)
+    await page.evaluate(() => {
+      window.__hits = 0;
+      window.__ascend.events.on('projectile:hit', () => window.__hits++);
+      window.__ascend.cameraController.pitch = -0.05;
+    });
+    const eBefore = await page.evaluate(() => window.__ascend.powers.energy.value);
+    await page.mouse.down();
+    await page.waitForTimeout(100);
+    await page.mouse.up();
+    await page.waitForTimeout(100);
+    await page.waitForFunction(() => window.__ascend.projectiles.list.length === 0, null, { timeout: 15000 });
+    const eAfter = await page.evaluate(() => window.__ascend.powers.energy.value);
+    check(eAfter < eBefore, `Proyectil disparado en ${mapId} (energía ${eBefore.toFixed(0)} → ${eAfter.toFixed(0)})`);
 
     // Pausa y vuelta al menú
     await page.keyboard.press('Escape');
@@ -205,6 +227,161 @@ try {
     { x: 67.8, z: -12.2 }, { x: 67.8, z: -14.5 },
   ], 8.4);
   await route('Campo · salto de 6 m con sprint', { x: -48, y: 1.2, z: 9 }, [{ x: -58, z: 9, jump: true, sprint: true }], 1);
+
+  // ---------------- Poderes de Energía (Etapa 2) ----------------
+  console.log('\n[poderes]');
+  await page.evaluate(() => {
+    // Orienta la cámara para que el centro de la pantalla apunte a `p`.
+    window.__aimAt = (p) => {
+      const g = window.__ascend;
+      const cc = g.cameraController;
+      for (let i = 0; i < 6; i++) {
+        g.player.update(0);
+        cc.update(1 / 60, g.player.motor.position, false);
+        const c = g.camera.position;
+        const dx = p.x - c.x;
+        const dy = p.y - c.y;
+        const dz = p.z - c.z;
+        cc.yaw = Math.atan2(-dx, -dz);
+        cc.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+      }
+      cc.update(1 / 60, g.player.motor.position, false);
+    };
+    window.__place = (pos, target) => {
+      const g = window.__ascend;
+      g.player.spawnAt({ ...pos, yaw: Math.atan2(target.x - pos.x, target.z - pos.z) });
+      for (let i = 0; i < 20; i++) g.player.motor.update(1 / 60, { moveX: 0, moveZ: 0 });
+      window.__aimAt(target);
+    };
+  });
+  const g = (fn, arg) => page.evaluate(fn, arg);
+  check(await g(() => window.__ascend.powers.available), 'La marca de Energía está activa (concedida por depuración hasta la Etapa 4)');
+  check(await page.isVisible('#hud-power'), 'HUD de energía visible');
+
+  // Proyectil contra un maniquí
+  await g(() => window.__ascend.mapManager.resetEntities());
+  await g(() => window.__place({ x: -46, y: 0.2, z: -50 }, { x: -46, y: 1.2, z: -58 }));
+  const e0 = await g(() => window.__ascend.powers.energy.value);
+  await page.mouse.down();
+  for (let i = 0; i < 8; i++) {
+    await page.waitForTimeout(150);
+    await g(() => window.__aimAt({ x: -46, y: 1.2, z: -58 }));
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const dummy = await g(() => {
+    const d = window.__ascend.mapManager.current.entities.find((e) => e.maxHealth && Math.abs(e.base.x + 46) < 0.1);
+    return { health: d.health, alive: d.alive };
+  });
+  const e1 = await g(() => window.__ascend.powers.energy.value);
+  check(dummy.health < 100, `El proyectil daña al maniquí (salud ${dummy.health}/100)`);
+  check(e1 < e0, `Disparar consume energía (${e0.toFixed(0)} → ${e1.toFixed(0)})`);
+  const floaters = await g(() => document.querySelectorAll('#hud-floaters .floater').length);
+  await page.screenshot({ path: path.join(out, 'powers-01-projectile.png') });
+  check(floaters > 0, `Indicadores de daño en pantalla (${floaters})`);
+
+  // Descarga concentrada: mantener R y soltar
+  await g(() => window.__ascend.mapManager.resetEntities());
+  await g(() => { window.__ascend.powers.resetAbilities(); window.__ascend.powers.energy.refill(); });
+  await g(() => window.__place({ x: -41, y: 0.2, z: -50 }, { x: -41, y: 1.2, z: -58 }));
+  await page.keyboard.down('KeyR');
+  await page.waitForTimeout(500);
+  const charging = await g(() => ({ c: window.__ascend.powers.isCharging, ring: document.getElementById('hud-charge').classList.contains('show') }));
+  await g(() => { const pw = window.__ascend.powers; if (pw.charge) pw.charge.time = 2; });
+  await g(() => window.__aimAt({ x: -41, y: 1.2, z: -58 }));
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: path.join(out, 'powers-02-charge.png') });
+  await page.keyboard.up('KeyR');
+  await page.waitForTimeout(800);
+  const d2 = await g(() => window.__ascend.mapManager.current.entities.find((e) => e.maxHealth && Math.abs(e.base.x + 41) < 0.1).health);
+  check(charging.c && charging.ring, 'Mantener R carga la descarga (anillo de carga visible)');
+  check(d2 <= 100 - 50, `La descarga completa inflige daño alto (salud ${d2}/100)`);
+
+  // Onda expansiva contra objetos físicos
+  await g(() => { window.__ascend.mapManager.resetEntities(); window.__ascend.powers.resetAbilities(); window.__ascend.powers.energy.refill(); });
+  await g(() => window.__place({ x: -64, y: 0.2, z: -68.2 }, { x: -67, y: 0.5, z: -70 }));
+  const before = await g(() => window.__ascend.mapManager.current.entities.filter((e) => e.mass).map((e) => ({ ...e.pos })));
+  await page.keyboard.press('KeyG');
+  let lvl = 0;
+  for (let i = 0; i < 6; i++) {
+    await page.waitForTimeout(60);
+    lvl = Math.max(lvl, await g(() => window.__ascend.marks.level));
+    if (i === 1) await page.screenshot({ path: path.join(out, 'powers-03-wave.png') });
+  }
+  await page.waitForTimeout(1000);
+  const after = await g(() => window.__ascend.mapManager.current.entities.filter((e) => e.mass).map((e) => ({ ...e.pos })));
+  const movedProps = after.filter((p, i) => Math.hypot(p.x - before[i].x, p.z - before[i].z) > 0.5).length;
+  check(movedProps >= 3, `La onda expansiva desplaza los objetos cercanos (${movedProps} movidos)`);
+  check(lvl > 0.6, `Los patrones de la marca se intensifican con la onda (nivel ${lvl.toFixed(2)})`);
+  await page.waitForTimeout(2500);
+  const lvlLater = await g(() => window.__ascend.marks.level);
+  check(lvlLater < 0.15, `El brillo de la marca decae después (nivel ${lvlLater.toFixed(2)})`);
+  const waveCd = await g(() => window.__ascend.powers.abilities.wave.cooldown);
+  check(waveCd > 0, `La onda tiene tiempo de reutilización (${waveCd.toFixed(1)} s restantes)`);
+
+  // Dash energético
+  await g(() => { window.__ascend.powers.resetAbilities(); window.__ascend.powers.energy.refill(); });
+  await g(() => window.__ascend.player.spawnAt({ x: 0, y: 0.3, z: 18, yaw: Math.PI }));
+  await page.waitForTimeout(300);
+  const p0 = await g(() => ({ ...window.__ascend.player.motor.position }));
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => window.__ascend.powers.abilities.dash.cooldown > 0, null, { timeout: 5000 });
+  await page.waitForFunction(() => !window.__ascend.player.motor.isBursting && window.__ascend.player.motor.horizontalSpeed < 0.1, null, { timeout: 5000 });
+  const p1 = await g(() => ({ ...window.__ascend.player.motor.position }));
+  const dashE = await g(() => window.__ascend.powers.energy.value);
+  check(Math.hypot(p1.x - p0.x, p1.z - p0.z) > 3, `Q ejecuta el dash (${Math.hypot(p1.x - p0.x, p1.z - p0.z).toFixed(1)} m)`);
+  check(dashE < 100, `El dash consume energía (${dashE.toFixed(0)})`);
+
+  // Prueba de alcance: 40 m impacta, 50 m no
+  await g(() => { window.__ascend.mapManager.resetEntities(); window.__ascend.powers.energy.refill(); });
+  for (const [dist, dz, expectHit] of [[40, 1, true], [50, 3.5, false]]) {
+    const tx = -80 + dist;
+    const tz = -79 + dz;
+    await g(([t, z]) => window.__place({ x: -80, y: 0.2, z: -79 }, { x: t, y: 1.6, z }), [tx, tz]);
+    await page.mouse.down();
+    await page.waitForTimeout(150);
+    await page.mouse.up();
+    await page.waitForTimeout(100);
+    // Espera a que todos los proyectiles impacten o caduquen (el render por software va más lento que el tiempo real).
+    await page.waitForFunction(() => window.__ascend.projectiles.list.length === 0, null, { timeout: 15000 });
+    const hits = await g(([t, z]) => window.__ascend.mapManager.current.entities.find((e) => e.hits !== undefined && Math.abs(e.center.x - t) < 0.1 && Math.abs(e.center.z - z) < 0.1).hits, [tx, tz]);
+    check(expectHit ? hits > 0 : hits === 0, `Alcance: diana a ${dist} m ${expectHit ? 'recibe' : 'no recibe'} impactos (${hits})`);
+  }
+
+  // Menú de depuración: desactivar la marca bloquea los poderes
+  await page.keyboard.press('F2');
+  await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'debug');
+  await page.screenshot({ path: path.join(out, 'powers-04-debug.png') });
+  await page.click('#screen-debug [data-action="dbg-mark"]');
+  const off = await g(() => window.__ascend.powers.available);
+  await page.click('#screen-debug [data-action="resume"]');
+  await page.waitForFunction(() => window.__ascend.state === 'playing');
+  const eOff0 = await g(() => window.__ascend.powers.energy.value);
+  await page.keyboard.press('KeyG');
+  await page.waitForTimeout(300);
+  const usedWhileOff = await g(() => window.__ascend.powers.abilities.wave.cooldown > 0);
+  check(!off && !(await page.isVisible('#hud-power')) && !usedWhileOff, 'Sin la marca de Energía no hay poderes ni HUD de energía');
+  check((await g(() => window.__ascend.powers.energy.value)) === eOff0, 'Sin la marca no se gasta energía');
+  await page.keyboard.press('F2');
+  await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'debug');
+  await page.click('#screen-debug [data-action="dbg-mark"]');
+  await page.click('#screen-debug [data-action="dbg-maxmarks"]');
+  await page.click('#screen-debug [data-action="dbg-teleport"][data-wp="F"]');
+  await page.waitForFunction(() => window.__ascend.state === 'playing');
+  await page.waitForTimeout(800);
+  check(await g(() => window.__ascend.powers.available && window.__ascend.marks.level > 0.9), 'Reactivar marca y "marcas al máximo" desde depuración');
+  await g(() => {
+    const cc = window.__ascend.cameraController;
+    cc.yaw = window.__ascend.player.facing;
+    cc.pitch = -0.1;
+  });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(out, 'powers-05-marks-zoneF.png') });
+  await page.keyboard.press('F2');
+  await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'debug');
+  await page.click('#screen-debug [data-action="dbg-maxmarks"]');
+  await page.click('#screen-debug [data-action="resume"]');
+  await page.waitForFunction(() => window.__ascend.state === 'playing');
 
   // Reiniciar mapa desde la pausa
   await page.evaluate(() => window.__ascend.player.motor.teleport({ x: 30, y: 0.3, z: 30 }));

@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { EventBus } from './EventBus.js';
 import { Input } from './Input.js';
 import { SaveSystem } from './SaveSystem.js';
@@ -8,13 +12,19 @@ import { PlayerController } from '../player/PlayerController.js';
 import { MapManager } from '../world/MapManager.js';
 import { followSun } from '../world/environment.js';
 import { UIManager } from '../ui/UIManager.js';
+import { CombatSystem } from '../combat/CombatSystem.js';
+import { VfxSystem } from '../vfx/VfxSystem.js';
+import { MarkSystem } from '../systems/MarkSystem.js';
+import { ProjectileSystem } from '../systems/ProjectileSystem.js';
+import { PowerSystem } from '../systems/PowerSystem.js';
 
 /**
  * GameManager — estado general del juego y bucle principal.
  *
  * Estados: 'menu' → 'playing' ⇄ 'paused' → 'menu'.
- * Los sistemas futuros (PowerSystem, CombatSystem, EnemyAI, MissionSystem…)
- * se registran con `addSystem` y reciben `update(dt, game)` mientras se juega.
+ * Orden de actualización por frame:
+ *   jugador → poderes → proyectiles → entidades del mapa → marcas → VFX → HUD
+ * Sistemas adicionales se registran con `addSystem` y reciben `update(dt, game)`.
  */
 export class GameManager {
   constructor({ canvas, maps }) {
@@ -37,6 +47,13 @@ export class GameManager {
     this.scene.background = new THREE.Color(0x05080d);
     this.camera = new THREE.PerspectiveCamera(this.save.settings.fov, 1, 0.1, 1200);
 
+    // Postproceso: bloom para que poderes y marcas brillen.
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.45, 0.82);
+    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(new OutputPass());
+
     // --- Sistemas compartidos por todos los mapas ---
     this.world = new CollisionWorld();
     this.input = new Input(canvas, this.save.data.bindings);
@@ -44,6 +61,12 @@ export class GameManager {
     this.player = new PlayerController({ input: this.input, camera: this.cameraController, world: this.world, events: this.events });
     this.scene.add(this.player.object3d);
     this.player.object3d.visible = false;
+
+    this.combat = new CombatSystem(this.events);
+    this.vfx = new VfxSystem(this.scene);
+    this.marks = new MarkSystem({ save: this.save, model: this.player.model, events: this.events });
+    this.projectiles = new ProjectileSystem({ scene: this.scene, world: this.world, combat: this.combat, vfx: this.vfx, events: this.events });
+    this.powers = new PowerSystem(this);
 
     this.mapManager = new MapManager({ scene: this.scene, world: this.world, events: this.events });
     for (const m of maps) this.mapManager.register(m);
@@ -77,13 +100,19 @@ export class GameManager {
     if (!def) return;
     this.input.clear();
     await this.ui.fade(`Cargando ${def.name}…`, () => {
-      const map = this.mapManager.load(id);
+      this._clearTransient();
+      const map = this.mapManager.load(id, { combat: this.combat });
       this.player.object3d.visible = true;
       this.player.spawn(map.spawn);
+      this.powers.resetAbilities();
+      this.powers.energy.refill();
+      this.marks.reset();
       if (map.sun) map.sun.castShadow = this.save.settings.shadows;
       this.ui.hideAll();
       this.ui.setHudVisible(true);
       this.ui.setMapName(def.name, def.description);
+      this.ui.setWaypoints(def.waypoints ?? []);
+      this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef);
       this.state = 'playing';
       this.save.data.lastMap = id;
       this.save.save();
@@ -101,6 +130,7 @@ export class GameManager {
   async returnToMenu() {
     this.input.exitPointerLock();
     await this.ui.fade('', () => {
+      this._clearTransient();
       this.mapManager.unload();
       this.player.object3d.visible = false;
       this.ui.setHudVisible(false);
@@ -109,13 +139,19 @@ export class GameManager {
     });
   }
 
-  pause() {
+  _clearTransient() {
+    this.projectiles.clear();
+    this.vfx.clear();
+    this.ui.clearFloaters();
+  }
+
+  pause(screen = 'pause') {
     if (this.state !== 'playing') return;
     this.state = 'paused';
     this._pausedAt = performance.now();
     this.input.clear();
     this.input.exitPointerLock();
-    this.ui.show('pause');
+    this.ui.show(screen);
   }
 
   resume() {
@@ -143,6 +179,12 @@ export class GameManager {
         } else if (this.state === 'menu' && this.ui.currentScreen !== 'menu') this.ui.show('menu');
         return;
       }
+      if (this.input.bindings.debugMenu.includes(e.code)) {
+        e.preventDefault();
+        if (this.state === 'playing') this._openDebug();
+        else if (this.state === 'paused' && this.ui.currentScreen === 'debug') this.resume();
+        return;
+      }
       if (this.state !== 'playing') return;
       if (e.code === 'KeyH') this.ui.toggleHint();
     });
@@ -150,6 +192,19 @@ export class GameManager {
       if (this.state === 'playing') this.input.requestPointerLock();
     });
     this.events.on('player:respawned', () => this.ui.toast('Reaparición', 'Has caído fuera del mapa', 1600));
+    this.events.on('combat:damage', (d) => this.ui.damageNumber(d.point, d.amount, d.killed, d.kind));
+    this.events.on('power:failed', (d) => this.ui.abilityFailed(d.id));
+    this.events.on('marks:changed', () => this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef));
+  }
+
+  _openDebug() {
+    this.ui.renderDebug(this._debugState());
+    this.pause('debug');
+  }
+
+  _debugState() {
+    const d = this.save.data.debug;
+    return { grantEnergy: d.grantEnergy, infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks };
   }
 
   _onUiAction(action, data) {
@@ -171,9 +226,42 @@ export class GameManager {
         window.close();
         this.ui.show('quit');
         break;
+      // --- Menú de depuración ---
+      case 'dbg-energy':
+        this.powers.energy.refill();
+        this.ui.toast('Energía restaurada', '', 1200);
+        break;
+      case 'dbg-infinite':
+        this.save.data.debug.infiniteEnergy = !this.save.data.debug.infiniteEnergy;
+        this.save.save();
+        break;
+      case 'dbg-mark':
+        this.marks.setDebugGrant('energia', !this.save.data.debug.grantEnergy);
+        this.powers.resetAbilities();
+        break;
+      case 'dbg-maxmarks':
+        this.save.data.debug.maxMarks = !this.save.data.debug.maxMarks;
+        this.save.save();
+        break;
+      case 'dbg-abilities':
+        this.powers.resetAbilities();
+        this.ui.toast('Habilidades reiniciadas', '', 1200);
+        break;
+      case 'dbg-scenario':
+        this._clearTransient();
+        this.mapManager.resetEntities();
+        this.ui.toast('Escenario reiniciado', '', 1200);
+        break;
+      case 'dbg-teleport': {
+        const wp = (this.mapManager.current?.def.waypoints ?? []).find((w) => w.id === data.wp);
+        if (wp) this.player.spawnAt(wp);
+        this.resume();
+        return;
+      }
       default:
         break;
     }
+    if (action.startsWith('dbg-') && this.ui.currentScreen === 'debug') this.ui.renderDebug(this._debugState());
   }
 
   _applySettings(s) {
@@ -192,8 +280,11 @@ export class GameManager {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.renderer.setSize(w, h, false);
+    this.composer.setSize(w, h);
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.vfx.setViewportHeight(h * this.renderer.getPixelRatio());
   }
 
   _frame() {
@@ -203,37 +294,61 @@ export class GameManager {
     if (this.state === 'playing') {
       if (this.input.wasPressed('debug')) this.ui.toggleDebug();
       this.player.update(dt);
+      this.powers.update(dt);
+      this.projectiles.update(dt);
+      this.mapManager.update(dt);
       for (const s of this.systems) s.update?.(dt, this);
+      this.marks.update(dt);
+      this.vfx.update(dt);
       const sun = this.mapManager.current?.sun;
       if (sun) followSun(sun, this.player.position);
-      this._updateHud();
+      this._updateHud(dt);
     }
 
     if (this.state === 'playing' || this.state === 'paused') {
-      this.renderer.render(this.scene, this.camera);
+      if (this.save.settings.bloom) this.composer.render(dt);
+      else this.renderer.render(this.scene, this.camera);
     } else {
       this.renderer.clear();
     }
     this.input.endFrame();
   }
 
-  _updateHud() {
+  _updateHud(dt) {
     const m = this.player.motor;
     const p = m.position;
     const v = m.velocity;
+    const pw = this.powers;
     this.ui.updateHud({
+      dt,
+      camera: this.camera,
       dodgeCooldown: m.dodgeCooldownRemaining,
       dodgeCooldownMax: m.cfg.dodgeCooldown + m.cfg.dodgeDuration,
       dodging: m.isDodging,
       sprinting: this.player.sprinting && m.horizontalSpeed > 6,
       pointerLocked: this.input.pointerLocked,
       fps: this._fps,
+      power: {
+        available: pw.available,
+        energy: pw.energy.value,
+        energyMax: pw.energy.max,
+        infinite: pw.energy.infinite,
+        aiming: this.player.aiming,
+        charge: pw.isCharging ? pw.chargeRatio : null,
+        abilities: Object.fromEntries(Object.entries(pw.abilities).map(([k, a]) => [k, {
+          cooldown: a.cooldownRatio, affordable: pw.energy.canSpend(a.def.cost),
+        }])),
+        dashing: m.isDashing,
+      },
       debugText: this.ui.debugVisible
         ? [
             `pos   ${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}`,
             `vel   ${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)}`,
             `vel h ${m.horizontalSpeed.toFixed(2)} m/s`,
             `suelo ${m.grounded ? 'sí' : 'no'}`,
+            `energ ${pw.energy.value.toFixed(1)} / ${pw.energy.max}`,
+            `marca ${this.marks.activeFamily ?? '—'} · intensidad ${this.marks.level.toFixed(2)}`,
+            `proy. ${this.projectiles.list.length} · partículas ${this.vfx.particles.count}`,
             `col.  ${this.world.boxes.length} cajas · ${this.world.ramps.length} rampas`,
             `draw  ${this.renderer.info.render.calls} llamadas · ${this.renderer.info.render.triangles} tri`,
           ].join('\n')

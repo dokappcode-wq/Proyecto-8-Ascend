@@ -5,9 +5,8 @@
  * el MarkSystem (Etapa 4) y el sistema visual de patrones (Etapa 2) puedan
  * incorporar nuevas marcas sin rehacer el modelo del personaje.
  *
- * Estado en la Etapa 1: solo se usan `destino.color` y `destino.symbol` para
- * dibujar la marca innata en la muñeca. Las habilidades de Energía aún NO
- * están implementadas; `abilities` es la lista prevista para la Etapa 2.
+ * `abilities` enumera la familia de habilidades. En la Etapa 2 Energía usa
+ * proyectil, dash, descarga y onda; la sobrecarga queda para más adelante.
  */
 export const MARKS = Object.freeze({
   destino: {
@@ -30,6 +29,8 @@ export const MARKS = Object.freeze({
     glowColor: '#9fd0ff',
     symbol: 'energia',
     abilities: ['proyectil', 'dash', 'descarga', 'onda', 'sobrecarga'],
-    bodyPattern: { regions: ['wrist', 'forearm', 'upperArm', 'shoulder', 'chest'] },
+    // Brazo derecho (el Destino conserva su marca en la izquierda). Las regiones
+    // se iluminan en orden según la intensidad del poder.
+    bodyPattern: { side: 'R', seed: 7, regions: ['wrist', 'forearm', 'upperArm', 'shoulder', 'chest'] },
   },
 });

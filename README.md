@@ -2,10 +2,13 @@
 
 > *Dos mundos. Un mismo destino.*
 
-Videojuego 3D de acción y aventura en tercera persona. Este repositorio contiene el
-**prototipo de la Etapa 1 (núcleo jugable)**: menú principal, dos mapas
-independientes (Campo de Pruebas y Distrito Cero) y un único controlador de
-personaje, cámara y físicas compartido por ambos.
+Videojuego 3D de acción y aventura en tercera persona. Estado actual:
+
+- **Etapa 1 — Núcleo jugable** ✅: menú, dos mapas (Campo de Pruebas y Distrito
+  Cero), controlador en tercera persona, cámara, físicas y colisiones.
+- **Etapa 2 — Energía** ✅: marca de Energía visible en el modelo, sistema de
+  energía, proyectil, dash, descarga concentrada, onda expansiva, efectos
+  visuales y zona de pruebas de poderes.
 
 ## Motor y por qué
 
@@ -43,15 +46,57 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Saltar | Espacio | ✅ |
 | Sprint | Shift | ✅ |
 | Esquivar | Ctrl o C | ✅ |
+| Proyectil energético | Clic izquierdo (mantener = ráfaga) | ✅ |
+| Apuntar | Clic derecho | ✅ |
+| Dash energético | Q | ✅ |
+| Descarga concentrada | R (mantener para cargar, soltar para lanzar) | ✅ |
+| Onda expansiva | G | ✅ |
 | Pausa | Esc | ✅ |
-| Ocultar ayuda / depuración | H / F3 | ✅ |
-| Ataque, apuntar, Q, R | Clic izq., clic der., Q, R | Etapa 2 |
+| Menú de depuración | F2 o º | ✅ |
+| Ocultar ayuda / datos técnicos | H / F3 | ✅ |
 | Cuerpo a cuerpo | F | Etapa 3 |
 | Interactuar, menú de poderes | E, Tab | Etapa 4 |
 
 La tecla **C** es alternativa a Ctrl porque algunos navegadores reservan
-combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña). Los controles se
-definen como acciones reasignables en `src/core/Input.js`.
+combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña). El documento de diseño
+no asignaba tecla a la onda expansiva; se ha elegido **G** (reasignable). Los
+controles se definen como acciones en `src/core/Input.js`.
+
+## Etapa 2 — Energía
+
+| Habilidad | Coste | Reutilización | Efecto |
+| --- | --- | --- | --- |
+| Proyectil | 4 | 0.2 s | 10 de daño, 60 m/s, alcance 45 m |
+| Dash | 15 | 1 s | ~4 m en 0.17 s, anula la caída; 1 por salto en el aire |
+| Descarga | 30 | 1.5 s | carga 0.35–1.4 s; 25–60 de daño + área de 2.5 m con retroceso |
+| Onda | 35 | 5 s | radio 7.5 m, 30 de daño con atenuación y retroceso radial |
+
+Energía: 100, se regenera 16/s tras 0.8 s sin gastar. Todos los valores están
+en `src/powers/energy/energyConfig.js`.
+
+**Marca de Energía**: símbolo azul en la muñeca derecha (la del Destino sigue en
+la izquierda). Al usar poderes aparecen patrones de circuito luminosos que se
+extienden por antebrazo, brazo, hombro y pecho según la intensidad, y se
+apagan progresivamente. El sistema (`MarkVisual`) se construye a partir de los
+datos de la marca, por lo que admite nuevas marcas sin tocar el modelo.
+
+**Adquisición**: la copia por contacto y voluntad es la Etapa 4. Mientras tanto,
+la marca de Energía está **concedida desde el menú de depuración** (activada
+por defecto) y puede desactivarse para comprobar que sin ella no hay poderes.
+
+**Campo de Pruebas**
+- Zona C — Poderes: 5 dianas a distintas alturas, 3 maniquíes con 100 de salud
+  (caen al neutralizarlos y se recuperan a los 4 s), cajas y barriles físicos y
+  una prueba de alcance con dianas a 10–50 m.
+- Zona F — Efectos visuales: nave oscura con maniquíes y diana para revisar
+  marcas, estelas, partículas y luces.
+
+**Menú de depuración (F2)**: restaurar energía, energía infinita, reiniciar
+habilidades, activar/desactivar la marca de Energía, marcas al máximo,
+reiniciar dianas y objetos, reiniciar mapa, teletransporte a cada zona y
+volver al menú. (Salud del jugador y enemigos: Etapa 3.)
+
+**Ajustes**: nueva opción de resplandor (bloom).
 
 ## Qué incluye la Etapa 1
 
@@ -86,22 +131,29 @@ límites físicos. **Todas las azoteas son accesibles** sin escalada:
 escaleras de incendios (B1, B5, B6), pasarelas entre azoteas y cadenas de
 contenedores y cajas (A1, A2).
 
-## Qué se ha probado realmente
+## Qué se ha probado realmente (Etapas 1 y 2)
 
-- `npm test` — 18 tests unitarios: gravedad, velocidades, altura de salto, muros,
-  túnel a alta velocidad, escalones, rampas (subir y bajar sin despegarse),
-  laterales de rampa, techos, *coyote time*, reaparición, enfriamiento de la
-  esquiva, raycast y sistema de guardado.
-- `npm run test:e2e` — en Chromium (render por software): carga del menú,
-  entrada en ambos mapas, movimiento con teclado real (W, Shift, Espacio, Ctrl),
-  pausa, volver al menú, reiniciar mapa, persistencia de ajustes tras recargar,
-  ausencia de errores en consola y **recorridos completos** con un bot que conduce
-  el mismo motor del juego: las 10 azoteas del Distrito Cero, rampas, escalera,
-  peldaños altos, ruta ascendente, torre y salto de 6 m del Campo de Pruebas.
-  Las capturas se guardan en `tests/e2e/output/`.
+- `npm test` — 29 tests unitarios: físicas (gravedad, velocidades, salto, muros,
+  túnel a alta velocidad, escalones, rampas, techos, *coyote time*,
+  reaparición, esquiva, dash, multiplicador de velocidad, raycast), guardado,
+  energía (gasto, regeneración, modo infinito), habilidades (coste y
+  reutilización), daño directo y de área, y proyectiles (impacto en muros finos,
+  alcance, límites invisibles).
+- `npm run test:e2e` — en Chromium (render por software), con teclado y ratón:
+  - Etapa 1: menú, ambos mapas, movimiento, sprint, salto, esquiva, pausa,
+    reinicio, ajustes persistentes y rutas completas (las 10 azoteas del
+    Distrito Cero y los recorridos del Campo de Pruebas).
+  - Etapa 2: el proyectil daña a un maniquí y consume energía, aparecen
+    indicadores de daño, la descarga cargada hace 60 de daño y muestra el anillo
+    de carga, la onda desplaza los objetos físicos y enciende los patrones de la
+    marca (que luego se apagan), el dash desplaza y consume energía, el alcance
+    es correcto (40 m impacta, 50 m no), sin la marca no hay poderes, el menú de
+    depuración funciona y los proyectiles funcionan también en Distrito Cero.
+  - Sin errores en consola. Capturas en `tests/e2e/output/`.
 
-**No probado**: rendimiento en GPU real (las pruebas usan SwiftShader) ni la
-sensación de control con ratón físico; conviene una sesión de juego manual.
+**No probado**: rendimiento en GPU real (las pruebas usan SwiftShader; el bloom
+añade coste, se puede desactivar en Ajustes) ni la sensación de control con
+ratón físico. Conviene una sesión de juego manual.
 
 ## Limitaciones conocidas
 
@@ -111,6 +163,9 @@ sensación de control con ratón físico; conviene una sesión de juego manual.
 - No hay límite de pendiente: cualquier rampa es transitable.
 - La cámara puede quedar dentro de la parte inferior de una pasarela si se
   mira desde muy abajo.
+- Sin sonido en los poderes (Etapa 7).
+- La rotación de los objetos físicos es solo visual (su colisión es una caja
+  alineada); la Sobrecarga y el árbol de mejoras llegan con la progresión.
 - *Salir* no puede cerrar una pestaña del navegador; muestra una pantalla de despedida.
 
 ## Estructura
