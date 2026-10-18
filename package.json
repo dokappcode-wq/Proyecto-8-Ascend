@@ -5,6 +5,7 @@
   "description": "ASCEND — prototipo de videojuego 3D de acción y aventura en tercera persona (Three.js)",
   "type": "module",
   "scripts": {
+    "start": "vite --open",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
