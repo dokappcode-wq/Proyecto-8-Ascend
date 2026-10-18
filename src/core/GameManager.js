@@ -340,6 +340,7 @@ export class GameManager {
         }])),
         dashing: m.isDashing || m.isTraveling,
         targeting: pw.isTargeting,
+        magazine: pw.magazine && { ammo: pw.magazine.ammo, size: pw.magazine.size, reloading: pw.magazine.reloading, progress: pw.magazine.reloadProgress },
         diving: pw.isDiving,
       },
       debugText: this.ui.debugVisible

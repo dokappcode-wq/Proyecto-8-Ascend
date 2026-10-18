@@ -96,7 +96,7 @@ try {
 
     // Esquiva (Ctrl)
     await page.keyboard.press('ControlLeft');
-    await page.waitForTimeout(100);
+    await page.waitForFunction(() => window.__ascend.player.motor.dodgeCooldownRemaining > 0, null, { timeout: 5000 }).catch(() => {});
     const cd = await page.evaluate(() => window.__ascend.player.motor.dodgeCooldownRemaining);
     check(cd > 0, `Ctrl activa la esquiva (enfriamiento ${cd.toFixed(2)} s)`);
 
@@ -108,9 +108,8 @@ try {
     });
     const eBefore = await page.evaluate(() => window.__ascend.powers.energy.value);
     await page.mouse.down();
-    await page.waitForTimeout(100);
+    await page.waitForFunction((e0) => window.__ascend.powers.energy.value < e0, eBefore, { timeout: 5000 }).catch(() => {});
     await page.mouse.up();
-    await page.waitForTimeout(100);
     await page.waitForFunction(() => window.__ascend.projectiles.list.length === 0, null, { timeout: 15000 });
     const eAfter = await page.evaluate(() => window.__ascend.powers.energy.value);
     check(eAfter < eBefore, `Proyectil disparado en ${mapId} (energía ${eBefore.toFixed(0)} → ${eAfter.toFixed(0)})`);
@@ -279,6 +278,37 @@ try {
   const floaters = await g(() => document.querySelectorAll('#hud-floaters .floater').length);
   await page.screenshot({ path: path.join(out, 'powers-01-projectile.png') });
   check(floaters > 0, `Indicadores de daño en pantalla (${floaters})`);
+
+  // Cargador: 10 disparos, recarga automática con animación y vuelta a 10
+  await g(() => {
+    const a = window.__ascend;
+    a.mapManager.resetEntities();
+    a.powers.resetAbilities();
+    a.powers.energy.refill();
+    window.__shots = 0;
+    a.events.on('power:used', (e) => { if (e.id === 'proyectil') window.__shots++; });
+  });
+  await g(() => window.__place({ x: -36, y: 0.2, z: -50 }, { x: -36, y: 1.2, z: -58 }));
+  await page.waitForFunction(() => document.getElementById('hud-ammo').textContent === '10/10', null, { timeout: 5000 }).catch(() => {});
+  check((await g(() => document.getElementById('hud-ammo').textContent)) === '10/10', 'El HUD muestra el cargador lleno (10/10)');
+  await page.mouse.down();
+  await page.waitForFunction(() => window.__ascend.powers.magazine.reloading, null, { timeout: 20000 }).catch(() => {});
+  await page.waitForFunction(() => window.__ascend.player.model._reloadW > 0.3 && /recargando/i.test(document.getElementById('hud-ammo').textContent), null, { timeout: 5000 }).catch(() => {});
+  const mag = await g(() => ({
+    shots: window.__shots, reloading: window.__ascend.powers.magazine.reloading,
+    hud: document.getElementById('hud-ammo').textContent, pose: window.__ascend.player.model._reloadW,
+  }));
+  await page.screenshot({ path: path.join(out, 'powers-09-reload.png') });
+  await page.waitForTimeout(250);
+  const shotsDuring = await g(() => window.__shots);
+  await page.mouse.up();
+  check(mag.shots === 10 && mag.reloading, `Se disparan 10 proyectiles y empieza la recarga (${mag.shots} disparos)`);
+  check(shotsDuring === 10, 'No se dispara mientras recarga, aunque se mantenga el clic');
+  check(/recargando/i.test(mag.hud) && mag.pose > 0.3, `Animación e indicador de recarga ("${mag.hud}", pose ${mag.pose.toFixed(2)})`);
+  await page.waitForFunction(() => !window.__ascend.powers.magazine.reloading, null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  const after10 = await g(() => ({ ammo: window.__ascend.powers.magazine.ammo, hud: document.getElementById('hud-ammo').textContent }));
+  check(after10.ammo === 10 && after10.hud === '10/10', `Tras recargar el cargador vuelve a 10 (${after10.hud})`);
 
   // Descarga concentrada: mantener R y soltar
   await g(() => window.__ascend.mapManager.resetEntities());

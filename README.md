@@ -68,12 +68,16 @@ controles se definen como acciones en `src/core/Input.js`.
 
 | Habilidad | Coste | Reutilización | Efecto |
 | --- | --- | --- | --- |
-| Proyectil | 4 | 0.2 s | 10 de daño, 60 m/s, alcance 45 m |
+| Proyectil | 4 | 0.2 s | 10 de daño, 60 m/s, alcance 45 m. **Cargador de 10**: al vaciarse recarga sola en 1.3 s (animación de manos cargando energía, aviso «Recargando» junto a la mira) |
 | Dash | 15 | 1 s | ~4 m en 0.17 s, anula la caída; 1 por salto en el aire |
 | Dash dirigido | 25 | 1 s (compartido con el dash) | apuntando, mantener Q muestra una silueta del personaje en el destino (máx. 20 m); al soltar se desplaza allí, también hacia arriba (azoteas). Se detiene antes de un obstáculo |
 | Descarga | 30 | 1.5 s | carga 0.35–1.4 s; 25–60 de daño + área de 2.5 m con retroceso |
 | Onda | 35 | 5 s | radio 7.5 m, 30 de daño con atenuación y retroceso radial |
 | Caída en rayo | 35 | 5 s (compartido con la onda) | G en el aire: cae en vertical como un rayo y explota al tocar suelo. Radio 6–11 m y daño 40–80 según la altura. El aterrizaje es inmune al daño por caída |
+
+El cargador (`src/powers/Magazine.js`) es genérico: cualquier habilidad o arma
+de proyectiles lo activa con `magazineSize` y `reloadTime` en su configuración
+(los enemigos de la Etapa 3 lo reutilizarán).
 
 Energía: 100, se regenera 16/s tras 0.8 s sin gastar. Todos los valores están
 en `src/powers/energy/energyConfig.js`.
@@ -137,11 +141,11 @@ contenedores y cajas (A1, A2).
 
 ## Qué se ha probado realmente (Etapas 1 y 2)
 
-- `npm test` — 34 tests unitarios: físicas (gravedad, velocidades, salto, muros,
+- `npm test` — 36 tests unitarios: físicas (gravedad, velocidades, salto, muros,
   túnel a alta velocidad, escalones, rampas, techos, *coyote time*,
   reaparición, esquiva corta, dash, caída en picado, desplazamiento dirigido,
   multiplicador de velocidad, raycast), guardado,
-  energía (gasto, regeneración, modo infinito), habilidades (coste y
+  energía (gasto, regeneración, modo infinito), cargador y recarga, habilidades (coste y
   reutilización), daño directo y de área, y proyectiles (impacto en muros finos,
   alcance, límites invisibles).
 - `npm run test:e2e` — en Chromium (render por software), con teclado y ratón:
@@ -157,7 +161,8 @@ contenedores y cajas (A1, A2).
   - Ajustes posteriores: la esquiva normal recorre ≈2 m; G en el aire cae en
     vertical, explota, daña a los maniquíes y el aterrizaje es inmune; apuntar
     + mantener Q muestra la silueta en el punto señalado, al soltar se desplaza
-    allí y la distancia se limita a 20 m.
+    allí y la distancia se limita a 20 m; el proyectil dispara 10 veces, recarga
+    con animación (sin disparar mientras tanto) y vuelve a 10/10.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
 
 **No probado**: rendimiento en GPU real (las pruebas usan SwiftShader; el bloom

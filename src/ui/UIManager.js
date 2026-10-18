@@ -63,6 +63,7 @@ export class UIManager {
       crosshair: this.$('hud-crosshair'),
       charge: this.$('hud-charge'),
       hit: this.$('hud-hit'),
+      ammo: this.$('hud-ammo'),
       power: this.$('hud-power'),
       powerName: this.$('hud-power-name'),
       powerIcon: this.$('hud-power-icon'),
@@ -242,9 +243,9 @@ export class UIManager {
     for (const s of ABILITY_SLOTS) {
       const el = document.createElement('div');
       el.className = `ability${s.power ? ' power' : ''}`;
-      el.innerHTML = `<span class="key"></span><span class="name">${s.name}</span><div class="cooldown"></div>`;
+      el.innerHTML = `<span class="key"></span><span class="name">${s.name}</span><span class="ammo"></span><div class="cooldown"></div>`;
       root.appendChild(el);
-      this._slots[s.id] = { el, cd: el.querySelector('.cooldown'), key: el.querySelector('.key'), def: s };
+      this._slots[s.id] = { el, cd: el.querySelector('.cooldown'), key: el.querySelector('.key'), ammo: el.querySelector('.ammo'), def: s };
     }
     this._refreshSlotKeys();
   }
@@ -288,10 +289,27 @@ export class UIManager {
         sl.discharge.el.classList.toggle('active', power.charge !== null);
         this.hud.crosshair.classList.toggle('aiming', power.aiming);
         const ch = this.hud.charge;
-        ch.classList.toggle('show', power.charge !== null);
-        if (power.charge !== null) {
-          ch.style.setProperty('--p', power.charge.toFixed(3));
-          ch.classList.toggle('full', power.charge >= 1);
+        const mag = power.magazine;
+        const reloading = !!mag?.reloading;
+        // El anillo muestra la carga de la descarga o el progreso de la recarga.
+        const ring = power.charge !== null ? power.charge : reloading ? mag.progress : null;
+        ch.classList.toggle('show', ring !== null);
+        ch.classList.toggle('reload', reloading && power.charge === null);
+        if (ring !== null) {
+          ch.style.setProperty('--p', ring.toFixed(3));
+          ch.classList.toggle('full', power.charge !== null && power.charge >= 1);
+        }
+        if (mag) {
+          const low = !reloading && mag.ammo <= Math.ceil(mag.size * 0.3);
+          this.hud.ammo.textContent = reloading ? 'Recargando' : `${mag.ammo}/${mag.size}`;
+          this.hud.ammo.classList.toggle('low', low);
+          this.hud.ammo.classList.toggle('reloading', reloading);
+          sl.projectile.ammo.textContent = reloading ? '···' : `${mag.ammo}/${mag.size}`;
+          if (reloading) sl.projectile.cd.style.transform = `scaleY(${1 - mag.progress})`;
+          sl.projectile.el.classList.toggle('reloading', reloading);
+        } else {
+          this.hud.ammo.textContent = '';
+          sl.projectile.ammo.textContent = '';
         }
       }
     }

@@ -156,3 +156,13 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 .dbg-state { font-size: 12px; padding: 1px 6px; border: 1px solid var(--line); }
 .dbg-state.on { color: #5fd38a; border-color: #5fd38a; }
 .dbg-state.off { color: #e5533d; border-color: #e5533d; }
+
+/* Cargador */
+.ch-ammo { position: absolute; left: 34px; top: 50%; transform: translateY(-50%); font-size: 14px; font-weight: 600; letter-spacing: .08em; color: rgba(255,255,255,.85); text-shadow: 0 1px 4px rgba(0,0,0,.9); white-space: nowrap; }
+.ch-ammo.low { color: #f2c45a; }
+.ch-ammo.reloading { color: var(--energy-glow); text-transform: uppercase; font-size: 12px; letter-spacing: .18em; animation: blink .5s infinite alternate; }
+@keyframes blink { to { opacity: .45; } }
+.ch-charge.reload { background: conic-gradient(rgba(242,196,90,.9) calc(var(--p) * 1turn), rgba(255,255,255,.12) 0); }
+.ability .ammo { font-size: 11px; color: var(--energy-glow); line-height: 1; }
+.ability .ammo:empty { display: none; }
+.ability.reloading { border-color: rgba(242,196,90,.6); }

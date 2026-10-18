@@ -9,6 +9,8 @@ export const ENERGY_CONFIG = Object.freeze({
     id: 'proyectil', name: 'Proyectil energético', action: 'attack',
     cost: 4, cooldown: 0.2,
     damage: 10, speed: 60, range: 45, radius: 0.12,
+    // Cargador: 10 disparos y recarga automática al vaciarse.
+    magazineSize: 10, reloadTime: 1.3,
   },
   dash: {
     id: 'dash', name: 'Dash energético', action: 'special',

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { EnergyPool } from '../powers/EnergyPool.js';
 import { Ability } from '../powers/Ability.js';
+import { Magazine } from '../powers/Magazine.js';
 import { ENERGY_CONFIG as CFG } from '../powers/energy/energyConfig.js';
 import { glowSprite } from '../vfx/glowTexture.js';
 
@@ -22,6 +23,10 @@ export class PowerSystem {
       discharge: new Ability(CFG.discharge),
       wave: new Ability(CFG.wave),
     };
+    // Todas las habilidades de proyectiles con cargador lo declaran en su configuración.
+    for (const a of Object.values(this.abilities)) {
+      if (a.def.magazineSize) a.magazine = new Magazine({ size: a.def.magazineSize, reloadTime: a.def.reloadTime });
+    }
     this.charge = null; // { time }
     this.targeting = null; // dash dirigido: { feet: Vector3 } mientras se mantiene Q apuntando
     this.dive = null; // { last: Vector3 } durante la caída en rayo
@@ -94,7 +99,11 @@ export class PowerSystem {
 
   /** Reinicia tiempos de reutilización y cargas (depuración / cambio de mapa). */
   resetAbilities() {
-    for (const a of Object.values(this.abilities)) a.reset();
+    for (const a of Object.values(this.abilities)) {
+      a.reset();
+      a.magazine?.refill();
+    }
+    this.game.player?.model.setReload(null);
     this._cancelCharge();
     this._cancelTargeting();
     this.dive = null;
@@ -110,6 +119,7 @@ export class PowerSystem {
     this.energy.infinite = !!g.save.data.debug?.infiniteEnergy;
     this.energy.update(dt);
     for (const a of Object.values(this.abilities)) a.tick(dt);
+    this._updateMagazines(dt);
     if (motor.grounded) this._airDashes = 0;
 
     // El picado termina aunque se pierda la marca en pleno vuelo.
@@ -366,10 +376,53 @@ export class PowerSystem {
     return { x: dir.x, y: dir.y, z: dir.z };
   }
 
+  /** Cargador del proyectil básico (para el HUD). */
+  get magazine() {
+    return this.abilities.projectile.magazine ?? null;
+  }
+
+  _updateMagazines(dt) {
+    const g = this.game;
+    for (const a of Object.values(this.abilities)) {
+      const mag = a.magazine;
+      if (!mag) continue;
+      const done = mag.update(dt);
+      if (mag.reloading) {
+        g.player.model.setReload(mag.reloadProgress);
+        // Energía que converge en las manos mientras recarga
+        if (this.available && Math.random() < 0.7) {
+          const hand = this._handPosition();
+          const ang = Math.random() * Math.PI * 2;
+          const R = 0.5;
+          const px = hand.x + Math.cos(ang) * R;
+          const pz = hand.z + Math.sin(ang) * R;
+          const py = hand.y + (Math.random() - 0.3) * R;
+          g.vfx.particles.emit({ x: px, y: py, z: pz, vx: (hand.x - px) * 4, vy: (hand.y - py) * 4, vz: (hand.z - pz) * 4, color: new THREE.Color(this.color), size: 0.07, life: 0.25, drag: 0 });
+        }
+        if (this.available) g.marks.sustain(0.2 + 0.25 * mag.reloadProgress);
+      }
+      if (done) {
+        g.player.model.setReload(null);
+        if (this.available) {
+          const hand = this._handPosition();
+          g.vfx.particles.burst(hand, { count: 14, speed: 3, color: new THREE.Color(this.color), size: 0.1, life: 0.25 });
+          g.vfx.lights.flash(hand, this.color, 12, 5, 0.2);
+          g.marks.pulse(0.45, 0.1);
+        }
+        g.events.emit('power:reloaded', { id: a.id });
+      }
+    }
+  }
+
   _fireProjectile() {
     const a = this.abilities.projectile;
     if (!a.ready) return;
+    if (a.magazine && !a.magazine.canFire) return; // recargando
     if (!a.commit(this.energy)) return this._fail('projectile');
+    if (a.magazine) {
+      a.magazine.consume();
+      if (a.magazine.reloading) this.game.events.emit('power:reloading', { id: a.id });
+    }
     const g = this.game;
     g.player.faceAim(0.6);
     g.player.updateModelMatrices();

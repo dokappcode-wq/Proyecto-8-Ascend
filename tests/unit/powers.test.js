@@ -215,3 +215,25 @@ test('el desplazamiento dirigido se detiene contra un muro', () => {
   assert.ok(ended && ended.blocked);
   assert.ok(m.position.z < 4);
 });
+
+import { Magazine } from '../../src/powers/Magazine.js';
+
+test('el cargador permite N disparos, recarga y vuelve a estar lleno', () => {
+  const m = new Magazine({ size: 10, reloadTime: 1.2 });
+  for (let i = 0; i < 10; i++) assert.ok(m.consume(), `disparo ${i + 1}`);
+  assert.equal(m.ammo, 0);
+  assert.ok(m.reloading, 'empieza a recargar al vaciarse');
+  assert.ok(!m.consume(), 'no dispara mientras recarga');
+  assert.equal(m.update(0.6), false);
+  assert.ok(Math.abs(m.reloadProgress - 0.5) < 1e-9);
+  assert.equal(m.update(0.7), true, 'termina la recarga');
+  assert.equal(m.ammo, 10);
+  assert.ok(m.canFire);
+});
+
+test('no se recarga un cargador lleno', () => {
+  const m = new Magazine({ size: 5, reloadTime: 1 });
+  assert.ok(!m.startReload());
+  m.consume();
+  assert.ok(m.startReload());
+});

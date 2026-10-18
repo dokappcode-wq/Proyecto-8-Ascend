@@ -26,6 +26,8 @@ export class CharacterModel {
     this._cast = 0;
     this._waveT = 0;
     this._dive = 0;
+    this._reload = null; // progreso 0..1 de la recarga, o null
+    this._reloadW = 0;
     this._build();
   }
 
@@ -199,6 +201,11 @@ export class CharacterModel {
     this.destinoMark = { plane: mark, band };
   }
 
+  /** Pose de recarga: las manos se juntan ante el pecho mientras se carga energía. */
+  setReload(progress) {
+    this._reload = progress;
+  }
+
   /** Gestos breves: 'cast' (retroceso del brazo al disparar) y 'wave' (onda expansiva). */
   trigger(kind) {
     if (kind === 'cast') this._cast = 1;
@@ -264,6 +271,24 @@ export class CharacterModel {
       A.L.shoulder.rotation.x -= 0.3 * e;
       A.R.shoulder.rotation.x -= 0.3 * e;
       this._land = Math.max(this._land, 0.5 * e);
+    }
+
+    // Recarga: manos juntas delante del pecho, con un giro de muñeca al terminar
+    this._reloadW += ((this._reload !== null ? 1 : 0) - this._reloadW) * k(16);
+    if (this._reloadW > 0.001) {
+      const wR = this._reloadW;
+      const p = this._reload ?? 1;
+      const pump = Math.sin(p * Math.PI * 3) * 0.12;
+      const mix = (obj, axis, v) => (obj.rotation[axis] += (v - obj.rotation[axis]) * wR);
+      mix(A.R.shoulder, 'x', -0.95 + pump);
+      mix(A.R.shoulder, 'z', 0.35);
+      mix(A.R.elbow, 'x', -1.45);
+      mix(A.L.shoulder, 'x', -0.75 - pump);
+      mix(A.L.shoulder, 'z', -0.3);
+      mix(A.L.elbow, 'x', -1.3);
+      this.arms.R.wrist.rotation.y = wR * (p > 0.8 ? (p - 0.8) * 10 : 0);
+    } else {
+      this.arms.R.wrist.rotation.y = 0;
     }
 
     // Picado en rayo: cuerpo recto, piernas juntas, puño derecho hacia abajo
