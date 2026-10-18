@@ -8,7 +8,7 @@ import { PROGRESSION } from '../data/progression.js';
 
 const DEFAULT_MODS = Object.freeze({
   magazineBonus: 0, reloadMul: 1, fullCharge: null, waveRadiusAdd: 0, waveDamageAdd: 0,
-  dashCostSub: 0, targetedRangeAdd: 0, regenMul: 1,
+  dashCostSub: 0, targetedRangeAdd: 0, drainMul: 1,
 });
 
 export class Progression {

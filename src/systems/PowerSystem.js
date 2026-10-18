@@ -95,7 +95,7 @@ export class PowerSystem {
     c.dash.cost = Math.max(0, c.dash.cost - m.dashCostSub);
     c.dash.targetedCost = Math.max(0, c.dash.targetedCost - m.dashCostSub);
     c.dash.targetedMaxDistance += m.targetedRangeAdd;
-    c.pool.regenPerSecond *= m.regenMul;
+    c.drain.rate *= m.drainMul;
     this.cfg = c;
     this.abilities.projectile.def = c.projectile;
     this.abilities.dash.def = c.dash;
@@ -164,7 +164,7 @@ export class PowerSystem {
     // El picado termina aunque se pierda la marca en pleno vuelo.
     if (this.dive) this._updateDive();
 
-    if (!this.available || g.playerCombat?.dead || g.acquisition?.active) {
+    if (!this.available || g.playerCombat?.dead || g.acquisition?.active || g.drain?.active) {
       this._cancelCharge();
       this._cancelTargeting();
       player.aiming = false;

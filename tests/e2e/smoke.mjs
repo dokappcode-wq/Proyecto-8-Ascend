@@ -111,11 +111,13 @@ try {
   await page.waitForTimeout(300);
   const got = await q(() => ({
     owned: window.__ascend.save.data.profile.marks.includes('energia'), av: window.__ascend.powers.available,
-    npcGlow: window.__ascend.mapManager.current.entities.find((e) => e.source)?.mark.intensity,
+    npcPower: window.__ascend.mapManager.current.entities.find((e) => e.source)?.hasPower,
+    npcFx: (() => { let n = 0; window.__ascend.mapManager.current.entities.find((e) => e.source)?.model.root.traverse((o) => { if (o.isLight || o.isPoints) n++; }); return n; })(),
     toast: document.getElementById('hud-toast').textContent,
   }));
   check(got.owned && got.av && (await page.isVisible('#hud-power')), 'Mantener E completa la voluntad: marca de Energía adquirida y poderes disponibles');
-  check(got.npcGlow > 0.2, `Regla IV: la Encarnación conserva su marca y su poder (intensidad ${got.npcGlow?.toFixed(2)})`);
+  check(got.npcPower === true, 'Regla IV: la Encarnación conserva su marca y su poder');
+  check(got.npcFx === 0, `La Encarnación parece una persona normal: sin luces ni aura (${got.npcFx})`);
   await page.screenshot({ path: path.join(out, 'marks-02-acquired.png') });
   await page.keyboard.press('KeyE');
   await page.waitForTimeout(300);
@@ -398,6 +400,8 @@ try {
   await g(() => window.__place({ x: -36, y: 0.2, z: -50 }, { x: -36, y: 1.2, z: -58 }));
   await page.waitForFunction(() => document.getElementById('hud-ammo').textContent === '10/10', null, { timeout: 5000 }).catch(() => {});
   check((await g(() => document.getElementById('hud-ammo').textContent)) === '10/10', 'El HUD muestra el cargador lleno (10/10)');
+  const icons = await g(() => ({ n: document.querySelectorAll('#hud-ammo-icons .ammo-icon').length, spent: document.querySelectorAll('#hud-ammo-icons .ammo-icon.spent').length }));
+  check(icons.n === 10 && icons.spent === 0, `Munición elemental con un símbolo por disparo (${icons.n}, gastados ${icons.spent})`);
   await page.mouse.down();
   await page.waitForFunction(() => window.__ascend.powers.magazine.reloading, null, { timeout: 20000 }).catch(() => {});
   await page.waitForFunction(() => window.__ascend.player.model._reloadW > 0.3 && /recargando/i.test(document.getElementById('hud-ammo').textContent), null, { timeout: 5000 }).catch(() => {});
@@ -416,6 +420,26 @@ try {
   await page.waitForTimeout(200);
   const after10 = await g(() => ({ ammo: window.__ascend.powers.magazine.ammo, hud: document.getElementById('hud-ammo').textContent }));
   check(after10.ammo === 10 && after10.hud === '10/10', `Tras recargar el cargador vuelve a 10 (${after10.hud})`);
+
+  // Sin regeneración pasiva; se recarga absorbiendo de fuentes del entorno (mantener E)
+  await g(() => { window.__ascend.powers.energy.value = 30; });
+  await page.waitForTimeout(2500);
+  const eIdle = await g(() => window.__ascend.powers.energy.value);
+  check(eIdle === 30, `La energía no se recarga sola (${eIdle.toFixed(0)})`);
+  await g(() => window.__ascend.player.spawnAt({ x: 5.2, y: 0.3, z: 18, yaw: Math.PI / 2 }));
+  await page.waitForFunction(() => /absorber/i.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  check(/absorber/i.test(await g(() => document.getElementById('hud-prompt').textContent)), 'Junto al armario eléctrico aparece «Mantén E: absorber energía»');
+  const src0 = await g(() => window.__ascend.drain.sources.find((s) => Math.abs(s.position.x - 6.5) < 0.1 && Math.abs(s.position.z - 18) < 0.1).reserve.value);
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.powers.energy.value > 70, null, { timeout: 15000 }).catch(() => {});
+  await page.screenshot({ path: path.join(out, 'powers-10-drain.png') });
+  await page.keyboard.up('KeyE');
+  await page.waitForTimeout(300);
+  const drained = await g(() => ({
+    e: window.__ascend.powers.energy.value, active: !!window.__ascend.drain.active,
+    src: window.__ascend.drain.sources.find((s) => Math.abs(s.position.x - 6.5) < 0.1 && Math.abs(s.position.z - 18) < 0.1).reserve.value,
+  }));
+  check(drained.e > 70 && drained.src < src0 && !drained.active, `Absorber de un armario recarga la energía y vacía su reserva (${drained.e.toFixed(0)}, reserva ${src0.toFixed(0)} → ${drained.src.toFixed(0)})`);
 
   // Descarga concentrada: mantener R y soltar
   await g(() => window.__ascend.mapManager.resetEntities());
@@ -467,7 +491,7 @@ try {
   const p1 = await g(() => ({ ...window.__ascend.player.motor.position }));
   const dashE = await g(() => window.__ascend.powers.energy.value);
   check(Math.hypot(p1.x - p0.x, p1.z - p0.z) > 3, `Q ejecuta el dash (${Math.hypot(p1.x - p0.x, p1.z - p0.z).toFixed(1)} m)`);
-  check(dashE < 100, `El dash consume energía (${dashE.toFixed(0)})`);
+  check(dashE < (await g(() => window.__ascend.powers.energy.max)), `El dash consume energía (${dashE.toFixed(0)})`);
 
   // Esquiva normal: distancia corta
   await g(() => window.__ascend.player.spawnAt({ x: 0, y: 0.3, z: 18, yaw: Math.PI }));

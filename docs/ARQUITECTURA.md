@@ -39,7 +39,8 @@ src/
 │   ├── acquisition.js          Reglas de adquisición de marcas (sin Three.js)
 │   ├── Progression.js          Experiencia, niveles, puntos y mejoras por marca
 │   ├── Magazine.js             Cargador genérico
-│   ├── EnergyPool.js           Recurso de energía con regeneración
+│   ├── EnergyPool.js           Recurso de energía (sin regeneración en Energía)
+│   ├── EnergyReserve.js        Reserva de una fuente del entorno (se agota y se recupera)
 │   ├── Ability.js              Coste y tiempo de reutilización de una habilidad
 │   └── energy/energyConfig.js  Parámetros de la familia Energía
 ├── systems/
@@ -47,7 +48,8 @@ src/
 │   ├── ProjectileSystem.js     Proyectiles: movimiento, impacto, daño, efectos
 │   ├── EnemySystem.js          Alta/baja de enemigos, ruido, separación de personajes
 │   ├── PlayerCombat.js         Salud del jugador, caídas, golpe, muerte y reaparición
-│   ├── InteractionSystem.js    Interacción con E (consolas, Encarnaciones)
+│   ├── InteractionSystem.js    Interacción con E (consolas, Encarnaciones, fuentes)
+│   ├── EnergyDrainSystem.js    Absorción de energía de farolas, armarios y máquinas
 │   └── PowerAcquisitionSystem.js  Contacto → voluntad → copia de marcas
 │   ├── MarkSystem.js           Marcas poseídas e intensidad de sus patrones
 ├── vfx/
@@ -55,7 +57,7 @@ src/
 │   ├── ParticleSystem.js       Partículas aditivas (una sola llamada de dibujo)
 │   ├── LightPool.js            Luces puntuales reutilizables (sin recompilar shaders)
 │   └── glowTexture.js          Halos
-├── world/entities/             Dianas, maniquíes, objetos físicos y Encarnación de prueba
+├── world/entities/             Dianas, maniquíes, objetos físicos, fuentes de energía y Encarnación de prueba
 ├── data/marks.js               Definiciones de marcas (datos configurables)
 ├── data/progression.js         Árboles de habilidades por marca
 └── ui/
@@ -145,7 +147,7 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   `CharacterMotor` que el jugador (pasos fijos, colisiones, escalones). El
   arma usa `Magazine` y `ProjectileSystem`.
 - **Orden por frame**: jugador → combate del jugador → poderes →
-  interacciones → enemigos → proyectiles → entidades → marcas → VFX → HUD.
+  interacciones → adquisición → absorción → enemigos → proyectiles → entidades → marcas → VFX → HUD.
 
 ## Marcas (Etapa 4)
 
@@ -163,3 +165,15 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   personaje agachado; el `CharacterMotor` reduce su altura al agacharse y el
   `PlayerCombat.capsule()` la expone, de modo que la visión y la puntería de
   los enemigos respetan la cobertura sin código específico.
+
+## Recarga desde el entorno
+
+- `EnergyPool` ya no se regenera en la familia Energía (`regenPerSecond: 0`);
+  `add()` suma energía con tope.
+- Cada `EnergySource` (farola, armario eléctrico, máquina expendedora) tiene
+  una `EnergyReserve` y se registra con `services.energySources.register()`
+  desde el mapa. `EnergyDrainSystem` la expone a `InteractionSystem` como
+  interacción mantenida: mientras E siga pulsada y el jugador esté en rango,
+  transfiere `drain.rate` por segundo de la reserva a la energía, orienta al
+  personaje hacia la fuente y emite `energy:drain-start` / `energy:drain-stop`.
+- La mejora «Absorción rápida» multiplica `drain.rate` (`drainMul`).

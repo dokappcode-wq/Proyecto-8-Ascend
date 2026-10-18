@@ -37,7 +37,7 @@ export class InteractionSystem {
     let best = null;
     let bestD = Infinity;
     if (!g.playerCombat.dead) {
-      if (g.acquisition?.active) return; // el sistema de adquisición gestiona su propio aviso
+      if (g.acquisition?.active || g.drain?.active) return; // gestionan su propio aviso
       for (const it of this.list) {
         if (it.enabled && !it.enabled()) continue;
         const pos = it.getPosition ? it.getPosition() : it.position;

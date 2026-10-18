@@ -21,6 +21,7 @@ import { EnemySystem } from '../systems/EnemySystem.js';
 import { PlayerCombat } from '../systems/PlayerCombat.js';
 import { InteractionSystem } from '../systems/InteractionSystem.js';
 import { PowerAcquisitionSystem } from '../systems/PowerAcquisitionSystem.js';
+import { EnergyDrainSystem } from '../systems/EnergyDrainSystem.js';
 import { Progression } from '../powers/Progression.js';
 import { PROGRESSION } from '../data/progression.js';
 
@@ -89,6 +90,7 @@ export class GameManager {
 
     this.interactions = new InteractionSystem(this);
     this.acquisition = new PowerAcquisitionSystem(this);
+    this.drain = new EnergyDrainSystem(this);
     this.progression = new Progression(this.save.data.profile);
     this.powers.applyModifiers(this.progression.modifiers('energia'));
 
@@ -119,7 +121,7 @@ export class GameManager {
       this.playerCombat.restore();
       this.player.model.root.rotation.x = 0;
       this.acquisition.cancel();
-      const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx });
+      const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain });
       this.playerCombat.attach();
       this.player.object3d.visible = true;
       this.player.spawn(map.spawn);
@@ -163,6 +165,7 @@ export class GameManager {
   }
 
   _clearTransient() {
+    this.drain.clear();
     this.enemies.clear();
     this.interactions.clear();
     this.projectiles.clear();
@@ -240,7 +243,15 @@ export class GameManager {
       if (d.killed && d.target?.maxHealth && d.faction === 'player') this._awardXp('dummy');
     });
     this.events.on('marks:changed', () => this.powers.applyModifiers(this.progression.modifiers('energia')));
-    this.events.on('power:failed', (d) => this.ui.abilityFailed(d.id));
+    this.events.on('power:failed', (d) => {
+      this.ui.abilityFailed(d.id);
+      // Sin regeneración pasiva: recuerda cómo recargar (como mucho cada 8 s)
+      const now = performance.now();
+      if (this.powers.energy.value < 30 && now - (this._lowEnergyHint ?? -1e9) > 8000) {
+        this._lowEnergyHint = now;
+        this.ui.toast('Sin energía', 'Absórbela de farolas, armarios eléctricos o máquinas expendedoras (mantén E)', 3200);
+      }
+    });
     this.events.on('marks:changed', () => this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef));
   }
 
@@ -427,12 +438,13 @@ export class GameManager {
 
     if (this.state === 'playing') {
       if (this.input.wasPressed('debug')) this.ui.toggleDebug();
-      this.player.disabled = this.playerCombat.dead || this.acquisition.active;
+      this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active;
       this.player.update(dt);
       this.playerCombat.update(dt);
       this.powers.update(dt);
       this.interactions.update(dt);
       this.acquisition.update(dt);
+      this.drain.update(dt);
       this.enemies.update(dt);
       this.projectiles.update(dt);
       this.mapManager.update(dt);

@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { CharacterModel } from '../../player/CharacterModel.js';
 import { MarkVisual } from '../../player/MarkVisual.js';
 import { MARKS } from '../../data/marks.js';
-import { glowSprite } from '../../vfx/glowTexture.js';
 
 /**
- * Encarnación de prueba (estación de adquisición). Personaje no hostil que
- * posee una marca ORIGINAL. Sirve como fuente válida de copia; tras la copia
- * conserva su marca y su poder (Regla IV), y lo sigue manifestando.
+ * Encarnación de prueba (estación de adquisición). Persona corriente, no
+ * hostil, que posee una marca ORIGINAL e intenta ocultar su poder: no hay
+ * aura ni efectos a su alrededor y su marca apenas se ve en la muñeca.
+ * Solo al establecerse la conexión la marca se ilumina un momento.
+ * Tras la copia conserva su marca y su poder (Regla IV).
  */
 export class Incarnation {
   constructor(ctx, { x, y = 0, z, yaw = 0, markId = 'energia' }) {
@@ -21,24 +22,21 @@ export class Incarnation {
     this.reach = 0; // 0..1: extiende el brazo durante el contacto
     this.channel = 0; // 0..1: intensidad durante la copia
     this._time = Math.random() * 10;
-    this._arcTimer = 2;
 
     this.model = new CharacterModel({ variant: 'incarnation' });
     this.model.root.position.set(x, y, z);
     this.model.root.rotation.y = yaw;
     ctx.group.add(this.model.root);
     this.mark = new MarkVisual(this.model, this.def);
-
-    // Aura y luz propias: su poder está siempre activo
-    this.aura = glowSprite(new THREE.Color(this.def.color).multiplyScalar(1.2), 3.2, 0.35);
-    this.aura.position.set(x, y + 1.1, z);
-    ctx.group.add(this.aura);
-    this.light = new THREE.PointLight(this.def.color, 6, 7, 2);
-    this.light.position.set(x, y + 1.6, z);
-    ctx.group.add(this.light);
+    this.mark.setWristVisibility(0.18); // casi oculta
 
     // No se le puede atravesar
     ctx.world.addBox({ x: x - 0.35, y, z: z - 0.35 }, { x: x + 0.35, y: y + 1.85, z: z + 0.35 }, { tag: 'npc' });
+  }
+
+  /** Conserva su marca y su poder después de la copia. */
+  get hasPower() {
+    return this.mark.parts.length > 0;
   }
 
   /** Posición de su muñeca derecha (donde está la marca), en el mundo. */
@@ -57,24 +55,14 @@ export class Incarnation {
 
   update(dt) {
     this._time += dt;
-    const idle = 0.35 + Math.sin(this._time * 1.7) * 0.1;
-    this.mark.setIntensity(Math.min(1, idle + this.channel * 0.65));
-    this.aura.material.opacity = 0.3 + this.channel * 0.4 + Math.sin(this._time * 2.3) * 0.05;
-    this.light.intensity = 5 + this.channel * 25;
+    // En reposo no muestra su poder; durante la conexión se le escapa un poco
+    this.mark.setWristVisibility(0.18 + this.reach * 0.4 + this.channel * 0.42);
+    this.mark.setIntensity(this.channel * 0.7);
     this.model.animate(dt, {
       speed: 0, grounded: true, sprinting: false, dodging: false, verticalSpeed: 0,
       aimWeight: this.reach, aimPitch: -0.35,
     });
     this.model.root.rotation.y = this.yaw;
-
-    // Demostración periódica de su poder (arcos hacia los pilones de la estación)
-    this._arcTimer -= dt;
-    if (this._arcTimer <= 0 && this.ctx.pylons?.length && this.reach < 0.1) {
-      this._arcTimer = 2.5 + Math.random() * 2;
-      const pylon = this.ctx.pylons[Math.floor(Math.random() * this.ctx.pylons.length)];
-      const from = this.wristPosition();
-      this.ctx.vfx?.lightning(from, pylon, this.def.color, { width: 0.04, duration: 0.25, jitter: 0.35, branches: 1 });
-    }
   }
 
   dispose() {

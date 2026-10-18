@@ -237,3 +237,38 @@ test('no se recarga un cargador lleno', () => {
   m.consume();
   assert.ok(m.startReload());
 });
+
+import { EnergyReserve } from '../../src/powers/EnergyReserve.js';
+import { ENERGY_CONFIG } from '../../src/powers/energy/energyConfig.js';
+
+test('la energía de Energía no se regenera sola; se añade absorbiendo', () => {
+  const e = new EnergyPool(ENERGY_CONFIG.pool);
+  e.spend(50);
+  for (let i = 0; i < 100; i++) e.update(0.1);
+  assert.equal(e.value, ENERGY_CONFIG.pool.max - 50, 'sin regeneración pasiva');
+  assert.equal(e.add(30), 30);
+  assert.equal(e.add(100), 20, 'no supera el máximo');
+  assert.ok(e.full);
+});
+
+test('una fuente se agota al absorberla y se recupera con el tiempo', () => {
+  const r = new EnergyReserve({ capacity: 60, rechargeTime: 20, rechargeDelay: 3 });
+  assert.equal(r.drain(40), 40);
+  assert.equal(r.drain(40), 20);
+  assert.ok(r.empty);
+  r.update(2);
+  assert.ok(r.empty, 'espera antes de recuperarse');
+  r.update(1.5);
+  r.update(10);
+  assert.ok(r.value > 25 && r.value < 35, `recuperándose (${r.value})`);
+  r.update(30);
+  assert.equal(r.value, 60);
+});
+
+test('la carga básica dura más: 150 de energía y costes reducidos', () => {
+  const c = ENERGY_CONFIG;
+  assert.equal(c.pool.max, 150);
+  assert.equal(c.pool.regenPerSecond, 0);
+  // Un cargador completo (10 disparos) gasta 20; caben 7 cargadores
+  assert.ok(c.pool.max / (c.projectile.cost * c.projectile.magazineSize) >= 7);
+});

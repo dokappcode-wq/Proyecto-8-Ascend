@@ -41,7 +41,7 @@ test('Progresión: niveles, puntos y requisitos de mejoras', () => {
   const m = p.modifiers('energia');
   assert.equal(m.magazineBonus, 5);
   assert.ok(Math.abs(m.reloadMul - 0.65) < 1e-9);
-  assert.equal(m.regenMul, 1);
+  assert.equal(m.drainMul, 1);
 });
 
 test('Persistencia: marcas y progreso sobreviven a guardar y cargar', () => {

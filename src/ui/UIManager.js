@@ -30,6 +30,14 @@ const CONTROL_ROWS = [
   ['Menú de marcas y habilidades', ['powerMenu'], true],
 ];
 
+/**
+ * Símbolo de munición de cada elemento (uno por disparo). Energía: una
+ * flecha con forma de rayo. Los futuros elementos añaden aquí el suyo.
+ */
+const ELEMENT_AMMO_ICONS = {
+  energia: '<svg class="ammo-icon" viewBox="0 0 12 24" aria-hidden="true"><path d="M6 0 10 6H7.4L9.6 12H6.8L8.8 24 2 10.4h3L2.6 6H5z" fill="currentColor"/></svg>',
+};
+
 /** Casillas de habilidades del HUD. `power` = requiere la marca activa. */
 const ABILITY_SLOTS = [
   { id: 'projectile', action: 'attack', name: 'Proyectil', power: true },
@@ -68,8 +76,11 @@ export class UIManager {
       charge: this.$('hud-charge'),
       hit: this.$('hud-hit'),
       ammo: this.$('hud-ammo'),
+      vitals: this.$('hud-vitals'),
       power: this.$('hud-power'),
-      powerName: this.$('hud-power-name'),
+      powerAmmo: this.$('hud-power-ammo'),
+      ammoIcons: this.$('hud-ammo-icons'),
+      energyText: this.$('hud-energy-text'),
       powerIcon: this.$('hud-power-icon'),
       powerInf: this.$('hud-power-inf'),
       energyBar: this.$('hud-power').querySelector('.energy-bar'),
@@ -183,13 +194,37 @@ export class UIManager {
   setPowerAvailable(available, def) {
     this._powerAvailable = available;
     this.hud.power.classList.toggle('hidden', !available);
+    this.hud.powerAmmo.classList.toggle('hidden', !available);
     this.hud.crosshair.classList.toggle('show', available);
     for (const s of ABILITY_SLOTS) if (s.power) this._slots[s.id].el.classList.toggle('locked', !available);
     if (available && def) {
-      this.hud.powerName.textContent = def.concept;
+      this._element = def.id;
       this.hud.powerIcon.src = markSymbolTexture(def.symbol, def.glowColor).image.toDataURL();
+      this.hud.vitals.style.setProperty('--el', def.color);
+      this._ammoKey = null; // redibuja los símbolos de munición
     }
     this._renderHint();
+  }
+
+  /**
+   * Munición elemental: un símbolo del elemento por disparo del cargador.
+   * Los gastados se apagan; durante la recarga se van rellenando.
+   */
+  _renderAmmoIcons(mag) {
+    const el = this._element ?? 'energia';
+    const lit = mag.reloading ? Math.floor(mag.size * mag.progress) : mag.ammo;
+    const key = `${el}|${mag.size}|${lit}|${mag.reloading}`;
+    if (key === this._ammoKey) return;
+    this._ammoKey = key;
+    const root = this.hud.ammoIcons;
+    if (root.childElementCount !== mag.size || root.dataset.el !== el) {
+      root.dataset.el = el;
+      root.innerHTML = Array.from({ length: mag.size }, () => ELEMENT_AMMO_ICONS[el] ?? ELEMENT_AMMO_ICONS.energia).join('');
+    }
+    [...root.children].forEach((icon, i) => {
+      icon.classList.toggle('spent', i >= lit);
+      icon.classList.toggle('refill', mag.reloading && i < lit);
+    });
   }
 
   // ---------------------------------------------------------------- Combate
@@ -396,7 +431,7 @@ export class UIManager {
 
   _renderHint() {
     const power = this._powerAvailable
-      ? ' · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> (mantener) descarga · <b>G</b> onda (en el aire: rayo)'
+      ? ' · <b>E</b> (mantener) junto a farolas, armarios o máquinas: absorber energía · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> (mantener) descarga · <b>G</b> onda (en el aire: rayo)'
       : '';
     this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Ctrl / Alt</b> esquivar · <b>C</b> agacharse / cubrirse · <b>F</b> golpe · <b>E</b> interactuar${power} · <b>Esc</b> pausa · <b>Tab</b> marcas · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
   }
@@ -431,6 +466,7 @@ export class UIManager {
       if (power.available !== this._powerAvailable) this.setPowerAvailable(power.available, null);
       if (power.available) {
         this.hud.energyFill.style.transform = `scaleX(${power.energy / power.energyMax})`;
+        this.hud.energyText.textContent = power.infinite ? '' : String(Math.round(power.energy));
         this.hud.powerInf.classList.toggle('show', power.infinite);
         for (const [id, a] of Object.entries(power.abilities)) {
           const s = sl[id];
@@ -456,6 +492,7 @@ export class UIManager {
         if (mag) {
           const low = !reloading && mag.ammo <= Math.ceil(mag.size * 0.3);
           this.hud.ammo.textContent = reloading ? 'Recargando' : `${mag.ammo}/${mag.size}`;
+          this._renderAmmoIcons(mag);
           this.hud.ammo.classList.toggle('low', low);
           this.hud.ammo.classList.toggle('reloading', reloading);
           sl.projectile.ammo.textContent = reloading ? '···' : `${mag.ammo}/${mag.size}`;

@@ -18,7 +18,7 @@ export const PLAYER_COMBAT = Object.freeze({
   melee: {
     damage: 20, range: 2.1, arc: 65, knockback: 7, cooldown: 0.55, hitDelay: 0.12,
     // Golpe elemental (con la marca de Energía y energía suficiente)
-    elementalDamage: 32, elementalCost: 8, elementalKnockback: 10,
+    elementalDamage: 32, elementalCost: 5, elementalKnockback: 10,
     // Embestida: si hay un enemigo cerca y delante, se lanza hacia él
     lungeRange: 7.5, lungeArc: 40, lungeSpeed: 30, lungeStop: 1.1,
   },

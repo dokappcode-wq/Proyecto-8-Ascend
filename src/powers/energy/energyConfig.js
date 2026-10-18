@@ -3,25 +3,29 @@
  * Distancias en metros, tiempos en segundos.
  */
 export const ENERGY_CONFIG = Object.freeze({
-  pool: { max: 100, regenPerSecond: 16, regenDelay: 0.8 },
+  // Sin regeneración pasiva: la carga se obtiene absorbiendo energía de
+  // objetos cotidianos (farolas, armarios eléctricos, máquinas expendedoras).
+  pool: { max: 150, regenPerSecond: 0, regenDelay: 0.8 },
+  // Absorción: velocidad (energía/s) y distancia máxima a la fuente.
+  drain: { rate: 60, range: 3 },
 
   projectile: {
     id: 'proyectil', name: 'Proyectil energético', action: 'attack',
-    cost: 4, cooldown: 0.2,
+    cost: 2, cooldown: 0.2,
     damage: 10, speed: 60, range: 45, radius: 0.12,
     // Cargador: 10 disparos y recarga automática al vaciarse.
     magazineSize: 10, reloadTime: 1.3,
   },
   dash: {
     id: 'dash', name: 'Dash energético', action: 'special',
-    cost: 15, cooldown: 1.0,
+    cost: 10, cooldown: 1.0,
     speed: 26, duration: 0.17, airDashes: 1,
     // Dash dirigido: apuntar (clic der.) + mantener Q muestra la silueta; soltar = desplazarse allí.
-    targetedCost: 25, targetedMaxDistance: 20, targetedSpeed: 45,
+    targetedCost: 18, targetedMaxDistance: 20, targetedSpeed: 45,
   },
   discharge: {
     id: 'descarga', name: 'Descarga concentrada', action: 'charged',
-    cost: 30, cooldown: 1.5,
+    cost: 20, cooldown: 1.5,
     minCharge: 0.35, fullCharge: 1.4,
     damageMin: 25, damageMax: 60,
     speed: 70, range: 60, radius: 0.35,
@@ -29,7 +33,7 @@ export const ENERGY_CONFIG = Object.freeze({
   },
   wave: {
     id: 'onda', name: 'Onda expansiva', action: 'wave',
-    cost: 35, cooldown: 5,
+    cost: 25, cooldown: 5,
     radius: 7.5, damage: 30, knockback: 14,
     // En el aire (G): caída en forma de rayo y explosión al tocar suelo.
     // El daño y el radio crecen con la altura de la caída. Sin daño por caída.

@@ -1,6 +1,7 @@
 /**
  * EnergyPool — recurso que consumen las habilidades.
- * Se regenera tras un breve retardo desde el último gasto.
+ * Puede regenerarse tras un breve retardo (regenPerSecond > 0); en Energía la
+ * regeneración es 0 y la carga se obtiene absorbiendo fuentes (`add`).
  * Es un límite de gameplay, no un castigo por poseer marcas (Regla VI).
  */
 export class EnergyPool {
@@ -27,6 +28,17 @@ export class EnergyPool {
     if (!this.infinite) this.value -= amount;
     this._sinceSpend = 0;
     return true;
+  }
+
+  /** Añade energía (absorción). Devuelve lo que realmente entró. */
+  add(amount) {
+    const before = this.value;
+    this.value = Math.min(this.max, this.value + Math.max(0, amount));
+    return this.value - before;
+  }
+
+  get full() {
+    return this.value >= this.max - 1e-6;
   }
 
   refill() {

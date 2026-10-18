@@ -85,12 +85,24 @@ export class MarkVisual {
     }
   }
 
+  /**
+   * Visibilidad de la marca de la muñeca en reposo (0..1). Por defecto la
+   * del protagonista es claramente visible; una Encarnación que oculta su
+   * poder la lleva casi apagada.
+   */
+  setWristVisibility(v) {
+    this._wristBase = v;
+    this.setIntensity(this.intensity);
+  }
+
   setIntensity(level) {
     this.intensity = level;
     for (const p of this.parts) {
       let o;
-      if (p.threshold < 0) o = p.base + (1 - p.base) * level;
-      else o = Math.min(1, Math.max(0, (level - p.threshold) / 0.22));
+      if (p.threshold < 0) {
+        const base = this._wristBase !== undefined ? this._wristBase * (p.base / 0.75) : p.base;
+        o = base + (1 - base) * level;
+      } else o = Math.min(1, Math.max(0, (level - p.threshold) / 0.22));
       p.mesh.visible = o > 0.01;
       p.mesh.material.opacity = o;
       // Por encima de 1 en color para que el bloom lo realce en ataques fuertes.

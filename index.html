@@ -46,19 +46,27 @@
         <div class="ch-ring"></div>
         <div class="ch-dot"></div>
         <div class="ch-hit" id="hud-hit"></div>
-        <div class="ch-ammo" id="hud-ammo"></div>
       </div>
       <div class="hud-vignette" id="hud-vignette"></div>
       <div class="hud-hitdir" id="hud-hitdir"><div class="hitdir-arc"></div></div>
-      <div class="hud-health" id="hud-health">
-        <div class="health-bar"><div class="health-fill" id="hud-health-fill"></div><div class="health-lag" id="hud-health-lag"></div></div>
-        <span class="health-text" id="hud-health-text">100</span>
-      </div>
+      <!-- Estado: munición elemental, carga elemental y salud -->
       <div class="hud-prompt" id="hud-prompt"></div>
       <div class="hud-death" id="hud-death"><h2>Neutralizado</h2><p>Reapareciendo…</p></div>
-      <div class="hud-power" id="hud-power">
-        <div class="power-head"><img id="hud-power-icon" alt="" /><span id="hud-power-name">Energía</span><span class="power-inf" id="hud-power-inf">∞</span></div>
-        <div class="energy-bar"><div class="energy-fill" id="hud-energy-fill"></div></div>
+      <div class="hud-vitals" id="hud-vitals">
+        <div class="vitals-ammo" id="hud-power-ammo">
+          <div class="ammo-icons" id="hud-ammo-icons"></div>
+          <span class="ammo-count" id="hud-ammo"></span>
+        </div>
+        <div class="vital-row power" id="hud-power">
+          <img class="vital-icon" id="hud-power-icon" alt="" />
+          <div class="brush-bar energy-bar"><div class="brush-fill energy-fill" id="hud-energy-fill"></div></div>
+          <span class="vital-text" id="hud-energy-text"></span><span class="power-inf" id="hud-power-inf">∞</span>
+        </div>
+        <div class="vital-row health" id="hud-health">
+          <svg class="vital-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 2h6v5h5v6h-5v5H7v-5H2V7h5z" fill="currentColor"/></svg>
+          <div class="brush-bar health-bar"><div class="brush-lag health-lag" id="hud-health-lag"></div><div class="brush-fill health-fill" id="hud-health-fill"></div></div>
+          <span class="vital-text health-text" id="hud-health-text">100</span>
+        </div>
       </div>
       <div class="hud-abilities" id="hud-abilities"></div>
       <div class="hud-hint" id="hud-hint"></div>

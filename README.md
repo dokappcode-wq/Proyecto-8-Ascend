@@ -80,19 +80,44 @@ controles se definen como acciones en `src/core/Input.js`.
 
 | Habilidad | Coste | Reutilización | Efecto |
 | --- | --- | --- | --- |
-| Proyectil | 4 | 0.2 s | 10 de daño, 60 m/s, alcance 45 m. **Cargador de 10**: al vaciarse recarga sola en 1.3 s (animación de manos cargando energía, aviso «Recargando» junto a la mira) |
-| Dash | 15 | 1 s | ~4 m en 0.17 s, anula la caída; 1 por salto en el aire |
-| Dash dirigido | 25 | 1 s (compartido con el dash) | apuntando, mantener Q muestra una silueta del personaje en el destino (máx. 20 m); al soltar se desplaza allí, también hacia arriba (azoteas). Se detiene antes de un obstáculo |
-| Descarga | 30 | 1.5 s | carga 0.35–1.4 s; 25–60 de daño + área de 2.5 m con retroceso |
-| Onda | 35 | 5 s | radio 7.5 m, 30 de daño con atenuación y retroceso radial |
-| Caída en rayo | 35 | 5 s (compartido con la onda) | G en el aire: cae en vertical como un rayo y explota al tocar suelo. Radio 6–11 m y daño 40–80 según la altura. El aterrizaje es inmune al daño por caída |
+| Proyectil | 2 | 0.2 s | 10 de daño, 60 m/s, alcance 45 m. **Cargador de 10**: al vaciarse recarga sola en 1.3 s (animación de manos cargando energía, aviso «Recargando» en la fila de munición) |
+| Dash | 10 | 1 s | ~4 m en 0.17 s, anula la caída; 1 por salto en el aire |
+| Dash dirigido | 18 | 1 s (compartido con el dash) | apuntando, mantener Q muestra una silueta del personaje en el destino (máx. 20 m); al soltar se desplaza allí, también hacia arriba (azoteas). Se detiene antes de un obstáculo |
+| Descarga | 20 | 1.5 s | carga 0.35–1.4 s; 25–60 de daño + área de 2.5 m con retroceso |
+| Onda | 25 | 5 s | radio 7.5 m, 30 de daño con atenuación y retroceso radial |
+| Caída en rayo | 25 | 5 s (compartido con la onda) | G en el aire: cae en vertical como un rayo y explota al tocar suelo. Radio 6–11 m y daño 40–80 según la altura. El aterrizaje es inmune al daño por caída |
 
 El cargador (`src/powers/Magazine.js`) es genérico: cualquier habilidad o arma
 de proyectiles lo activa con `magazineSize` y `reloadTime` en su configuración
 (los enemigos de la Etapa 3 lo reutilizarán).
 
-Energía: 100, se regenera 16/s tras 0.8 s sin gastar. Todos los valores están
-en `src/powers/energy/energyConfig.js`.
+Energía: 150 y **no se regenera sola** (ver «Recarga desde el entorno»). Todos
+los valores están en `src/powers/energy/energyConfig.js`.
+
+### Recarga desde el entorno
+
+La energía se absorbe de objetos eléctricos cotidianos: **mantén E** junto a
+uno (a menos de 3 m) y la energía fluye de él a tu mano (60/s). Cada fuente
+tiene una reserva limitada: se apaga y parpadea al agotarse y se recupera
+sola pasado un tiempo.
+
+| Fuente | Reserva | Recuperación completa |
+| --- | --- | --- |
+| Farola | 50 | 18 s |
+| Máquina expendedora | 70 | 22 s |
+| Armario eléctrico | 90 | 25 s |
+
+Están repartidas por ambos mapas (farolas de las calles, armarios en fachadas
+y azoteas, máquinas en las plazas) para que nunca falte carga. Mientras
+absorbes no puedes moverte ni usar poderes. Código:
+`src/world/entities/EnergySource.js`, `src/powers/EnergyReserve.js`,
+`src/systems/EnergyDrainSystem.js`.
+
+### HUD
+
+Abajo a la izquierda: arriba la **munición elemental** (un símbolo del
+elemento por disparo del cargador; los gastados se atenúan), debajo la barra
+de **carga elemental** y la de **vida**, ambas con forma de trazo de pincel.
 
 **Marca de Energía**: símbolo azul en la muñeca derecha (la del Destino sigue en
 la izquierda). Al usar poderes aparecen patrones de circuito luminosos que se
@@ -130,6 +155,11 @@ Campo de Pruebas (estación experimental):
 4. Copia: arcos entre las muñecas, aparece la marca en tu muñeca derecha, se
    registra y se guarda. La Encarnación **conserva** su marca y su poder.
 
+La Encarnación tiene el aspecto de una persona corriente (chaqueta, sudadera,
+vaqueros) sentada junto a un banco y una farola: oculta su poder, sin aura ni
+luces. Solo su marca en la muñeca brilla débilmente, y se intensifica al
+establecer contacto y durante la copia.
+
 Reglas aplicadas (`src/powers/acquisition.js`): solo se copian Encarnaciones
 originales (intentarlo con un Acólito se rechaza: su poder es prestado), hace
 falta contacto y voluntad, no se copia dos veces la misma marca y la copia no
@@ -149,7 +179,7 @@ Energía son **fundamentales** (vienen con la marca); las mejoras cuestan puntos
 | Carga rápida | 1 | — | descarga completa en 0.9 s |
 | Onda amplia | 2 | — | +2 m de radio y +10 de daño (onda y rayo) |
 | Dash eficiente | 1 | — | dashes −5 de energía, dirigido +5 m |
-| Flujo constante | 2 | Recarga rápida y Dash eficiente | regeneración +40 % |
+| Absorción rápida | 2 | Recarga rápida y Dash eficiente | absorbes de las fuentes un 60 % más rápido |
 | Sobrecarga | — | — | próximamente (no implementada) |
 
 Experiencia: Agente PDC 40, Acólito 60, maniquí 5 (con la marca activa). Cada
@@ -172,14 +202,14 @@ por depuración, así que hay que copiarla en la Zona E.
 - **Al apuntar te asomas**: en coberturas bajas te levantas y disparas por
   encima; en muros altos te desplazas al borde más cercano. Al soltar vuelves
   a cubrirte. El HUD indica «Agachado», «A cubierto» o «Asomado».
-- **Golpe (F) elemental** mientras tengas energía (8 por golpe): puños
+- **Golpe (F) elemental** mientras tengas energía (5 por golpe): puños
   eléctricos, 32 de daño, más retroceso y aturde. Si hay un enemigo a menos de
   7.5 m delante, te **lanzas hacia él** y le golpeas. **Sin energía** el golpe
   es normal: 20 de daño, sin efecto eléctrico ni embestida.
 
 ## Etapa 3 — Enemigos y combate
 
-**Jugador**: 100 de salud (barra sobre la de energía), se regenera 8/s tras 5 s
+**Jugador**: 100 de salud (barra bajo la de energía), se regenera 8/s tras 5 s
 sin recibir daño. Viñeta roja e indicador de la dirección del impacto. Daño por
 caída a partir de ≈ 8 m (la caída en rayo y el dash dirigido son inmunes). Al
 quedar a 0: pantalla «Neutralizado» y reaparición en el inicio del mapa a los
@@ -288,6 +318,10 @@ contenedores y cajas (A1, A2).
   - Añadidos: golpe elemental 32 y normal 20 sin energía; embestida hasta el
     enemigo; a cubierto tras una barrera el enemigo no te ve y al apuntar te
     asomas y te ve; al soltar vuelves a cubrirte.
+  - Recarga del entorno: la energía no se regenera sola; junto a un armario
+    eléctrico aparece «Mantén E: absorber energía», absorber recarga la
+    energía y vacía la reserva de la fuente; el HUD muestra un símbolo por
+    disparo; la Encarnación no tiene luces ni aura.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.

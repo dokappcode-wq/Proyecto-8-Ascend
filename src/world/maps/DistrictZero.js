@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createSky, createSun } from '../environment.js';
 import { asphaltTexture, concreteTexture, facadeTextures, sidewalkTexture, rng } from '../textures.js';
+import { EnergySource } from '../entities/EnergySource.js';
 
 /**
  * MAPA 2 — DISTRITO CERO
@@ -45,7 +46,8 @@ export default {
     { id: 'callejon', name: 'Callejón de A2', x: 12.2, y: 0.2, z: -48, yaw: Math.PI },
   ],
 
-  build({ group, builder: B, scene }) {
+  build(ctx) {
+    const { group, builder: B, scene } = ctx;
     // --- Ambiente de atardecer ---
     scene.fog = new THREE.FogExp2(0x3a2f3a, 0.0085);
     const sunDir = new THREE.Vector3(0.75, 0.12, -0.65);
@@ -146,10 +148,11 @@ export default {
     rooftopProps(B, M, byId);
 
     // --- Plaza central ---
-    plaza(B, M, group);
+    plaza(B, M, group, ctx);
 
     // --- Mobiliario urbano y vehículos ---
-    streetProps(B, M, group);
+    streetProps(B, M, group, ctx);
+    energySources(ctx, byId);
 
     // --- Límites del escenario ---
     boundaries(B, M);
@@ -192,7 +195,7 @@ function roadMarkings(B, M) {
   }
 }
 
-function plaza(B, M, group) {
+function plaza(B, M, group, ctx) {
   B.block({ x: 0, z: 0, w: 32, d: 32, h: 0.2, mat: M.plaza, cast: false });
   // Fuente
   const basin = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.4, 0.7, 24), M.concrete);
@@ -232,34 +235,50 @@ function plaza(B, M, group) {
 
   // Farolas de la plaza con luz real (pocas, por rendimiento)
   for (const [x, z] of [[-15, -15], [15, -15], [-15, 15], [15, 15]]) {
-    lamp(B, M, group, x, z, true);
+    lamp(ctx, x, z, true);
   }
 }
 
-function lamp(B, M, group, x, z, withLight) {
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 5, 6), M.metal);
-  pole.position.set(x, 2.5, z);
-  pole.castShadow = true;
-  group.add(pole);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.5), M.lampHead);
-  head.position.set(x, 5.05, z);
-  group.add(head);
-  B.world.addBox({ x: x - 0.12, y: 0, z: z - 0.12 }, { x: x + 0.12, y: 5, z: z + 0.12 }, { cameraBlocking: false });
-  if (withLight) {
-    const l = new THREE.PointLight(0xffc27a, 18, 16, 1.6);
-    l.position.set(x, 4.7, z);
-    group.add(l);
-  }
+/** Farola: también es una fuente de energía que se puede absorber (E). */
+function lamp(ctx, x, z, withLight) {
+  const src = ctx.addEntity(new EnergySource(ctx, { kind: 'lamp', x, z, light: withLight }));
+  ctx.energySources.register(src);
 }
 
-function streetProps(B, M, group) {
+/**
+ * Fuentes de energía cotidianas repartidas por el barrio (además de las
+ * farolas): armarios eléctricos en las aceras y azoteas y máquinas
+ * expendedoras en la plaza, para que nunca falte carga.
+ */
+function energySources(ctx, byId) {
+  const add = (o) => ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, o)));
+  // Plaza
+  add({ kind: 'vending', x: 3.5, z: 15.3, yaw: Math.PI });
+  add({ kind: 'vending', x: -3.5, z: -15.3, yaw: 0 });
+  // Aceras, junto a las fachadas
+  add({ kind: 'cabinet', x: -32.6, z: 6, yaw: Math.PI / 2, y: 0.15 }); // B8
+  add({ kind: 'cabinet', x: 32.6, z: -6, yaw: -Math.PI / 2, y: 0.15 }); // B4
+  add({ kind: 'cabinet', x: 6, z: 32.6, yaw: Math.PI, y: 0.15 }); // B6
+  add({ kind: 'cabinet', x: 6, z: -32.6, yaw: 0, y: 0.15 }); // B2
+  add({ kind: 'cabinet', x: -26.6, z: -31, yaw: Math.PI / 2, y: 0.15 }); // B1
+  add({ kind: 'cabinet', x: 26.6, z: 30, yaw: -Math.PI / 2, y: 0.15 }); // B5
+  // Azoteas (para recargar sin bajar a la calle)
+  const roof = (b, ox, oz, yaw) => add({ kind: 'cabinet', x: b.x + ox, z: b.z + oz, yaw, y: b.h });
+  roof(byId.B8, -4, -6, Math.PI / 2);
+  roof(byId.B2, 6, 3, 0);
+  roof(byId.B4, -4.5, -6, Math.PI / 2);
+  roof(byId.B7, 4, -4, -Math.PI / 2);
+  roof(byId.B1, -5, -5, 0);
+}
+
+function streetProps(B, M, group, ctx) {
   const r = rng(5);
   // Farolas en las aceras del anillo (solo emisivas)
   for (const a of [-16, 16]) {
-    lamp(B, M, group, a, -27.2, false);
-    lamp(B, M, group, a, 27.2, false);
-    lamp(B, M, group, -27.2, a, false);
-    lamp(B, M, group, 27.2, a, false);
+    lamp(ctx, a, -27.2, false);
+    lamp(ctx, a, 27.2, false);
+    lamp(ctx, -27.2, a, false);
+    lamp(ctx, 27.2, a, false);
   }
   // Coches aparcados (obstáculos que se pueden saltar: 1.5 m)
   const carColors = [0x7a1e1e, 0x1e3a5a, 0x2f2f33, 0xb0b4b8, 0x4a5a2a];

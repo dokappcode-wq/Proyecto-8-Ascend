@@ -18,14 +18,15 @@ import { markSymbolTexture } from './markTextures.js';
  *    visor y arma).
  *  - 'acolyte': Acólito de Energía (capucha, túnica y brazaletes luminosos;
  *    sin marca original, su poder es prestado).
- *  - 'incarnation': Encarnación (abrigo claro y pelo plateado); su marca
- *    original se añade con MarkVisual.
+ *  - 'incarnation': Encarnación vestida como cualquier persona (chaqueta y
+ *    vaqueros); su marca original se añade con MarkVisual.
  */
 const PALETTES = {
   protagonist: { skin: 0xc99a7c, jacket: 0x1d2128, hoodie: 0x2a2f38, pants: 0x15171b, boots: 0x3a2c22 },
   pdc: { skin: 0xb98a6c, jacket: 0x1f2b3d, hoodie: 0x2b3a50, pants: 0x18202c, boots: 0x111317 },
   acolyte: { skin: 0xa77e66, jacket: 0x2a1f38, hoodie: 0x3a2a4e, pants: 0x1c1626, boots: 0x231a1a },
-  incarnation: { skin: 0xd9a888, jacket: 0xdfe4ec, hoodie: 0x2a4a78, pants: 0x232b3a, boots: 0x1b1d22, hair: 0xd7dde6 },
+  // Ropa de calle corriente: nada delata que es una Encarnación
+  incarnation: { skin: 0xd9a888, jacket: 0x4a5640, hoodie: 0xb9b2a2, pants: 0x3a4a66, boots: 0x5a4632, hair: 0x4a3324 },
 };
 
 export class CharacterModel {
@@ -133,12 +134,6 @@ export class CharacterModel {
       const pouch = box(0.3, 0.08, 0.06, mat(0x2c3138));
       pouch.position.set(0, 0.14, 0.17);
       chest.add(pouch);
-    } else if (V === 'incarnation') {
-      // Abrigo largo abierto
-      const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.33, 0.6, 14, 1, true), M.jacket);
-      coat.position.y = -0.2;
-      coat.castShadow = true;
-      hips.add(coat);
     } else if (V === 'acolyte') {
       // Túnica abierta y fajín con el brillo del poder prestado
       const robe = box(0.46, 0.62, 0.28, M.hoodie);

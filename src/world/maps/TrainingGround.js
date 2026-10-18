@@ -5,6 +5,7 @@ import { TrainingTarget } from '../entities/TrainingTarget.js';
 import { TrainingDummy } from '../entities/TrainingDummy.js';
 import { PhysicsProp } from '../entities/PhysicsProp.js';
 import { Incarnation } from '../entities/Incarnation.js';
+import { EnergySource } from '../entities/EnergySource.js';
 
 /**
  * MAPA 1 — CAMPO DE PRUEBAS
@@ -80,6 +81,7 @@ export default {
     buildZoneC(B, M, ctx);
     buildZoneD(B, M, ctx);
     buildZoneE(B, M, ctx);
+    buildEnergySources(ctx);
     buildZoneF(B, M, ctx);
 
     return {
@@ -317,37 +319,37 @@ function buildZoneD(B, M, ctx) {
 function buildZoneE(B, M, ctx) {
   const x0 = 15;
   const z0 = -60;
-  const energy = '#2f8bff';
   B.block({ x: x0, z: z0, w: 26, d: 30, h: 0.06, mat: M.pad, cast: false });
-  // Plataforma
-  const plat = new THREE.Mesh(new THREE.CylinderGeometry(5, 5.3, 0.3, 40), new THREE.MeshStandardMaterial({ color: 0x2a313b, roughness: 0.6, metalness: 0.4 }));
-  plat.position.set(x0, 0.15, z0 - 2);
-  plat.receiveShadow = true;
-  ctx.group.add(plat);
-  ctx.world.addBox({ x: x0 - 4.2, y: 0, z: z0 - 6.2 }, { x: x0 + 4.2, y: 0.3, z: z0 + 2.2 });
-  const ring = new THREE.Mesh(new THREE.RingGeometry(4.6, 4.8, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(energy).multiplyScalar(1.5), toneMapped: false, side: THREE.DoubleSide }));
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.set(x0, 0.31, z0 - 2);
-  ctx.group.add(ring);
-  // Pilones (la Encarnación les lanza arcos de energía de vez en cuando)
-  ctx.pylons = [];
-  const topMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(energy).multiplyScalar(1.6), toneMapped: false });
-  for (let i = 0; i < 4; i++) {
-    const a = Math.PI / 4 + (i * Math.PI) / 2;
-    const px = x0 + Math.cos(a) * 6.5;
-    const pz = z0 - 2 + Math.sin(a) * 6.5;
-    B.block({ x: px, z: pz, w: 0.6, d: 0.6, h: 3, mat: M.metal });
-    const top = new THREE.Mesh(new THREE.OctahedronGeometry(0.35), topMat);
-    top.position.set(px, 3.4, pz);
-    ctx.group.add(top);
-    ctx.pylons.push({ x: px, y: 3.4, z: pz });
-  }
+  // Un rincón corriente: un banco y una farola. La Encarnación intenta pasar
+  // desapercibida; nada a su alrededor delata su poder.
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.85 });
+  B.block({ x: x0 + 2.2, z: z0 - 4, w: 2.4, d: 0.6, y: 0.06, h: 0.45, mat: wood });
+  B.block({ x: x0 + 2.2, z: z0 - 4.3, w: 2.4, d: 0.1, y: 0.5, h: 0.5, mat: wood, collide: false });
+  ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, { kind: 'lamp', x: x0 + 4.2, z: z0 - 4.6 })));
   B.sign(['ZONA E — ADQUISICIÓN DE MARCAS', 'Encarnación de la Energía (prueba) · Contacto + voluntad'], {
     x: x0, y: 3.4, z: z0 + 13, w: 9, h: 1.9, facing: 0, opts: { width: 1024, height: 220 },
   });
   B.block({ x: x0, z: z0 + 12.95, w: 0.2, d: 0.2, h: 2.4, mat: M.metal, collide: false });
   B.floorText(['1. Acércate · 2. E: contacto', '3. Mantén E: voluntad'], { x: x0, z: z0 + 6, w: 8, h: 3 });
 
-  const npc = ctx.addEntity(new Incarnation(ctx, { x: x0, y: 0.3, z: z0 - 2, yaw: 0, markId: 'energia' }));
+  const npc = ctx.addEntity(new Incarnation(ctx, { x: x0, y: 0.06, z: z0 - 2, yaw: 0, markId: 'energia' }));
   ctx.acquisition.registerSource(npc);
+}
+
+/**
+ * Fuentes de energía del Campo de Pruebas (armarios eléctricos, máquinas
+ * expendedoras y farolas) en todas las zonas, para recargar al practicar.
+ */
+function buildEnergySources(ctx) {
+  const add = (o) => ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, o)));
+  add({ kind: 'cabinet', x: 6.5, z: 18, yaw: -Math.PI / 2 }); // inicio
+  add({ kind: 'vending', x: -6.6, z: 18, yaw: Math.PI / 2 });
+  add({ kind: 'cabinet', x: -30, z: 4, yaw: 0 }); // zona A
+  add({ kind: 'cabinet', x: 25, z: 4, yaw: 0 }); // zona B
+  add({ kind: 'cabinet', x: -61, z: -47, yaw: 0 }); // zona C
+  add({ kind: 'cabinet', x: -82.5, z: -74, yaw: Math.PI / 2 }); // prueba de alcance
+  add({ kind: 'cabinet', x: -27.75, z: -52, yaw: Math.PI / 2 }); // dentro de la zona D
+  add({ kind: 'cabinet', x: -21, z: -43.4, yaw: 0 }); // entrada de la zona D
+  add({ kind: 'cabinet', x: 32.5, z: -50, yaw: Math.PI / 2 }); // zona F
+  for (const [x, z] of [[-7, 0], [7, 0], [-7, -25], [7, -25]]) add({ kind: 'lamp', x, z });
 }
