@@ -29,7 +29,9 @@ const check = (cond, msg) => {
 };
 
 execSync('npx vite build', { cwd: root, stdio: 'ignore' });
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'ignore' });
+// En Windows, npx es un .cmd y necesita shell para lanzarse.
+const isWin = process.platform === 'win32';
+const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'ignore', shell: isWin });
 await new Promise((r) => setTimeout(r, 1500));
 
 const launchOpts = { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] };
@@ -230,7 +232,8 @@ try {
   check(errors.length === 0, `Sin errores en consola${errors.length ? `: ${errors.join(' | ')}` : ''}`);
 } finally {
   await browser.close();
-  server.kill();
+  if (isWin) spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { shell: true });
+  else server.kill();
 }
 
 console.log(failures ? `\n${failures} comprobación(es) fallida(s)` : '\nTodas las comprobaciones superadas');

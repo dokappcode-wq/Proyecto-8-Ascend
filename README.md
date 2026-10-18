@@ -18,9 +18,11 @@ automáticos.
 
 ## Ejecutar
 
-Requisitos: Node.js 20+.
+Requisitos: Node.js 20+ y Git.
 
 ```bash
+git clone -b claude/compassionate-curie-r9twfr https://github.com/dokappcode-wq/Proyecto-8-Ascend.git
+cd Proyecto-8-Ascend
 npm install
 npm run dev        # servidor de desarrollo → http://localhost:5173
 npm run build      # build estático en dist/ (rutas relativas)
@@ -28,6 +30,9 @@ npm run preview    # sirve dist/
 npm test           # tests unitarios (físicas, guardado)
 npm run test:e2e   # prueba end-to-end con Playwright + Chromium
 ```
+
+Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
+`npx playwright install chromium`.
 
 ## Controles
 
