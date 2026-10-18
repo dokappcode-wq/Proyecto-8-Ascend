@@ -14,6 +14,8 @@ export const ENERGY_CONFIG = Object.freeze({
     id: 'dash', name: 'Dash energético', action: 'special',
     cost: 15, cooldown: 1.0,
     speed: 26, duration: 0.17, airDashes: 1,
+    // Dash dirigido: apuntar (clic der.) + mantener Q muestra la silueta; soltar = desplazarse allí.
+    targetedCost: 25, targetedMaxDistance: 20, targetedSpeed: 45,
   },
   discharge: {
     id: 'descarga', name: 'Descarga concentrada', action: 'charged',
@@ -27,5 +29,10 @@ export const ENERGY_CONFIG = Object.freeze({
     id: 'onda', name: 'Onda expansiva', action: 'wave',
     cost: 35, cooldown: 5,
     radius: 7.5, damage: 30, knockback: 14,
+    // En el aire (G): caída en forma de rayo y explosión al tocar suelo.
+    // El daño y el radio crecen con la altura de la caída. Sin daño por caída.
+    diveMinHeight: 1.5, diveSpeed: 42,
+    diveRadius: 6, diveRadiusPerMeter: 0.25, diveRadiusMax: 11,
+    diveDamage: 40, diveDamagePerMeter: 1.5, diveDamageMax: 80, diveKnockback: 18,
   },
 });

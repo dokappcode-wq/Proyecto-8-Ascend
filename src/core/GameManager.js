@@ -338,7 +338,9 @@ export class GameManager {
         abilities: Object.fromEntries(Object.entries(pw.abilities).map(([k, a]) => [k, {
           cooldown: a.cooldownRatio, affordable: pw.energy.canSpend(a.def.cost),
         }])),
-        dashing: m.isDashing,
+        dashing: m.isDashing || m.isTraveling,
+        targeting: pw.isTargeting,
+        diving: pw.isDiving,
       },
       debugText: this.ui.debugVisible
         ? [

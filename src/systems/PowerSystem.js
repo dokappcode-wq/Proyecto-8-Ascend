@@ -23,6 +23,8 @@ export class PowerSystem {
       wave: new Ability(CFG.wave),
     };
     this.charge = null; // { time }
+    this.targeting = null; // dash dirigido: { feet: Vector3 } mientras se mantiene Q apuntando
+    this.dive = null; // { last: Vector3 } durante la caída en rayo
     this._airDashes = 0;
     this._dashVfx = 0;
     this._lastFail = 0;
@@ -40,6 +42,30 @@ export class PowerSystem {
     this.orb.add(this.orbCore, this.orbHalo);
     this.orb.visible = false;
     game.scene.add(this.orb);
+
+    this._buildTargetMarker(color);
+  }
+
+  /** Silueta del personaje (clon del modelo) y anillo que marcan el destino del dash dirigido. */
+  _buildTargetMarker(color) {
+    const mat = new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(1.3), transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+    this.ghostMat = mat;
+    this.ghost = this.game.player.model.root.clone(true);
+    this.ghost.traverse((o) => {
+      if (o.isMesh) {
+        o.material = mat;
+        o.castShadow = o.receiveShadow = false;
+      }
+    });
+    this.ghost.visible = false;
+    this.game.scene.add(this.ghost);
+    this.ghostRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.45, 0.6, 40),
+      new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(1.5), transparent: true, opacity: 0.8, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+    );
+    this.ghostRing.rotation.x = -Math.PI / 2;
+    this.ghostRing.visible = false;
+    this.game.scene.add(this.ghostRing);
   }
 
   get available() {
@@ -48,6 +74,14 @@ export class PowerSystem {
 
   get color() {
     return this.game.marks.activeDef?.color ?? '#2f8bff';
+  }
+
+  get isTargeting() {
+    return this.targeting !== null;
+  }
+
+  get isDiving() {
+    return this.dive !== null;
   }
 
   get isCharging() {
@@ -62,6 +96,8 @@ export class PowerSystem {
   resetAbilities() {
     for (const a of Object.values(this.abilities)) a.reset();
     this._cancelCharge();
+    this._cancelTargeting();
+    this.dive = null;
     this._airDashes = 0;
   }
 
@@ -76,8 +112,12 @@ export class PowerSystem {
     for (const a of Object.values(this.abilities)) a.tick(dt);
     if (motor.grounded) this._airDashes = 0;
 
+    // El picado termina aunque se pierda la marca en pleno vuelo.
+    if (this.dive) this._updateDive();
+
     if (!this.available) {
       this._cancelCharge();
+      this._cancelTargeting();
       player.aiming = false;
       player.speedScale = 1;
       return;
@@ -91,9 +131,19 @@ export class PowerSystem {
     // wasPressed: un clic rápido que empieza y termina entre dos frames también cuenta.
     if ((input.isDown('attack') || input.wasPressed('attack')) && !this.isCharging) this._fireProjectile();
 
-    // --- Dash ---
-    if (input.wasPressed('special')) this._dash();
-    if (this._dashVfx > 0) {
+    // --- Dash (apuntando + mantener Q = dash dirigido) ---
+    if (input.wasPressed('special')) {
+      if (aiming && !this.isCharging) this._startTargeting();
+      else this._dash();
+    }
+    if (this.targeting) {
+      if (!aiming || this.isCharging) this._cancelTargeting();
+      else {
+        this._updateTargeting();
+        if (!input.isDown('special')) this._executeTargeted();
+      }
+    }
+    if (this._dashVfx > 0 || motor.isTraveling) {
       this._dashVfx -= dt;
       g.vfx.afterimage(motor.position, player.facing, this.color);
       g.vfx.particles.burst({ x: motor.position.x, y: motor.position.y + 0.9, z: motor.position.z }, { count: 8, speed: 2.5, color: new THREE.Color(this.color), size: 0.12, life: 0.35, drag: 3 });
@@ -116,11 +166,177 @@ export class PowerSystem {
       }
     }
 
-    // --- Onda expansiva ---
-    if (input.wasPressed('wave')) this._wave();
+    // --- Onda expansiva (en el aire: caída en rayo) ---
+    if (input.wasPressed('wave') && !this.dive) {
+      if (this._heightAboveGround() >= CFG.wave.diveMinHeight && !motor.isBusy) this._startDive();
+      else if (motor.grounded || this._heightAboveGround() < CFG.wave.diveMinHeight) this._wave();
+    }
+  }
+
+  _heightAboveGround() {
+    const m = this.game.player.motor;
+    if (m.grounded) return 0;
+    const g = this.game.world.groundHeight(m.position.x, m.position.z, m.cfg.radius * 0.85, m.position.y);
+    return m.position.y - g;
+  }
+
+  // ------------------------------------------------------------------ Caída en rayo
+  _startDive() {
+    const g = this.game;
+    const motor = g.player.motor;
+    if (!this.abilities.wave.canActivate(this.energy)) return this._fail('wave');
+    if (!motor.startDive(CFG.wave.diveSpeed)) return;
+    this.abilities.wave.commit(this.energy);
+    this._cancelCharge();
+    this._cancelTargeting();
+    const p = motor.position;
+    this.dive = { start: new THREE.Vector3(p.x, p.y, p.z), last: new THREE.Vector3(p.x, p.y + 1, p.z) };
+    g.marks.pulse(0.8, 0.4);
+    g.vfx.lights.flash({ x: p.x, y: p.y + 1, z: p.z }, this.color, 35, 10, 0.3);
+    g.events.emit('power:used', { id: 'rayo' });
+  }
+
+  _updateDive() {
+    const g = this.game;
+    const motor = g.player.motor;
+    const p = motor.position;
+    const now = new THREE.Vector3(p.x, p.y + 1, p.z);
+    // Estela en forma de rayo durante la caída
+    g.vfx.lightning(this.dive.last, now, this.color, { width: 0.07, duration: 0.25, jitter: 0.35, branches: 1 });
+    g.vfx.afterimage(p, g.player.facing, this.color);
+    g.marks.sustain(0.85);
+    this.dive.last.copy(now);
+    const landed = motor.events.diveLanded;
+    if (landed) this._diveImpact(landed.fallHeight);
+    else if (!motor.isDiving) this.dive = null; // interrumpido (reaparición)
+  }
+
+  _diveImpact(fallHeight) {
+    const g = this.game;
+    const c = CFG.wave;
+    const p = g.player.motor.position;
+    const radius = Math.min(c.diveRadiusMax, c.diveRadius + fallHeight * c.diveRadiusPerMeter);
+    const damage = Math.round(Math.min(c.diveDamageMax, c.diveDamage + fallHeight * c.diveDamagePerMeter));
+    const center = { x: p.x, y: p.y + 0.8, z: p.z };
+    g.combat.radial(center, radius, damage, { knockback: c.diveKnockback, lift: 0.5, kind: 'rayo' });
+    // Rayo que cae del cielo sobre el punto de impacto
+    const top = { x: p.x + (Math.random() - 0.5) * 2, y: Math.max(this.dive.start.y, p.y) + 14, z: p.z + (Math.random() - 0.5) * 2 };
+    g.vfx.lightning(top, { x: p.x, y: p.y + 0.05, z: p.z }, this.color, { width: 0.12, duration: 0.4, jitter: 1.1, branches: 4 });
+    g.vfx.ring({ x: p.x, y: p.y, z: p.z }, radius, this.color, 0.55);
+    g.vfx.particles.burst(center, { count: 140, speed: 22, color: new THREE.Color(this.color), size: 0.18, life: 0.6, drag: 3.5, gravity: 4 });
+    g.vfx.particles.burst(center, { count: 30, speed: 5, color: new THREE.Color(0xffffff), size: 0.4, life: 0.25, drag: 2 });
+    g.vfx.lights.flash(center, this.color, 90, radius * 2.5, 0.5);
+    g.marks.pulse(1, 0.4);
+    g.cameraController.shake(0.85);
+    g.player.model.trigger('wave');
+    g.events.emit('power:impact', { id: 'rayo', fallHeight, radius, damage });
+    this.dive = null;
+  }
+
+  // ------------------------------------------------------------------ Dash dirigido
+  _startTargeting() {
+    const motor = this.game.player.motor;
+    if (motor.isBusy) return;
+    if (!this.abilities.dash.canActivate(this.energy, CFG.dash.targetedCost)) return this._fail('dash');
+    this.targeting = { feet: new THREE.Vector3() };
+    this._updateTargeting();
+  }
+
+  /** Calcula el destino (pies) a partir de lo que señala la mira, limitado en distancia. */
+  targetedDestination(out = new THREE.Vector3()) {
+    const g = this.game;
+    const m = g.player.motor;
+    const r = m.cfg.radius;
+    const w = g.world;
+    const chest = new THREE.Vector3(m.position.x, m.position.y + 1, m.position.z);
+    const hit = this.aimHit();
+    const point = hit.point.clone();
+    let normal = hit.normal;
+    const toPoint = point.clone().sub(chest);
+    const max = CFG.dash.targetedMaxDistance;
+    if (toPoint.length() > max) {
+      point.copy(chest).addScaledVector(toPoint.normalize(), max);
+      normal = null;
+    }
+    const dropToGround = (p, maxDrop) => {
+      const gh = w.groundHeight(p.x, p.z, r * 0.85, p.y + 0.3);
+      if (p.y - gh <= maxDrop) p.y = gh;
+      return p;
+    };
+    let feet;
+    if (normal && normal.y > 0.6) {
+      feet = point; // suelo
+    } else {
+      // Pared o aire: se separa de la superficie y busca suelo debajo.
+      const base = normal ? point.clone().addScaledVector(new THREE.Vector3(normal.x, 0, normal.z).normalize(), r + 0.2) : point.clone();
+      base.y -= 0.9;
+      feet = dropToGround(base, 3);
+    }
+    // El trayecto desde el pecho no puede atravesar geometría.
+    const dest = feet.clone();
+    dest.y += 1;
+    const dir = dest.clone().sub(chest);
+    const len = dir.length();
+    if (len > 0.01) {
+      dir.divideScalar(len);
+      const block = w.raycastHit(chest, dir, len, { ignoreTags: ['bounds'] });
+      if (block && block.t < len - 0.2) {
+        feet.copy(chest).addScaledVector(dir, Math.max(0, block.t - (r + 0.25)));
+        feet.y -= 1;
+        dropToGround(feet, 3);
+      }
+    }
+    return out.copy(feet);
+  }
+
+  _updateTargeting() {
+    const g = this.game;
+    const feet = this.targetedDestination(this.targeting.feet);
+    const p = g.player.motor.position;
+    this.ghost.visible = true;
+    this.ghost.position.copy(feet);
+    this.ghost.rotation.set(0, Math.atan2(feet.x - p.x, feet.z - p.z), 0);
+    this.ghostMat.opacity = 0.25 + Math.sin(performance.now() * 0.012) * 0.08;
+    this.ghostRing.visible = true;
+    this.ghostRing.position.set(feet.x, feet.y + 0.04, feet.z);
+    g.marks.sustain(0.3);
+  }
+
+  _executeTargeted() {
+    const g = this.game;
+    const motor = g.player.motor;
+    const feet = this.targeting.feet.clone();
+    this._cancelTargeting();
+    if (!this.abilities.dash.canActivate(this.energy, CFG.dash.targetedCost)) return this._fail('dash');
+    if (!motor.startTravel({ x: feet.x, y: feet.y, z: feet.z, speed: CFG.dash.targetedSpeed })) return;
+    this.abilities.dash.commit(this.energy, CFG.dash.targetedCost);
+    const p = motor.position;
+    g.vfx.lightning({ x: p.x, y: p.y + 1, z: p.z }, { x: feet.x, y: feet.y + 1, z: feet.z }, this.color, { width: 0.05, duration: 0.3, jitter: 0.25, branches: 0 });
+    g.vfx.lights.flash({ x: p.x, y: p.y + 1, z: p.z }, this.color, 25, 8, 0.3);
+    g.marks.pulse(0.7, 0.2);
+    g.cameraController.shake(0.15);
+    g.events.emit('power:used', { id: 'dash-dirigido' });
+  }
+
+  _cancelTargeting() {
+    this.targeting = null;
+    if (this.ghost) this.ghost.visible = false;
+    if (this.ghostRing) this.ghostRing.visible = false;
   }
 
   // ------------------------------------------------------------------
+  /** Punto (y normal de la superficie, si la hay) al que apunta el centro de la pantalla. */
+  aimHit() {
+    const cam = this.game.camera;
+    cam.getWorldDirection(this._camDir);
+    const pivotDist = cam.position.distanceTo(this.game.cameraController.shoulderOrigin);
+    const o = { x: cam.position.x + this._camDir.x * pivotDist, y: cam.position.y + this._camDir.y * pivotDist, z: cam.position.z + this._camDir.z * pivotDist };
+    const d = { x: this._camDir.x, y: this._camDir.y, z: this._camDir.z };
+    const hit = this.game.world.raycastHit(o, d, 200, { ignoreTags: ['bounds'] });
+    const t = hit ? hit.t : 200;
+    return { point: new THREE.Vector3(o.x + d.x * t, o.y + d.y * t, o.z + d.z * t), normal: hit ? hit.normal : null };
+  }
+
   /** Punto al que apunta el centro de la pantalla (para orientar los disparos). */
   aimPoint(out = this.lastAimPoint) {
     const cam = this.game.camera;
@@ -172,7 +388,7 @@ export class PowerSystem {
     const a = this.abilities.dash;
     const motor = g.player.motor;
     if (!motor.grounded && this._airDashes >= CFG.dash.airDashes) return this._fail('dash');
-    if (motor.isBursting) return;
+    if (motor.isBusy) return;
     if (!a.canActivate(this.energy)) return this._fail('dash');
     const d = g.player.moveIntent.lengthSq() > 0.01 ? g.player.moveIntent : g.player.facingVector();
     if (!motor.startBurst({ x: d.x, z: d.z, speed: CFG.dash.speed, duration: CFG.dash.duration, gravityScale: 0, exitFactor: 0.5 })) return;

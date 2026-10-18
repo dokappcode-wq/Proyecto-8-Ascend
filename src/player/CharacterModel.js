@@ -25,6 +25,7 @@ export class CharacterModel {
     this._land = 0;
     this._cast = 0;
     this._waveT = 0;
+    this._dive = 0;
     this._build();
   }
 
@@ -265,8 +266,24 @@ export class CharacterModel {
       this._land = Math.max(this._land, 0.5 * e);
     }
 
+    // Picado en rayo: cuerpo recto, piernas juntas, puño derecho hacia abajo
+    this._dive += ((s.diving ? 1 : 0) - this._dive) * k(18);
+    if (this._dive > 0.001) {
+      const d = this._dive;
+      const mix = (obj, axis, v) => (obj.rotation[axis] += (v - obj.rotation[axis]) * d);
+      mix(L.hip, 'x', -0.1);
+      mix(R.hip, 'x', 0.15);
+      mix(L.knee, 'x', 0.25);
+      mix(R.knee, 'x', 0.5);
+      mix(A.R.shoulder, 'x', -0.35);
+      mix(A.R.shoulder, 'z', -0.05);
+      mix(A.R.elbow, 'x', 0);
+      mix(A.L.shoulder, 'x', 0.9);
+      mix(A.L.shoulder, 'z', 0.5);
+    }
+
     // Torso: inclinación al correr / esquivar, respiración en reposo
-    const targetLean = 0.08 * moving + 0.18 * run + this._dodge * 0.55 + airTuck * 0.05;
+    const targetLean = 0.08 * moving + 0.18 * run + this._dodge * 0.55 + airTuck * 0.05 + this._dive * 0.35;
     this._lean += (targetLean - this._lean) * k(10);
     this.chest.rotation.x = this._lean;
     const breathe = Math.sin(this._time * 2.2) * 0.012 * (1 - moving);

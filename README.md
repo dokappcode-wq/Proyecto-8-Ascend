@@ -45,12 +45,14 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Cámara | Ratón (clic en la pantalla para capturarlo) | ✅ |
 | Saltar | Espacio | ✅ |
 | Sprint | Shift | ✅ |
-| Esquivar | Ctrl o C | ✅ |
+| Esquivar (≈2 m) | Ctrl o C | ✅ |
 | Proyectil energético | Clic izquierdo (mantener = ráfaga) | ✅ |
 | Apuntar | Clic derecho | ✅ |
 | Dash energético | Q | ✅ |
+| Dash dirigido | Clic derecho (apuntar) + mantener Q, soltar para ir | ✅ |
 | Descarga concentrada | R (mantener para cargar, soltar para lanzar) | ✅ |
 | Onda expansiva | G | ✅ |
+| Caída en rayo | G en el aire (a más de 1.5 m del suelo) | ✅ |
 | Pausa | Esc | ✅ |
 | Menú de depuración | F2 o º | ✅ |
 | Ocultar ayuda / datos técnicos | H / F3 | ✅ |
@@ -68,8 +70,10 @@ controles se definen como acciones en `src/core/Input.js`.
 | --- | --- | --- | --- |
 | Proyectil | 4 | 0.2 s | 10 de daño, 60 m/s, alcance 45 m |
 | Dash | 15 | 1 s | ~4 m en 0.17 s, anula la caída; 1 por salto en el aire |
+| Dash dirigido | 25 | 1 s (compartido con el dash) | apuntando, mantener Q muestra una silueta del personaje en el destino (máx. 20 m); al soltar se desplaza allí, también hacia arriba (azoteas). Se detiene antes de un obstáculo |
 | Descarga | 30 | 1.5 s | carga 0.35–1.4 s; 25–60 de daño + área de 2.5 m con retroceso |
 | Onda | 35 | 5 s | radio 7.5 m, 30 de daño con atenuación y retroceso radial |
+| Caída en rayo | 35 | 5 s (compartido con la onda) | G en el aire: cae en vertical como un rayo y explota al tocar suelo. Radio 6–11 m y daño 40–80 según la altura. El aterrizaje es inmune al daño por caída |
 
 Energía: 100, se regenera 16/s tras 0.8 s sin gastar. Todos los valores están
 en `src/powers/energy/energyConfig.js`.
@@ -133,9 +137,10 @@ contenedores y cajas (A1, A2).
 
 ## Qué se ha probado realmente (Etapas 1 y 2)
 
-- `npm test` — 29 tests unitarios: físicas (gravedad, velocidades, salto, muros,
+- `npm test` — 34 tests unitarios: físicas (gravedad, velocidades, salto, muros,
   túnel a alta velocidad, escalones, rampas, techos, *coyote time*,
-  reaparición, esquiva, dash, multiplicador de velocidad, raycast), guardado,
+  reaparición, esquiva corta, dash, caída en picado, desplazamiento dirigido,
+  multiplicador de velocidad, raycast), guardado,
   energía (gasto, regeneración, modo infinito), habilidades (coste y
   reutilización), daño directo y de área, y proyectiles (impacto en muros finos,
   alcance, límites invisibles).
@@ -149,6 +154,10 @@ contenedores y cajas (A1, A2).
     marca (que luego se apagan), el dash desplaza y consume energía, el alcance
     es correcto (40 m impacta, 50 m no), sin la marca no hay poderes, el menú de
     depuración funciona y los proyectiles funcionan también en Distrito Cero.
+  - Ajustes posteriores: la esquiva normal recorre ≈2 m; G en el aire cae en
+    vertical, explota, daña a los maniquíes y el aterrizaje es inmune; apuntar
+    + mantener Q muestra la silueta en el punto señalado, al soltar se desplaza
+    allí y la distancia se limita a 20 m.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
 
 **No probado**: rendimiento en GPU real (las pruebas usan SwiftShader; el bloom

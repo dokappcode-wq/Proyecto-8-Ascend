@@ -140,3 +140,78 @@ test('speedScale reduce la velocidad al apuntar', () => {
   for (let i = 0; i < 60; i++) m.update(1 / 60, { moveX: 0, moveZ: 1, speedScale: 0.5 });
   assert.ok(Math.abs(m.horizontalSpeed - m.cfg.walkSpeed * 0.5) < 1e-6);
 });
+
+function flatWorld() {
+  const w = new CollisionWorld();
+  w.addBox({ x: -100, y: -1, z: -100 }, { x: 100, y: 0, z: 100 });
+  return w;
+}
+const still = { moveX: 0, moveZ: 0 };
+
+test('la esquiva normal recorre una distancia corta (≈2–3 m)', () => {
+  const m = new CharacterMotor(flatWorld());
+  m.teleport({ x: 0, y: 0, z: 0 });
+  for (let i = 0; i < 10; i++) m.update(1 / 60, still);
+  m.update(1 / 60, { ...still, dodge: true, facingX: 0, facingZ: 1 });
+  for (let i = 0; i < 90; i++) m.update(1 / 60, still);
+  assert.ok(m.position.z > 1.8 && m.position.z < 3, `z=${m.position.z}`);
+});
+
+test('el picado cae en vertical, aterriza inmune y mide la altura', () => {
+  const m = new CharacterMotor(flatWorld());
+  m.teleport({ x: 3, y: 12, z: -2 });
+  m.velocity.x = 5;
+  assert.ok(m.startDive(40));
+  let landed = null;
+  for (let i = 0; i < 120 && !landed; i++) {
+    m.update(1 / 60, still);
+    if (m.events.diveLanded) landed = { ...m.events };
+  }
+  assert.ok(landed, 'aterriza');
+  assert.ok(landed.landingImmune);
+  assert.ok(Math.abs(landed.diveLanded.fallHeight - 12) < 0.01);
+  assert.equal(m.position.x, 3);
+  assert.equal(m.position.y, 0);
+  assert.ok(!m.isDiving);
+});
+
+test('no se puede iniciar un picado desde el suelo', () => {
+  const m = new CharacterMotor(flatWorld());
+  m.teleport({ x: 0, y: 0, z: 0 });
+  m.update(1 / 60, still);
+  assert.ok(!m.startDive());
+});
+
+test('el desplazamiento dirigido llega al destino, incluida una azotea', () => {
+  const w = flatWorld();
+  w.addBox({ x: 5, y: 0, z: -5 }, { x: 15, y: 6, z: 5 }); // edificio de 6 m
+  const m = new CharacterMotor(w);
+  m.teleport({ x: 0, y: 0, z: 0 });
+  m.update(1 / 60, still);
+  assert.ok(m.startTravel({ x: 7, y: 6, z: 0, speed: 45 }));
+  let ended = null;
+  for (let i = 0; i < 120 && !ended; i++) {
+    m.update(1 / 60, still);
+    ended = m.events.travelEnded;
+  }
+  assert.ok(ended && !ended.blocked, 'termina sin bloquearse');
+  for (let i = 0; i < 30; i++) m.update(1 / 60, still);
+  assert.ok(Math.abs(m.position.y - 6) < 1e-6, `y=${m.position.y}`);
+  assert.ok(m.position.x > 6.5);
+});
+
+test('el desplazamiento dirigido se detiene contra un muro', () => {
+  const w = flatWorld();
+  w.addBox({ x: -5, y: 0, z: 4 }, { x: 5, y: 10, z: 4.5 });
+  const m = new CharacterMotor(w);
+  m.teleport({ x: 0, y: 0, z: 0 });
+  m.update(1 / 60, still);
+  m.startTravel({ x: 0, y: 0, z: 10 });
+  let ended = null;
+  for (let i = 0; i < 120 && !ended; i++) {
+    m.update(1 / 60, still);
+    ended = m.events.travelEnded;
+  }
+  assert.ok(ended && ended.blocked);
+  assert.ok(m.position.z < 4);
+});

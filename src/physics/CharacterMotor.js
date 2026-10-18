@@ -20,8 +20,9 @@ export const DEFAULT_MOTOR_CONFIG = Object.freeze({
   jumpVelocity: 9.4,
   coyoteTime: 0.12,
   jumpBuffer: 0.14,
-  dodgeSpeed: 17,
-  dodgeDuration: 0.22,
+  dodgeSpeed: 12,
+  dodgeDuration: 0.18,
+  dodgeExitFactor: 0.3,
   dodgeCooldown: 0.55,
   killY: -40,
 });
@@ -52,9 +53,58 @@ export class CharacterMotor {
     this._dodgeCooldown = 0;
     /** Impulso horizontal activo (esquiva o dash): { kind, x, z, speed, time, gravityScale, exitFactor } */
     this._burst = null;
+    /** Caída en picado (rayo): { speed, startY } */
+    this._dive = null;
+    /** Desplazamiento dirigido a un punto: { from, to, t, duration } */
+    this._travel = null;
 
-    /** Eventos del último paso (para animación / efectos). */
-    this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0 };
+    /**
+     * Eventos del último paso (para animación / efectos).
+     * `landingImmune`: el aterrizaje no debe causar daño por caída (picado).
+     * `diveLanded`: { fallHeight } al terminar un picado.
+     */
+    this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null };
+  }
+
+  get isDiving() {
+    return this._dive !== null;
+  }
+
+  get isTraveling() {
+    return this._travel !== null;
+  }
+
+  /** Movimiento especial en curso (impulso, picado o desplazamiento dirigido). */
+  get isBusy() {
+    return this._burst !== null || this._dive !== null || this._travel !== null;
+  }
+
+  /**
+   * Caída vertical a gran velocidad hasta tocar suelo. El aterrizaje se
+   * marca como inmune al daño por caída.
+   */
+  startDive(speed = 42) {
+    if (this.grounded || this.isBusy) return false;
+    this._dive = { speed, startY: this.position.y };
+    this.velocity.x = this.velocity.z = 0;
+    this.velocity.y = -speed;
+    return true;
+  }
+
+  /**
+   * Desplazamiento rápido en línea hasta un punto (pies), con colisiones.
+   * Si el destino está más alto, gana altura antes (curva) para poder
+   * superar bordes de azoteas. Se detiene si algo lo bloquea.
+   */
+  startTravel({ x, y, z, speed = 45 }) {
+    if (this.isBusy) return false;
+    const from = { ...this.position };
+    const dist = Math.hypot(x - from.x, y - from.y, z - from.z);
+    if (dist < 0.5) return false;
+    this._travel = { from, to: { x, y, z }, t: 0, duration: dist / speed };
+    this.velocity.x = this.velocity.y = this.velocity.z = 0;
+    this.grounded = false;
+    return true;
   }
 
   get isDodging() {
@@ -66,7 +116,7 @@ export class CharacterMotor {
   }
 
   get isBursting() {
-    return this._burst !== null;
+    return this._burst !== null || this._travel !== null;
   }
 
   /**
@@ -75,7 +125,7 @@ export class CharacterMotor {
    * @param {object} o { x, z: dirección; speed; duration; gravityScale=0; exitFactor=0.5; kind='dash' }
    */
   startBurst({ x, z, speed, duration, gravityScale = 0, exitFactor = 0.5, kind = 'dash' }) {
-    if (this._burst) return false;
+    if (this.isBusy) return false;
     const l = Math.hypot(x, z);
     if (l < 1e-6) return false;
     this._burst = { kind, x: x / l, z: z / l, speed, time: duration, gravityScale, exitFactor };
@@ -99,6 +149,8 @@ export class CharacterMotor {
     this.velocity.x = this.velocity.y = this.velocity.z = 0;
     this.grounded = false;
     this._burst = null;
+    this._dive = null;
+    this._travel = null;
     this._dodgeCooldown = 0;
     this._coyote = 0;
     this._jumpBuffer = 0;
@@ -116,10 +168,14 @@ export class CharacterMotor {
   update(dt, input) {
     const c = this.cfg;
     const ev = this.events;
-    ev.jumped = ev.landed = ev.dodged = ev.respawned = false;
+    ev.jumped = ev.landed = ev.dodged = ev.respawned = ev.landingImmune = false;
     ev.landingSpeed = 0;
+    ev.diveLanded = ev.travelEnded = null;
     if (dt <= 0) return;
     dt = Math.min(dt, 0.1);
+
+    if (this._dive) return this._updateDive(dt);
+    if (this._travel) return this._updateTravel(dt);
 
     // --- Temporizadores de salto (coyote time y buffer) ---
     if (input.jump) this._jumpBuffer = c.jumpBuffer;
@@ -137,14 +193,14 @@ export class CharacterMotor {
     }
 
     // --- Esquiva ---
-    if (input.dodge && this._dodgeCooldown === 0 && !this._burst) {
+    if (input.dodge && this._dodgeCooldown === 0 && !this.isBusy) {
       let dx = mx;
       let dz = mz;
       if (Math.hypot(dx, dz) < 0.1) {
         dx = input.facingX ?? 0;
         dz = input.facingZ ?? 1;
       }
-      if (this.startBurst({ x: dx, z: dz, speed: c.dodgeSpeed, duration: c.dodgeDuration, gravityScale: 0.15, exitFactor: 0.45, kind: 'dodge' })) {
+      if (this.startBurst({ x: dx, z: dz, speed: c.dodgeSpeed, duration: c.dodgeDuration, gravityScale: 0.15, exitFactor: c.dodgeExitFactor, kind: 'dodge' })) {
         this._dodgeCooldown = c.dodgeCooldown + c.dodgeDuration;
         ev.dodged = true;
       }
@@ -199,9 +255,16 @@ export class CharacterMotor {
       v.y = Math.max(v.y - g * dt, -c.maxFallSpeed);
     }
 
-    // --- Integración con sub-pasos para evitar atravesar geometría ---
+    this._integrate(dt);
+  }
+
+  /** Integración con sub-pasos (no atraviesa geometría) + eventos de aterrizaje y caída del mapa. */
+  _integrate(dt) {
+    const c = this.cfg;
+    const v = this.velocity;
+    const ev = this.events;
     const travel = Math.max(Math.hypot(v.x, v.z), Math.abs(v.y)) * dt;
-    const steps = Math.min(10, Math.max(1, Math.ceil(travel / (c.radius * 0.5))));
+    const steps = Math.min(16, Math.max(1, Math.ceil(travel / (c.radius * 0.5))));
     const sdt = dt / steps;
     const wasGrounded = this.grounded;
     let landingSpeed = 0;
@@ -219,6 +282,56 @@ export class CharacterMotor {
     if (this.position.y < c.killY) {
       this.respawn();
       ev.respawned = true;
+    }
+  }
+
+  _updateDive(dt) {
+    const v = this.velocity;
+    v.x = v.z = 0;
+    v.y = -this._dive.speed;
+    this._integrate(dt);
+    if (!this._dive) return; // reaparición
+    if (this.grounded) {
+      const ev = this.events;
+      ev.landingImmune = true;
+      ev.diveLanded = { fallHeight: Math.max(0, this._dive.startY - this.position.y) };
+      this._dive = null;
+      v.y = 0;
+    }
+  }
+
+  _updateTravel(dt) {
+    const tr = this._travel;
+    const p = this.position;
+    const v = this.velocity;
+    tr.t = Math.min(1, tr.t + dt / tr.duration);
+    const t = tr.t;
+    const up = tr.to.y > tr.from.y;
+    // Al subir, la altura se gana antes que la distancia horizontal.
+    const ty = up ? 1 - (1 - t) * (1 - t) : t;
+    const want = {
+      x: tr.from.x + (tr.to.x - tr.from.x) * t,
+      y: tr.from.y + (tr.to.y - tr.from.y) * ty,
+      z: tr.from.z + (tr.to.z - tr.from.z) * t,
+    };
+    v.x = (want.x - p.x) / dt;
+    v.y = (want.y - p.y) / dt;
+    v.z = (want.z - p.z) / dt;
+    this._integrate(dt);
+    if (!this._travel) return; // reaparición
+    const off = Math.hypot(want.x - p.x, want.y - p.y, want.z - p.z);
+    const blocked = off > 0.6;
+    if (t >= 1 || blocked) {
+      const hx = tr.to.x - tr.from.x;
+      const hz = tr.to.z - tr.from.z;
+      const hl = Math.hypot(hx, hz) || 1;
+      // Pequeña inercia de salida en la dirección del desplazamiento.
+      v.x = (hx / hl) * 3;
+      v.z = (hz / hl) * 3;
+      v.y = 0;
+      this.events.travelEnded = { blocked };
+      this.events.landingImmune = true;
+      this._travel = null;
     }
   }
 

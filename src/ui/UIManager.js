@@ -17,9 +17,9 @@ const CONTROL_ROWS = [
   ['Esquivar', ['dodge'], true],
   ['Proyectil energético', ['attack'], true],
   ['Apuntar', ['aim'], true],
-  ['Dash energético', ['special'], true],
+  ['Dash energético (apuntando + mantener: dash dirigido)', ['special'], true],
   ['Descarga concentrada (mantener)', ['charged'], true],
-  ['Onda expansiva', ['wave'], true],
+  ['Onda expansiva (en el aire: caída en rayo)', ['wave'], true],
   ['Pausa', null, true, 'Esc'],
   ['Menú de depuración', ['debugMenu'], true],
   ['Datos de depuración', ['debug'], true],
@@ -260,7 +260,7 @@ export class UIManager {
 
   _renderHint() {
     const power = this._powerAvailable
-      ? ' · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash · <b>R</b> (mantener) descarga · <b>G</b> onda'
+      ? ' · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> (mantener) descarga · <b>G</b> onda (en el aire: rayo)'
       : '';
     this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Ctrl / C</b> esquivar${power} · <b>Esc</b> pausa · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
   }
@@ -283,7 +283,8 @@ export class UIManager {
           s.cd.style.transform = `scaleY(${a.cooldown})`;
           s.el.classList.toggle('unaffordable', !a.affordable);
         }
-        sl.dash.el.classList.toggle('active', power.dashing);
+        sl.dash.el.classList.toggle('active', power.dashing || power.targeting);
+        sl.wave.el.classList.toggle('active', power.diving);
         sl.discharge.el.classList.toggle('active', power.charge !== null);
         this.hud.crosshair.classList.toggle('aiming', power.aiming);
         const ch = this.hud.charge;

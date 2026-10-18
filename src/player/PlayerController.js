@@ -100,7 +100,7 @@ export class PlayerController {
     // Pasos fijos (≤ 1/60 s): el movimiento es igual a cualquier tasa de frames.
     const steps = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6));
     const sdt = dt / steps;
-    const agg = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0 };
+    const agg = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null };
     for (let i = 0; i < steps; i++) {
       this.motor.update(sdt, {
         speedScale: this.speedScale,
@@ -116,6 +116,9 @@ export class PlayerController {
       agg.jumped ||= e.jumped;
       agg.dodged ||= e.dodged;
       agg.respawned ||= e.respawned;
+      agg.landingImmune ||= e.landingImmune;
+      agg.diveLanded ??= e.diveLanded;
+      agg.travelEnded ??= e.travelEnded;
       if (e.landed) {
         agg.landed = true;
         agg.landingSpeed = Math.max(agg.landingSpeed, e.landingSpeed);
@@ -142,7 +145,7 @@ export class PlayerController {
 
     const ev = this.motor.events;
     if (ev.jumped) this.events.emit('player:jumped');
-    if (ev.landed) this.events.emit('player:landed', { speed: ev.landingSpeed });
+    if (ev.landed) this.events.emit('player:landed', { speed: ev.landingSpeed, immune: ev.landingImmune });
     if (ev.dodged) this.events.emit('player:dodged');
     if (ev.respawned) this.events.emit('player:respawned');
 
@@ -155,6 +158,7 @@ export class PlayerController {
       grounded: this.motor.grounded,
       sprinting: sprint,
       dodging: this.motor.isDodging,
+      diving: this.motor.isDiving,
       verticalSpeed: v.y,
       landed: ev.landed,
       landingSpeed: ev.landingSpeed,

@@ -20,6 +20,70 @@ export class VfxSystem {
     scene.add(this.group);
     this._ringGeo = new THREE.RingGeometry(0.85, 1, 64);
     this._ghostGeo = new THREE.CapsuleGeometry(0.28, 1.1, 4, 10);
+    this._segGeo = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true);
+    this._up = new THREE.Vector3(0, 1, 0);
+  }
+
+  /**
+   * Rayo quebrado entre dos puntos (núcleo brillante + halo), con
+   * ramificaciones y parpadeo. Puramente visual.
+   * @param {object} o { width=0.08, duration=0.3, jitter=0.6, branches=2 }
+   */
+  lightning(from, to, color, { width = 0.08, duration = 0.3, jitter = 0.6, branches = 2 } = {}) {
+    const a = new THREE.Vector3(from.x, from.y, from.z);
+    const b = new THREE.Vector3(to.x, to.y, to.z);
+    const len = a.distanceTo(b);
+    if (len < 0.05) return;
+    const group = new THREE.Group();
+    const core = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffffff).lerp(new THREE.Color(color), 0.35).multiplyScalar(1.8), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+    const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(1.2), transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+    const pts = this._jagged(a, b, Math.max(2, Math.ceil(len / 1.1)), jitter);
+    this._addPolyline(group, pts, width, core, glow);
+    for (let i = 0; i < branches; i++) {
+      const k = 1 + Math.floor(Math.random() * (pts.length - 2));
+      const start = pts[k];
+      const dir = new THREE.Vector3().subVectors(b, a).normalize();
+      const side = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+      const end = start.clone().addScaledVector(dir, len * 0.15).addScaledVector(side, len * 0.12 + 0.5);
+      this._addPolyline(group, this._jagged(start, end, 3, jitter * 0.6), width * 0.55, core, glow);
+    }
+    this._addTransient(group, duration, (o, t) => {
+      const flicker = 0.6 + Math.random() * 0.4;
+      core.opacity = Math.min(1, t * 1.6) * flicker;
+      glow.opacity = 0.25 * t * flicker;
+    }, false, [core, glow]);
+  }
+
+  _jagged(a, b, n, jitter) {
+    const pts = [a.clone()];
+    const dir = new THREE.Vector3().subVectors(b, a);
+    for (let i = 1; i < n; i++) {
+      const p = a.clone().addScaledVector(dir, i / n);
+      p.x += (Math.random() - 0.5) * 2 * jitter;
+      p.y += (Math.random() - 0.5) * 2 * jitter * 0.4;
+      p.z += (Math.random() - 0.5) * 2 * jitter;
+      pts.push(p);
+    }
+    pts.push(b.clone());
+    return pts;
+  }
+
+  _addPolyline(group, pts, width, core, glow) {
+    const q = new THREE.Quaternion();
+    const d = new THREE.Vector3();
+    for (let i = 0; i < pts.length - 1; i++) {
+      d.subVectors(pts[i + 1], pts[i]);
+      const l = d.length();
+      if (l < 1e-4) continue;
+      q.setFromUnitVectors(this._up, d.divideScalar(l));
+      for (const [mat, w] of [[core, width], [glow, width * 3]]) {
+        const m = new THREE.Mesh(this._segGeo, mat);
+        m.position.lerpVectors(pts[i], pts[i + 1], 0.5);
+        m.quaternion.copy(q);
+        m.scale.set(w, l, w);
+        group.add(m);
+      }
+    }
   }
 
   setViewportHeight(h) {
@@ -76,9 +140,10 @@ export class VfxSystem {
     }, true);
   }
 
-  _addTransient(obj, life, update, ownsMaterial = true) {
+  /** @param {THREE.Material[]} [materials] materiales compartidos por un grupo, a liberar al terminar */
+  _addTransient(obj, life, update, ownsMaterial = true, materials = null) {
     this.group.add(obj);
-    this.transients.push({ obj, life, maxLife: life, update, ownsMaterial });
+    this.transients.push({ obj, life, maxLife: life, update, ownsMaterial, materials });
   }
 
   update(dt) {
@@ -98,9 +163,10 @@ export class VfxSystem {
 
   _dispose(tr) {
     this.group.remove(tr.obj);
+    if (tr.materials) for (const m of tr.materials) m.dispose();
     if (tr.ownsMaterial) tr.obj.material?.dispose();
     // Los sprites comparten una geometría interna de Three.js: no se libera.
-    if (!tr.obj.isSprite && tr.obj.geometry && tr.obj.geometry !== this._ringGeo && tr.obj.geometry !== this._ghostGeo) tr.obj.geometry.dispose();
+    if (!tr.obj.isSprite && tr.obj.geometry && ![this._ringGeo, this._ghostGeo, this._segGeo].includes(tr.obj.geometry)) tr.obj.geometry.dispose();
   }
 
   clear() {

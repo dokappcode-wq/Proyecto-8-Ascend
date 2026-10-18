@@ -332,6 +332,87 @@ try {
   check(Math.hypot(p1.x - p0.x, p1.z - p0.z) > 3, `Q ejecuta el dash (${Math.hypot(p1.x - p0.x, p1.z - p0.z).toFixed(1)} m)`);
   check(dashE < 100, `El dash consume energía (${dashE.toFixed(0)})`);
 
+  // Esquiva normal: distancia corta
+  await g(() => window.__ascend.player.spawnAt({ x: 0, y: 0.3, z: 18, yaw: Math.PI }));
+  await page.waitForTimeout(300);
+  const d0 = await g(() => ({ ...window.__ascend.player.motor.position }));
+  await page.keyboard.press('KeyC');
+  await page.waitForFunction(() => window.__ascend.player.motor.dodgeCooldownRemaining > 0, null, { timeout: 5000 });
+  await page.waitForFunction(() => !window.__ascend.player.motor.isBusy && window.__ascend.player.motor.horizontalSpeed < 0.1, null, { timeout: 5000 });
+  const d1 = await g(() => ({ ...window.__ascend.player.motor.position }));
+  const dodgeDist = Math.hypot(d1.x - d0.x, d1.z - d0.z);
+  check(dodgeDist > 1.5 && dodgeDist < 3.2, `La esquiva normal es corta (${dodgeDist.toFixed(1)} m)`);
+
+  // G en el aire: caída en forma de rayo + explosión, sin daño por caída
+  await g(() => { const a = window.__ascend; a.mapManager.resetEntities(); a.powers.resetAbilities(); a.powers.energy.refill(); });
+  await g(() => {
+    window.__landing = null;
+    window.__ascend.events.on('player:landed', (e) => { window.__landing = e; });
+    window.__impact = null;
+    window.__ascend.events.on('power:impact', (e) => { window.__impact = e; });
+    window.__ascend.player.spawnAt({ x: -41, y: 12, z: -55.5, yaw: Math.PI });
+  });
+  await page.keyboard.press('KeyG');
+  await page.waitForFunction(() => window.__ascend.powers.isDiving, null, { timeout: 5000 }).catch(() => {});
+  const diving = await g(() => window.__ascend.player.motor.isDiving || window.__impact !== null);
+  await page.waitForTimeout(80);
+  await page.screenshot({ path: path.join(out, 'powers-06-dive.png') });
+  await page.waitForFunction(() => window.__impact !== null, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(60);
+  await page.screenshot({ path: path.join(out, 'powers-07-dive-impact.png') });
+  const dive = await g(() => ({
+    impact: window.__impact, landing: window.__landing, pos: { ...window.__ascend.player.motor.position },
+    dummies: window.__ascend.mapManager.current.entities.filter((e) => e.maxHealth && Math.abs(e.base.z + 58) < 0.1).map((e) => e.health),
+  }));
+  check(diving, 'G en el aire inicia la caída en rayo');
+  check(dive.impact && dive.impact.fallHeight > 10, `Explosión al tocar suelo (caída ${dive.impact?.fallHeight.toFixed(1)} m, radio ${dive.impact?.radius.toFixed(1)} m, daño ${dive.impact?.damage})`);
+  check(Math.abs(dive.pos.x + 41) < 0.01 && Math.abs(dive.pos.z + 55.5) < 0.01, 'La caída es vertical');
+  check(dive.dummies.filter((h) => h < 100).length >= 2, `La explosión daña a los maniquíes cercanos (salud ${dive.dummies.join(', ')})`);
+  check(dive.landing && dive.landing.immune === true, 'El aterrizaje del rayo es inmune al daño por caída');
+
+  // Dash dirigido: apuntar + mantener Q muestra la silueta; soltar = desplazarse allí
+  await g(() => { const a = window.__ascend; a.powers.resetAbilities(); a.powers.energy.refill(); });
+  await g(() => window.__place({ x: 20, y: 0.2, z: 30 }, { x: 20, y: 0, z: 42 }));
+  await page.mouse.down({ button: 'right' });
+  await page.waitForTimeout(400);
+  await g(() => window.__aimAt({ x: 20, y: 0, z: 42 }));
+  await page.keyboard.down('KeyQ');
+  await page.waitForFunction(() => window.__ascend.powers.isTargeting, null, { timeout: 5000 }).catch(() => {});
+  await g(() => window.__aimAt({ x: 20, y: 0, z: 42 }));
+  await page.waitForTimeout(300);
+  const ghost = await g(() => {
+    const pw = window.__ascend.powers;
+    return { visible: pw.ghost.visible, pos: pw.ghost.position.toArray(), targeting: pw.isTargeting };
+  });
+  await page.screenshot({ path: path.join(out, 'powers-08-targeted-ghost.png') });
+  check(ghost.targeting && ghost.visible, 'Apuntar + mantener Q muestra la silueta del personaje');
+  check(Math.hypot(ghost.pos[0] - 20, ghost.pos[2] - 42) < 1.2, `La silueta aparece donde se apunta (${ghost.pos.map((v) => v.toFixed(1)).join(', ')})`);
+  await page.keyboard.up('KeyQ');
+  await page.waitForFunction(() => window.__ascend.player.motor.isTraveling, null, { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => !window.__ascend.player.motor.isBusy && window.__ascend.player.motor.horizontalSpeed < 0.1, null, { timeout: 8000 }).catch(() => {});
+  const arrived = await g(() => ({ ...window.__ascend.player.motor.position }));
+  check(Math.hypot(arrived.x - ghost.pos[0], arrived.z - ghost.pos[2]) < 1.2, `Al soltar Q se desplaza hasta la silueta (${arrived.x.toFixed(1)}, ${arrived.z.toFixed(1)})`);
+  check(!(await g(() => window.__ascend.powers.ghost.visible)), 'La silueta desaparece tras el dash');
+
+  // Límite de distancia: apuntar muy lejos coloca la silueta a ≤ 20 m
+  await g(() => { const a = window.__ascend; a.powers.resetAbilities(); a.powers.energy.refill(); });
+  await g(() => window.__place({ x: 20, y: 0.2, z: 30 }, { x: 20, y: 0, z: 80 }));
+  await page.waitForTimeout(300);
+  await g(() => window.__aimAt({ x: 20, y: 0, z: 80 }));
+  await page.keyboard.down('KeyQ');
+  await page.waitForFunction(() => window.__ascend.powers.isTargeting, null, { timeout: 5000 }).catch(() => {});
+  await g(() => window.__aimAt({ x: 20, y: 0, z: 80 }));
+  await page.waitForTimeout(300);
+  const far = await g(() => {
+    const pw = window.__ascend.powers;
+    const m = window.__ascend.player.motor.position;
+    return Math.hypot(pw.ghost.position.x - m.x, pw.ghost.position.y + 1 - (m.y + 1), pw.ghost.position.z - m.z);
+  });
+  await page.keyboard.up('KeyQ');
+  await page.mouse.up({ button: 'right' });
+  await page.waitForFunction(() => !window.__ascend.player.motor.isBusy, null, { timeout: 8000 }).catch(() => {});
+  check(far <= 20.5 && far > 15, `La silueta respeta el límite de distancia (${far.toFixed(1)} m ≤ 20 m)`);
+
   // Prueba de alcance: 40 m impacta, 50 m no
   await g(() => { window.__ascend.mapManager.resetEntities(); window.__ascend.powers.energy.refill(); });
   for (const [dist, dz, expectHit] of [[40, 1, true], [50, 3.5, false]]) {
