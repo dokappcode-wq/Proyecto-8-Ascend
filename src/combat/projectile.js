@@ -17,18 +17,26 @@
 
 /**
  * Avanza un proyectil `dt` segundos.
- * @returns {{ type:'hit', point, normal, collider } | { type:'expired', point } | null}
+ * @param {function} [actorTest] (origin, dir, maxT) => { t, actor } | null — impacto con personajes
+ * @returns {{ type:'hit', point, normal, collider, actor } | { type:'expired', point } | null}
  */
-export function stepProjectile(p, dt, world) {
+export function stepProjectile(p, dt, world, actorTest = null) {
   const remaining = p.range - p.traveled;
   const step = Math.min(p.speed * dt, remaining);
   if (step <= 0) return { type: 'expired', point: { ...p.pos } };
   const hit = world.raycastHit(p.pos, p.dir, step, { ignoreTags: ['bounds'] });
+  const actorHit = actorTest ? actorTest(p.pos, p.dir, hit ? hit.t : step) : null;
+  if (actorHit) {
+    const point = { x: p.pos.x + p.dir.x * actorHit.t, y: p.pos.y + p.dir.y * actorHit.t, z: p.pos.z + p.dir.z * actorHit.t };
+    p.pos = point;
+    p.traveled += actorHit.t;
+    return { type: 'hit', point, normal: { x: -p.dir.x, y: -p.dir.y, z: -p.dir.z }, collider: null, actor: actorHit.actor };
+  }
   if (hit) {
     const point = { x: p.pos.x + p.dir.x * hit.t, y: p.pos.y + p.dir.y * hit.t, z: p.pos.z + p.dir.z * hit.t };
     p.pos = point;
     p.traveled += hit.t;
-    return { type: 'hit', point, normal: hit.normal, collider: hit.collider };
+    return { type: 'hit', point, normal: hit.normal, collider: hit.collider, actor: null };
   }
   p.pos = { x: p.pos.x + p.dir.x * step, y: p.pos.y + p.dir.y * step, z: p.pos.z + p.dir.z * step };
   p.traveled += step;

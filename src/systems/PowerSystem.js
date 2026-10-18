@@ -125,7 +125,7 @@ export class PowerSystem {
     // El picado termina aunque se pierda la marca en pleno vuelo.
     if (this.dive) this._updateDive();
 
-    if (!this.available) {
+    if (!this.available || g.playerCombat?.dead) {
       this._cancelCharge();
       this._cancelTargeting();
       player.aiming = false;

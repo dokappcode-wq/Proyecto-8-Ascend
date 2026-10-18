@@ -33,6 +33,7 @@ export function createDefaultSave() {
       grantEnergy: true, // concede Energía hasta que exista la adquisición (Etapa 4)
       infiniteEnergy: false,
       maxMarks: false, // fuerza las marcas al máximo para revisar efectos
+      invulnerable: false, // el jugador no recibe daño
     },
   };
 }

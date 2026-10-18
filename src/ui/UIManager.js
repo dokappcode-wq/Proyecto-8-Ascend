@@ -23,8 +23,8 @@ const CONTROL_ROWS = [
   ['Pausa', null, true, 'Esc'],
   ['Menú de depuración', ['debugMenu'], true],
   ['Datos de depuración', ['debug'], true],
-  ['Cuerpo a cuerpo', ['melee'], false, null, 'Etapa 3'],
-  ['Interactuar', ['interact'], false, null, 'Etapa 4'],
+  ['Cuerpo a cuerpo', ['melee'], true],
+  ['Interactuar', ['interact'], true],
   ['Menú de poderes', ['powerMenu'], false, null, 'Etapa 4'],
 ];
 
@@ -34,6 +34,7 @@ const ABILITY_SLOTS = [
   { id: 'dash', action: 'special', name: 'Dash', power: true },
   { id: 'discharge', action: 'charged', name: 'Descarga', power: true },
   { id: 'wave', action: 'wave', name: 'Onda', power: true },
+  { id: 'melee', action: 'melee', name: 'Golpe', power: false },
   { id: 'dodge', action: 'dodge', name: 'Esquiva', power: false },
   { id: 'sprint', action: 'sprint', name: 'Sprint', power: false },
 ];
@@ -72,7 +73,17 @@ export class UIManager {
       energyFill: this.$('hud-energy-fill'),
       floaters: this.$('hud-floaters'),
       abilities: this.$('hud-abilities'),
+      health: this.$('hud-health'),
+      healthFill: this.$('hud-health-fill'),
+      healthLag: this.$('hud-health-lag'),
+      healthText: this.$('hud-health-text'),
+      vignette: this.$('hud-vignette'),
+      hitdir: this.$('hud-hitdir'),
+      prompt: this.$('hud-prompt'),
+      death: this.$('hud-death'),
     };
+    this._vigTimer = null;
+    this._dirTimer = null;
     this._settingsReturn = 'menu';
     this._toastTimer = null;
     this._hitTimer = null;
@@ -175,6 +186,46 @@ export class UIManager {
     this._renderHint();
   }
 
+  // ---------------------------------------------------------------- Combate
+  /** Aviso de interacción (E). `label` null lo oculta. */
+  setPrompt(label) {
+    const p = this.hud.prompt;
+    if (!label) return p.classList.remove('show');
+    p.innerHTML = `<kbd>${Input.labelFor(this.input.bindings.interact[0])}</kbd>${escapeHtml(label)}`;
+    p.classList.add('show');
+  }
+
+  /** Viñeta roja e indicador de la dirección del impacto. */
+  playerDamaged(d, camera, playerPos) {
+    const v = this.hud.vignette;
+    v.classList.add('show');
+    clearTimeout(this._vigTimer);
+    this._vigTimer = setTimeout(() => v.classList.remove('show'), 120);
+    let dx;
+    let dz;
+    if (d.from) {
+      dx = d.from.x - playerPos.x;
+      dz = d.from.z - playerPos.z;
+    } else if (d.dir) {
+      dx = -d.dir.x;
+      dz = -d.dir.z;
+    } else return;
+    camera.getWorldDirection(this._v);
+    const fx = this._v.x;
+    const fz = this._v.z;
+    // Ángulo con signo entre la dirección de la cámara y la fuente (0 = delante, + = derecha)
+    const ang = Math.atan2(fx * dz - fz * dx, fx * dx + fz * dz);
+    const el = this.hud.hitdir;
+    el.style.transform = `rotate(${ang}rad)`;
+    el.classList.add('show');
+    clearTimeout(this._dirTimer);
+    this._dirTimer = setTimeout(() => el.classList.remove('show'), 150);
+  }
+
+  showDeath(v) {
+    this.hud.death.classList.toggle('show', v);
+  }
+
   abilityFailed(id) {
     const slot = this._slots[id];
     if (slot) {
@@ -263,11 +314,23 @@ export class UIManager {
     const power = this._powerAvailable
       ? ' · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> (mantener) descarga · <b>G</b> onda (en el aire: rayo)'
       : '';
-    this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Ctrl / C</b> esquivar${power} · <b>Esc</b> pausa · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
+    this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Ctrl / C</b> esquivar · <b>F</b> golpe · <b>E</b> interactuar${power} · <b>Esc</b> pausa · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
   }
 
-  updateHud({ dt, camera, dodgeCooldown, dodgeCooldownMax, dodging, sprinting, pointerLocked, fps, debugText, power }) {
+  updateHud({ dt, camera, dodgeCooldown, dodgeCooldownMax, dodging, sprinting, pointerLocked, fps, debugText, power, health, meleeCooldown }) {
     const sl = this._slots;
+    if (health) {
+      const r = Math.max(0, health.value / health.max);
+      this.hud.healthFill.style.transform = `scaleX(${r})`;
+      this.hud.healthLag.style.transform = `scaleX(${r})`;
+      this.hud.healthFill.classList.toggle('mid', r <= 0.5 && r > 0.25);
+      this.hud.healthFill.classList.toggle('low', r <= 0.25);
+      this.hud.healthText.textContent = String(Math.ceil(health.value));
+      this.hud.health.classList.toggle('god', !!health.god);
+      this.hud.health.classList.toggle('invuln', !!health.invuln);
+      this.hud.vignette.classList.toggle('critical', r > 0 && r <= 0.25);
+    }
+    if (meleeCooldown !== undefined) sl.melee.cd.style.transform = `scaleY(${Math.min(1, Math.max(0, meleeCooldown))})`;
     const ratio = dodgeCooldownMax > 0 ? Math.min(1, dodgeCooldown / dodgeCooldownMax) : 0;
     sl.dodge.cd.style.transform = `scaleY(${ratio})`;
     sl.dodge.el.classList.toggle('active', dodging);
@@ -332,6 +395,14 @@ export class UIManager {
     const btn = (action, label, extra = '') => `<button class="menu-btn" data-action="${action}" ${extra}><span class="btn-title">${label}</span></button>`;
     const wps = this.waypoints.map((w) => btn('dbg-teleport', escapeHtml(w.name), `data-wp="${escapeHtml(w.id)}"`)).join('');
     this.$('debug-body').innerHTML = `
+      <section><h3>Salud</h3><div class="dbg-row">
+        ${btn('dbg-health', 'Restaurar salud')}
+        ${toggle('dbg-invulnerable', 'Invulnerable', state.invulnerable)}
+      </div></section>
+      <section><h3>Enemigos (${state.enemies ?? 0} activos)</h3><div class="dbg-row">
+        ${btn('dbg-spawn', 'Generar enemigos (PDC + Acólito)')}
+        ${btn('dbg-clear-enemies', 'Eliminar enemigos')}
+      </div></section>
       <section><h3>Energía</h3><div class="dbg-row">
         ${btn('dbg-energy', 'Restaurar energía')}
         ${toggle('dbg-infinite', 'Energía infinita', state.infiniteEnergy)}
@@ -347,7 +418,6 @@ export class UIManager {
         ${btn('restart', 'Reiniciar mapa')}
       </div></section>
       ${wps ? `<section><h3>Ir a</h3><div class="dbg-row">${wps}</div></section>` : ''}
-      <p class="note">Salud del jugador y generación de enemigos llegan en la Etapa 3.</p>
       <nav class="menu-list compact row">
         ${btn('menu', 'Volver al menú')}
         ${btn('resume', 'Cerrar (F2)')}

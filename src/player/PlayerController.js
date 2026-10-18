@@ -22,6 +22,8 @@ export class PlayerController {
     /** Lo fijan los poderes: apuntando/cargando y multiplicador de velocidad. */
     this.aiming = false;
     this.speedScale = 1;
+    /** Sin control (neutralizado). */
+    this.disabled = false;
     this._faceAim = 0;
     this._aimWeight = 0;
   }
@@ -82,10 +84,11 @@ export class PlayerController {
     const rz = f.x;
     let ix = 0;
     let iz = 0;
-    if (inp.isDown('moveForward')) iz += 1;
-    if (inp.isDown('moveBack')) iz -= 1;
-    if (inp.isDown('moveRight')) ix += 1;
-    if (inp.isDown('moveLeft')) ix -= 1;
+    const on = !this.disabled;
+    if (on && inp.isDown('moveForward')) iz += 1;
+    if (on && inp.isDown('moveBack')) iz -= 1;
+    if (on && inp.isDown('moveRight')) ix += 1;
+    if (on && inp.isDown('moveLeft')) ix -= 1;
     let mx = f.x * iz + rx * ix;
     let mz = f.z * iz + rz * ix;
     const len = Math.hypot(mx, mz);
@@ -96,7 +99,7 @@ export class PlayerController {
 
     this.moveIntent.set(mx, 0, mz);
     const aimLocked = this.aiming || this._faceAim > 0;
-    const sprint = inp.isDown('sprint') && len > 0 && iz >= 0 && !this.aiming;
+    const sprint = on && inp.isDown('sprint') && len > 0 && iz >= 0 && !this.aiming;
     // Pasos fijos (≤ 1/60 s): el movimiento es igual a cualquier tasa de frames.
     const steps = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6));
     const sdt = dt / steps;
@@ -107,8 +110,8 @@ export class PlayerController {
         moveX: mx,
         moveZ: mz,
         sprint,
-        jump: i === 0 && inp.wasPressed('jump'),
-        dodge: i === 0 && inp.wasPressed('dodge'),
+        jump: on && i === 0 && inp.wasPressed('jump'),
+        dodge: on && i === 0 && inp.wasPressed('dodge'),
         facingX: Math.sin(this.facing),
         facingZ: Math.cos(this.facing),
       });

@@ -25,8 +25,14 @@ src/
 │   └── maps/
 │       ├── TrainingGround.js   Mapa 1 — Campo de Pruebas
 │       └── DistrictZero.js     Mapa 2 — Distrito Cero
+├── ai/
+│   ├── EnemyBrain.js           Máquina de estados de la IA (sin Three.js)
+│   ├── Enemy.js                Cuerpo, percepción, navegación y arma de un enemigo
+│   └── enemyTypes.js           Datos del Agente PDC y del Acólito de Energía
 ├── combat/
-│   ├── CombatSystem.js         Registro de entidades dañables, daño directo y de área
+│   ├── CombatSystem.js         Dañables, actores, facciones, daño directo y de área
+│   ├── Health.js               Salud con regeneración e invulnerabilidad
+│   ├── geometry.js             Rayo contra cilindro vertical (impacto en personajes)
 │   └── projectile.js           Simulación de proyectiles (sin Three.js)
 ├── powers/
 │   ├── EnergyPool.js           Recurso de energía con regeneración
@@ -35,7 +41,10 @@ src/
 ├── systems/
 │   ├── PowerSystem.js          Input → habilidades de la familia activa
 │   ├── ProjectileSystem.js     Proyectiles: movimiento, impacto, daño, efectos
-│   └── MarkSystem.js           Marcas poseídas e intensidad de sus patrones
+│   ├── EnemySystem.js          Alta/baja de enemigos, ruido, separación de personajes
+│   ├── PlayerCombat.js         Salud del jugador, caídas, golpe, muerte y reaparición
+│   └── InteractionSystem.js    Interacción con E (consolas, futura estación de marcas)
+│   ├── MarkSystem.js           Marcas poseídas e intensidad de sus patrones
 ├── vfx/
 │   ├── VfxSystem.js            Impactos, anillos, estelas, destellos
 │   ├── ParticleSystem.js       Partículas aditivas (una sola llamada de dibujo)
@@ -79,10 +88,10 @@ src/
 | SaveSystem | ✅ ajustes y depuración; perfil reservado | `core/SaveSystem.js` → `profile.marks`, `profile.skillProgress` |
 | PowerSystem | ✅ Etapa 2 (Energía) | `systems/PowerSystem.js` |
 | MarkSystem | ✅ visual y posesión; adquisición en Etapa 4 | `systems/MarkSystem.js`, `player/MarkVisual.js`, `data/marks.js` |
-| CombatSystem | ✅ daño y área (base) | `combat/CombatSystem.js`; la Etapa 3 añade cuerpo a cuerpo y enemigos |
-| HealthSystem | Parcial: salud de maniquíes | Etapa 3: salud del jugador sobre la misma interfaz dañable |
+| CombatSystem | ✅ daño, área, actores y facciones | `combat/CombatSystem.js`; golpe en `systems/PlayerCombat.js` |
+| HealthSystem | ✅ Etapa 3 | `combat/Health.js`, `systems/PlayerCombat.js` |
 | ParkourSystem | Etapa 5 | Consultará `CollisionWorld` (cajas con `maxY` para cornisas) y añadirá estados al `CharacterMotor` |
-| EnemyAI / PDCEnemy / AcolyteEnemy | Etapa 3 | Reutilizarán `CharacterMotor`, `ProjectileSystem` y `CombatSystem` |
+| EnemyAI / PDCEnemy / AcolyteEnemy | ✅ Etapa 3 | `ai/EnemyBrain.js`, `ai/Enemy.js`, `ai/enemyTypes.js`, `systems/EnemySystem.js` |
 | PowerAcquisitionSystem | Etapa 4 | Reglas I–IV sobre `data/marks.js` (`original`), guardado en `profile.marks` |
 | PowerProgressionSystem | Etapa 4 | `profile.skillProgress` por marca; parámetros en `energyConfig.js` |
 | FactionReputationSystem | Etapa 6 (hostilidad PDC) | Escuchará `combat:damage` por `EventBus` |
@@ -115,3 +124,19 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   tiene `owner` registrado en `CombatSystem`, recibe el daño.
 - Marcas: `MarkSystem.pulse()` (ataques) y `sustain()` (carga) fijan la
   intensidad; `MarkVisual` enciende las regiones del cuerpo por umbrales.
+
+## Combate (Etapa 3)
+
+- **Actores**: jugador y enemigos no tienen colisionador en el mundo (se
+  mueven); se registran con `CombatSystem.registerActor` y exponen
+  `capsule()`. Los proyectiles comprueban el tramo recorrido contra el mundo y
+  contra los cilindros de los actores, y gana el impacto más cercano.
+- **Facciones**: cada fuente de daño indica su facción (`faction`); nunca daña
+  a la suya. El tirador (`owner`) nunca se impacta a sí mismo.
+- **IA**: `EnemyBrain` decide (estado + intención) a partir de percepciones;
+  `Enemy` percibe (cono de visión + rayos de línea de visión cada 0.15 s,
+  ruido repartido por `EnemySystem`) y ejecuta la intención con el mismo
+  `CharacterMotor` que el jugador (pasos fijos, colisiones, escalones). El
+  arma usa `Magazine` y `ProjectileSystem`.
+- **Orden por frame**: jugador → combate del jugador → poderes →
+  interacciones → enemigos → proyectiles → entidades → marcas → VFX → HUD.

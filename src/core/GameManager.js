@@ -17,6 +17,9 @@ import { VfxSystem } from '../vfx/VfxSystem.js';
 import { MarkSystem } from '../systems/MarkSystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { PowerSystem } from '../systems/PowerSystem.js';
+import { EnemySystem } from '../systems/EnemySystem.js';
+import { PlayerCombat } from '../systems/PlayerCombat.js';
+import { InteractionSystem } from '../systems/InteractionSystem.js';
 
 /**
  * GameManager — estado general del juego y bucle principal.
@@ -67,6 +70,9 @@ export class GameManager {
     this.marks = new MarkSystem({ save: this.save, model: this.player.model, events: this.events });
     this.projectiles = new ProjectileSystem({ scene: this.scene, world: this.world, combat: this.combat, vfx: this.vfx, events: this.events });
     this.powers = new PowerSystem(this);
+    this.enemies = new EnemySystem({ scene: this.scene, world: this.world, combat: this.combat, projectiles: this.projectiles, vfx: this.vfx, events: this.events });
+    this.playerCombat = new PlayerCombat(this);
+    this.enemies.player = this.playerCombat;
 
     this.mapManager = new MapManager({ scene: this.scene, world: this.world, events: this.events });
     for (const m of maps) this.mapManager.register(m);
@@ -77,6 +83,8 @@ export class GameManager {
       onAction: (a, data) => this._onUiAction(a, data),
       onSettingsChanged: (s) => this._applySettings(s),
     });
+
+    this.interactions = new InteractionSystem(this);
 
     this._clock = new THREE.Clock();
     this._fps = 60;
@@ -101,7 +109,11 @@ export class GameManager {
     this.input.clear();
     await this.ui.fade(`Cargando ${def.name}…`, () => {
       this._clearTransient();
-      const map = this.mapManager.load(id, { combat: this.combat });
+      this.playerCombat.dead = false;
+      this.playerCombat.restore();
+      this.player.model.root.rotation.x = 0;
+      const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions });
+      this.playerCombat.attach();
       this.player.object3d.visible = true;
       this.player.spawn(map.spawn);
       this.powers.resetAbilities();
@@ -113,6 +125,7 @@ export class GameManager {
       this.ui.setMapName(def.name, def.description);
       this.ui.setWaypoints(def.waypoints ?? []);
       this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef);
+      this.ui.showDeath(false);
       this.state = 'playing';
       this.save.data.lastMap = id;
       this.save.save();
@@ -140,6 +153,8 @@ export class GameManager {
   }
 
   _clearTransient() {
+    this.enemies.clear();
+    this.interactions.clear();
     this.projectiles.clear();
     this.vfx.clear();
     this.ui.clearFloaters();
@@ -191,8 +206,17 @@ export class GameManager {
     this.canvas.addEventListener('click', () => {
       if (this.state === 'playing') this.input.requestPointerLock();
     });
-    this.events.on('player:respawned', () => this.ui.toast('Reaparición', 'Has caído fuera del mapa', 1600));
-    this.events.on('combat:damage', (d) => this.ui.damageNumber(d.point, d.amount, d.killed, d.kind));
+    this.events.on('player:respawned', (e) => {
+      if (e?.afterDeath) this.ui.showDeath(false);
+      else this.ui.toast('Reaparición', 'Has caído fuera del mapa', 1600);
+    });
+    this.events.on('combat:damage', (d) => {
+      if (d.target === this.playerCombat) return; // el daño al jugador se muestra con la viñeta
+      this.ui.damageNumber(d.point, d.amount, d.killed, d.kind);
+    });
+    this.events.on('player:damaged', (d) => this.ui.playerDamaged(d, this.camera, this.player.motor.position));
+    this.events.on('player:died', () => this.ui.showDeath(true));
+    this.events.on('enemy:neutralized', (e) => this.ui.toast(`${e.enemy.type.name} neutralizado`, '', 1400));
     this.events.on('power:failed', (d) => this.ui.abilityFailed(d.id));
     this.events.on('marks:changed', () => this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef));
   }
@@ -204,7 +228,7 @@ export class GameManager {
 
   _debugState() {
     const d = this.save.data.debug;
-    return { grantEnergy: d.grantEnergy, infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks };
+    return { grantEnergy: d.grantEnergy, infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
   }
 
   _onUiAction(action, data) {
@@ -227,6 +251,21 @@ export class GameManager {
         this.ui.show('quit');
         break;
       // --- Menú de depuración ---
+      case 'dbg-health':
+        this.playerCombat.restore();
+        this.ui.toast('Salud restaurada', '', 1200);
+        break;
+      case 'dbg-invulnerable':
+        this.save.data.debug.invulnerable = !this.save.data.debug.invulnerable;
+        this.save.save();
+        break;
+      case 'dbg-spawn':
+        this.spawnTestEnemies();
+        break;
+      case 'dbg-clear-enemies':
+        this.enemies.clear();
+        this.ui.toast('Enemigos eliminados', '', 1200);
+        break;
       case 'dbg-energy':
         this.powers.energy.refill();
         this.ui.toast('Energía restaurada', '', 1200);
@@ -264,6 +303,23 @@ export class GameManager {
     if (action.startsWith('dbg-') && this.ui.currentScreen === 'debug') this.ui.renderDebug(this._debugState());
   }
 
+  /** Genera un Agente PDC y un Acólito unos metros por delante del jugador (depuración). */
+  spawnTestEnemies() {
+    const p = this.player.motor.position;
+    const f = this.player.facingVector();
+    const right = { x: f.z, z: -f.x };
+    const spawned = [];
+    for (const [type, side] of [['pdc', -3], ['acolyte', 3]]) {
+      const x = p.x + f.x * 14 + right.x * side;
+      const z = p.z + f.z * 14 + right.z * side;
+      const gy = this.world.groundHeight(x, z, 0.4, p.y + 6);
+      const y = Number.isFinite(gy) ? gy + 0.05 : p.y + 0.2;
+      spawned.push(this.enemies.spawn(type, { x, y, z, yaw: Math.atan2(-f.x, -f.z), tag: 'debug', patrol: [{ x, z }, { x: x + right.x * 4, z: z + right.z * 4 }] }));
+    }
+    this.ui.toast('Enemigos generados', 'Agente PDC y Acólito de Energía', 1400);
+    return spawned;
+  }
+
   _applySettings(s) {
     this.cameraController.settings = s;
     if (this.renderer.shadowMap.enabled !== s.shadows) {
@@ -293,8 +349,12 @@ export class GameManager {
 
     if (this.state === 'playing') {
       if (this.input.wasPressed('debug')) this.ui.toggleDebug();
+      this.player.disabled = this.playerCombat.dead;
       this.player.update(dt);
+      this.playerCombat.update(dt);
       this.powers.update(dt);
+      this.interactions.update(dt);
+      this.enemies.update(dt);
       this.projectiles.update(dt);
       this.mapManager.update(dt);
       for (const s of this.systems) s.update?.(dt, this);
@@ -325,6 +385,8 @@ export class GameManager {
       dodgeCooldown: m.dodgeCooldownRemaining,
       dodgeCooldownMax: m.cfg.dodgeCooldown + m.cfg.dodgeDuration,
       dodging: m.isDodging,
+      health: { value: this.playerCombat.health.value, max: this.playerCombat.health.max, god: this.playerCombat.health.godMode, invuln: this.playerCombat.health.invulnerable > 0 },
+      meleeCooldown: this.playerCombat._meleeCd / 0.55,
       sprinting: this.player.sprinting && m.horizontalSpeed > 6,
       pointerLocked: this.input.pointerLocked,
       fps: this._fps,
@@ -352,6 +414,8 @@ export class GameManager {
             `energ ${pw.energy.value.toFixed(1)} / ${pw.energy.max}`,
             `marca ${this.marks.activeFamily ?? '—'} · intensidad ${this.marks.level.toFixed(2)}`,
             `proy. ${this.projectiles.list.length} · partículas ${this.vfx.particles.count}`,
+            `salud ${this.playerCombat.health.value.toFixed(0)} / ${this.playerCombat.health.max}`,
+            ...this.enemies.list.map((e) => `enem. ${e.type.name}: ${e.stateName} · ${Math.round(e.health.value)} PS`),
             `col.  ${this.world.boxes.length} cajas · ${this.world.ramps.length} rampas`,
             `draw  ${this.renderer.info.render.calls} llamadas · ${this.renderer.info.render.triangles} tri`,
           ].join('\n')

@@ -31,7 +31,8 @@ const check = (cond, msg) => {
 execSync('npx vite build', { cwd: root, stdio: 'ignore' });
 // En Windows, npx es un .cmd y necesita shell para lanzarse.
 const isWin = process.platform === 'win32';
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'ignore', shell: isWin });
+// detached: el servidor queda en su propio grupo de procesos para poder cerrarlo entero al terminar.
+const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: root, stdio: 'ignore', shell: isWin, detached: !isWin });
 await new Promise((r) => setTimeout(r, 1500));
 
 const launchOpts = { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] };
@@ -254,6 +255,8 @@ try {
     };
   });
   const g = (fn, arg) => page.evaluate(fn, arg);
+  // Los enemigos de la Zona D no deben interferir en las pruebas de poderes.
+  await g(() => window.__ascend.enemies.clear());
   check(await g(() => window.__ascend.powers.available), 'La marca de Energía está activa (concedida por depuración hasta la Etapa 4)');
   check(await page.isVisible('#hud-power'), 'HUD de energía visible');
 
@@ -380,6 +383,8 @@ try {
     window.__ascend.events.on('player:landed', (e) => { window.__landing = e; });
     window.__impact = null;
     window.__ascend.events.on('power:impact', (e) => { window.__impact = e; });
+    window.__ascend.save.data.debug.invulnerable = false;
+    window.__ascend.playerCombat.restore();
     window.__ascend.player.spawnAt({ x: -41, y: 12, z: -55.5, yaw: Math.PI });
   });
   await page.keyboard.press('KeyG');
@@ -399,6 +404,8 @@ try {
   check(Math.abs(dive.pos.x + 41) < 0.01 && Math.abs(dive.pos.z + 55.5) < 0.01, 'La caída es vertical');
   check(dive.dummies.filter((h) => h < 100).length >= 2, `La explosión daña a los maniquíes cercanos (salud ${dive.dummies.join(', ')})`);
   check(dive.landing && dive.landing.immune === true, 'El aterrizaje del rayo es inmune al daño por caída');
+  const hpAfterDive = await g(() => window.__ascend.playerCombat.health.value);
+  check(hpAfterDive === 100, `La caída en rayo desde 12 m no quita salud (${hpAfterDive})`);
 
   // Dash dirigido: apuntar + mantener Q muestra la silueta; soltar = desplazarse allí
   await g(() => { const a = window.__ascend; a.powers.resetAbilities(); a.powers.energy.refill(); });
@@ -479,7 +486,7 @@ try {
   await page.click('#screen-debug [data-action="dbg-maxmarks"]');
   await page.click('#screen-debug [data-action="dbg-teleport"][data-wp="F"]');
   await page.waitForFunction(() => window.__ascend.state === 'playing');
-  await page.waitForTimeout(800);
+  await page.waitForFunction(() => window.__ascend.powers.available && window.__ascend.marks.level > 0.9, null, { timeout: 8000 }).catch(() => {});
   check(await g(() => window.__ascend.powers.available && window.__ascend.marks.level > 0.9), 'Reactivar marca y "marcas al máximo" desde depuración');
   await g(() => {
     const cc = window.__ascend.cameraController;
@@ -493,6 +500,138 @@ try {
   await page.click('#screen-debug [data-action="dbg-maxmarks"]');
   await page.click('#screen-debug [data-action="resume"]');
   await page.waitForFunction(() => window.__ascend.state === 'playing');
+
+  // ---------------- Combate y enemigos (Etapa 3) ----------------
+  console.log('\n[combate]');
+  // Ventana pequeña: el render por software es mucho más rápido y la IA avanza más por segundo.
+  await page.setViewportSize({ width: 640, height: 360 });
+  await g(() => {
+    const a = window.__ascend;
+    a.save.data.debug.invulnerable = false;
+    a.playerCombat.restore();
+    a.enemies.clear();
+    window.__ev = { dmg: 0, died: 0, neutralized: 0, respawn: 0, states: new Set() };
+    a.events.on('player:damaged', () => window.__ev.dmg++);
+    a.events.on('player:died', () => window.__ev.died++);
+    a.events.on('enemy:neutralized', () => window.__ev.neutralized++);
+    a.events.on('player:respawned', (e) => { if (e?.afterDeath) window.__ev.respawn++; });
+  });
+
+  // Consola de la Zona D (E): reinicia el encuentro
+  await g(() => window.__ascend.player.spawnAt({ x: -12.4, y: 0.2, z: -46.2, yaw: Math.PI }));
+  await page.waitForFunction(() => document.getElementById('hud-prompt').classList.contains('show'), null, { timeout: 8000 }).catch(() => {});
+  const prompt = await g(() => document.getElementById('hud-prompt').textContent);
+  check(/Reiniciar encuentro/.test(prompt), `Aviso de interacción junto a la consola ("${prompt}")`);
+  // Registro de estados de la IA en cada frame (dentro de la página)
+  await g(() => {
+    const loop = () => {
+      window.__ascend.enemies.list.forEach((e) => window.__ev.states.add(e.brain.state));
+      window.__stateLoop = requestAnimationFrame(loop);
+    };
+    loop();
+  });
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.enemies.alive.filter((e) => e.tag === 'zonaD').length === 2, null, { timeout: 8000 }).catch(() => {});
+  const spawnedTypes = await g(() => window.__ascend.enemies.alive.map((e) => e.type.id).sort().join(','));
+  check(spawnedTypes === 'acolyte,pdc', `E en la consola genera el encuentro: Agente PDC y Acólito (${spawnedTypes})`);
+
+  // Detección, ataque y daño al jugador
+  await g(() => window.__ascend.player.spawnAt({ x: -10, y: 0.2, z: -56, yaw: Math.PI }));
+  await page.waitForFunction(() => window.__ascend.enemies.list.some((e) => e.brain.state === 'attack'), null, { timeout: 90000 }).catch(() => {});
+  await page.waitForFunction(() => window.__ascend.playerCombat.health.value < 100, null, { timeout: 90000 }).catch(() => {});
+  const c1 = await g(() => ({
+    states: [...window.__ev.states], hp: window.__ascend.playerCombat.health.value, dmg: window.__ev.dmg,
+    hud: document.getElementById('hud-health-text').textContent,
+    ammo: window.__ascend.enemies.list.map((e) => e.magazine.ammo + (e.magazine.reloading ? 'R' : '')),
+  }));
+  await page.screenshot({ path: path.join(out, 'combat-01-enemies.png') });
+  check(c1.states.includes('patrol') && c1.states.includes('alert') && c1.states.includes('attack'), `IA: patrulla → alerta → ataque (${c1.states.join(', ')})`);
+  check(c1.hp < 100 && c1.dmg > 0 && Number(c1.hud) < 100, `Los enemigos disparan y el jugador recibe daño (salud ${c1.hp.toFixed(0)}, HUD ${c1.hud})`);
+
+  // Neutralizar a un enemigo con proyectiles (jugador invulnerable para que la prueba sea estable)
+  await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = true; a.save.data.debug.infiniteEnergy = true; });
+  const killStart = Date.now();
+  let lastLog = 0;
+  await page.mouse.down();
+  while (Date.now() - killStart < 150000) {
+    if (Date.now() - lastLog > 15000) {
+      lastLog = Date.now();
+      console.log('      ·', await g(() => window.__ascend.enemies.list.map((e) => `${e.type.id} ${Math.round(e.health.value)} ${e.brain.state}`).join(' | ')));
+    }
+    const done = await g(() => {
+      const a = window.__ascend;
+      const p = a.player.motor.position;
+      const live = a.enemies.alive.sort((x, y) => Math.hypot(x.position.x - p.x, x.position.z - p.z) - Math.hypot(y.position.x - p.x, y.position.z - p.z));
+      if (!live.length || window.__ev.neutralized > 0) return true;
+      // A corta distancia el desplazamiento lateral del enemigo no hace fallar los disparos.
+      const ep = live[0].position;
+      if (Math.hypot(ep.x - p.x, ep.z - p.z) > 6) {
+        const dx = p.x - ep.x;
+        const dz = p.z - ep.z;
+        const l = Math.hypot(dx, dz) || 1;
+        a.player.spawnAt({ x: ep.x + (dx / l) * 4.5, y: ep.y + 0.2, z: ep.z + (dz / l) * 4.5, yaw: Math.atan2(-dx, -dz) });
+      }
+      const c = live[0].center;
+      window.__aimAt({ x: c.x, y: c.y + 0.2, z: c.z });
+      return false;
+    });
+    if (done) break;
+    await page.waitForTimeout(120);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const k = await g(() => ({ n: window.__ev.neutralized, states: window.__ascend.enemies.list.map((e) => e.stateName) }));
+  await page.screenshot({ path: path.join(out, 'combat-02-neutralized.png') });
+  check(k.n >= 1 && k.states.includes('Neutralizado'), `Los proyectiles neutralizan a un enemigo (${k.states.join(', ')})`);
+
+  // Cuerpo a cuerpo contra el enemigo restante
+  const meleeRes = await g(async () => {
+    const a = window.__ascend;
+    const e = a.enemies.alive[0];
+    if (!e) return null;
+    const ep = e.position;
+    const p = { x: ep.x, y: ep.y + 0.1, z: ep.z + 1.3 };
+    a.player.spawnAt({ ...p, yaw: Math.PI });
+    return { before: e.health.value, id: e.type.id };
+  });
+  await page.keyboard.press('KeyF');
+  await page.waitForFunction((b) => {
+    const e = window.__ascend.enemies.list.find((x) => x.type.id === b.id);
+    return !e || e.health.value < b.before;
+  }, meleeRes, { timeout: 8000 }).catch(() => {});
+  const afterMelee = await g((b) => window.__ascend.enemies.list.find((x) => x.type.id === b.id)?.health.value, meleeRes);
+  check(meleeRes && afterMelee <= meleeRes.before - 20, `Golpe (F) daña al enemigo (${meleeRes?.before} → ${afterMelee})`);
+
+  // Daño por caída (sin el rayo)
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.save.data.debug.invulnerable = false; a.playerCombat.restore(); a.player.spawnAt({ x: 0, y: 14, z: 30, yaw: Math.PI }); });
+  await page.waitForFunction(() => window.__ascend.player.motor.grounded, null, { timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  const fallHp = await g(() => window.__ascend.playerCombat.health.value);
+  check(fallHp < 100 && fallHp > 50, `Una caída normal de 14 m quita salud (${fallHp})`);
+
+  // Neutralización del jugador y reaparición
+  await g(() => window.__ascend.combat.applyDamage(window.__ascend.playerCombat, 500, { faction: 'enemy', kind: 'prueba' }));
+  await page.waitForFunction(() => document.getElementById('hud-death').classList.contains('show'), null, { timeout: 5000 }).catch(() => {});
+  const deathShown = await page.isVisible('#hud-death');
+  await page.screenshot({ path: path.join(out, 'combat-03-death.png') });
+  await page.waitForFunction(() => window.__ev.respawn > 0, null, { timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  const rs = await g(() => ({ hp: window.__ascend.playerCombat.health.value, pos: { ...window.__ascend.player.motor.position }, overlay: document.getElementById('hud-death').classList.contains('show') }));
+  check(deathShown && rs.hp === 100 && !rs.overlay, `Neutralizado → pantalla de derrota → reaparece con salud completa (${rs.hp})`);
+  check(Math.hypot(rs.pos.x, rs.pos.z - 18) < 1, 'Reaparece en el punto de inicio del mapa');
+
+  // Menú de depuración: generar y eliminar enemigos
+  await page.keyboard.press('F2');
+  await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'debug');
+  await page.click('#screen-debug [data-action="dbg-spawn"]');
+  const nSpawn = await g(() => window.__ascend.enemies.alive.length);
+  await page.click('#screen-debug [data-action="dbg-clear-enemies"]');
+  const nClear = await g(() => window.__ascend.enemies.list.length);
+  await page.click('#screen-debug [data-action="resume"]');
+  await page.waitForFunction(() => window.__ascend.state === 'playing');
+  check(nSpawn === 2 && nClear === 0, `Depuración: generar (${nSpawn}) y eliminar enemigos (${nClear})`);
+  await g(() => { const a = window.__ascend; a.save.data.debug.infiniteEnergy = false; a.save.data.debug.invulnerable = false; a.save.save(); });
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   // Reiniciar mapa desde la pausa
   await page.evaluate(() => window.__ascend.player.motor.teleport({ x: 30, y: 0.3, z: 30 }));
@@ -521,7 +660,13 @@ try {
 } finally {
   await browser.close();
   if (isWin) spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], { shell: true });
-  else server.kill();
+  else {
+    try {
+      process.kill(-server.pid); // npx y el servidor vite hijo
+    } catch {
+      server.kill();
+    }
+  }
 }
 
 console.log(failures ? `\n${failures} comprobación(es) fallida(s)` : '\nTodas las comprobaciones superadas');

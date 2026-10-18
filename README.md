@@ -9,6 +9,9 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
 - **Etapa 2 — Energía** ✅: marca de Energía visible en el modelo, sistema de
   energía, proyectil, dash, descarga concentrada, onda expansiva, efectos
   visuales y zona de pruebas de poderes.
+- **Etapa 3 — Enemigos y combate** ✅: salud del jugador, daño por caída,
+  golpe cuerpo a cuerpo, Agente PDC, Acólito de Energía, IA por estados y
+  Zona D de combate con consola de reinicio.
 
 ## Motor y por qué
 
@@ -56,8 +59,9 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Pausa | Esc | ✅ |
 | Menú de depuración | F2 o º | ✅ |
 | Ocultar ayuda / datos técnicos | H / F3 | ✅ |
-| Cuerpo a cuerpo | F | Etapa 3 |
-| Interactuar, menú de poderes | E, Tab | Etapa 4 |
+| Cuerpo a cuerpo (golpe) | F | ✅ |
+| Interactuar | E | ✅ |
+| Menú de poderes | Tab | Etapa 4 |
 
 La tecla **C** es alternativa a Ctrl porque algunos navegadores reservan
 combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña). El documento de diseño
@@ -106,6 +110,44 @@ volver al menú. (Salud del jugador y enemigos: Etapa 3.)
 
 **Ajustes**: nueva opción de resplandor (bloom).
 
+## Etapa 3 — Enemigos y combate
+
+**Jugador**: 100 de salud (barra sobre la de energía), se regenera 8/s tras 5 s
+sin recibir daño. Viñeta roja e indicador de la dirección del impacto. Daño por
+caída a partir de ≈ 8 m (la caída en rayo y el dash dirigido son inmunes). Al
+quedar a 0: pantalla «Neutralizado» y reaparición en el inicio del mapa a los
+3 s con 2 s de invulnerabilidad; los enemigos pierden el rastro.
+
+**Golpe (F)**: 20 de daño (28 con la marca de Energía), alcance 2.1 m en un arco
+frontal, retroceso. Afecta a enemigos, maniquíes y objetos físicos.
+
+**Enemigos** (`src/ai/enemyTypes.js`):
+
+| | Agente PDC | Acólito de Energía |
+| --- | --- | --- |
+| Salud | 80 | 110 |
+| Arma | Fusil: 6 de daño, 90 m/s, cargador 12, recarga 2 s | Esferas de energía: 12 de daño, 32 m/s, cargador 4, recarga 2.2 s |
+| Distancia preferida | 9–18 m | 8–15 m (se desplaza lateralmente más rápido) |
+| Visión | 28 m, cono de 110° | 26 m, cono de 120° |
+
+**IA por estados** (`src/ai/EnemyBrain.js`): patrulla (recorre puntos y mira
+alrededor al detenerse) → alerta al ver al jugador u oír disparos/impactos
+cercanos → ataque (mantiene la distancia: se acerca, retrocede o se desplaza
+lateralmente y dispara con su cargador) → persecución si te pierde de vista
+(busca una posición con línea de visión y, si no, va a tu última posición
+conocida; después busca unos segundos y vuelve a patrullar) → recuperación
+tras un impacto fuerte → neutralizado (cae y desaparece a los 6 s). Visión con
+cono y línea de visión real: las coberturas y muros te ocultan.
+
+**Facciones**: los poderes del jugador no le dañan; los enemigos no se dañan
+entre sí.
+
+**Zona D — Combate** (Campo de Pruebas): recinto con coberturas, un Agente PDC y
+un Acólito. La consola de la entrada (E) reinicia el encuentro.
+
+**Depuración (F2)**: restaurar salud, invulnerable, generar enemigos (un PDC y
+un Acólito delante del jugador, en cualquier mapa) y eliminar enemigos.
+
 ## Qué incluye la Etapa 1
 
 **Menú principal** con Campo de Pruebas, Distrito Cero, Ajustes (sensibilidad,
@@ -139,11 +181,12 @@ límites físicos. **Todas las azoteas son accesibles** sin escalada:
 escaleras de incendios (B1, B5, B6), pasarelas entre azoteas y cadenas de
 contenedores y cajas (A1, A2).
 
-## Qué se ha probado realmente (Etapas 1 y 2)
+## Qué se ha probado realmente (Etapas 1, 2 y 3)
 
-- `npm test` — 36 tests unitarios: físicas (gravedad, velocidades, salto, muros,
+- `npm test` — 48 tests unitarios: físicas (gravedad, velocidades, salto, muros,
   túnel a alta velocidad, escalones, rampas, techos, *coyote time*,
   reaparición, esquiva corta, dash, caída en picado, desplazamiento dirigido,
+  IA por estados, facciones, impactos en personajes, salud,
   multiplicador de velocidad, raycast), guardado,
   energía (gasto, regeneración, modo infinito), cargador y recarga, habilidades (coste y
   reutilización), daño directo y de área, y proyectiles (impacto en muros finos,
@@ -163,6 +206,12 @@ contenedores y cajas (A1, A2).
     + mantener Q muestra la silueta en el punto señalado, al soltar se desplaza
     allí y la distancia se limita a 20 m; el proyectil dispara 10 veces, recarga
     con animación (sin disparar mientras tanto) y vuelve a 10/10.
+  - Etapa 3: la consola (E) genera el encuentro; la IA pasa por patrulla →
+    alerta → ataque; los enemigos disparan y el jugador pierde salud; los
+    proyectiles neutralizan a un enemigo; el golpe (F) hace daño; una caída
+    normal de 14 m quita salud y la caída en rayo desde 12 m no; al quedar a 0
+    aparece «Neutralizado» y se reaparece con salud completa; generar y
+    eliminar enemigos desde F2.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
 
 **No probado**: rendimiento en GPU real (las pruebas usan SwiftShader; el bloom
@@ -178,6 +227,10 @@ ratón físico. Conviene una sesión de juego manual.
 - La cámara puede quedar dentro de la parte inferior de una pasarela si se
   mira desde muy abajo.
 - Sin sonido en los poderes (Etapa 7).
+- Navegación enemiga sencilla (sin malla de navegación): van en línea recta,
+  saltan obstáculos bajos y rodean al atascarse; en zonas muy cerradas pueden
+  quedarse bloqueados. El Distrito Cero aún no tiene enemigos fijos (las
+  patrullas y la misión son la Etapa 6); se pueden generar desde F2.
 - La rotación de los objetos físicos es solo visual (su colisión es una caja
   alineada); la Sobrecarga y el árbol de mejoras llegan con la progresión.
 - *Salir* no puede cerrar una pestaña del navegador; muestra una pantalla de despedida.

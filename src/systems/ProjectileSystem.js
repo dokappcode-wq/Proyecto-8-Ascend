@@ -22,27 +22,32 @@ export class ProjectileSystem {
   }
 
   /**
-   * @param {object} o { origin, dir, speed, range, radius, damage, color, kind, splashRadius, splashKnockback, knockback }
+   * @param {object} o { origin, dir, speed, range, radius, damage, color, kind, splashRadius, splashKnockback, knockback,
+   *   faction='player' (no daña a su propia facción), owner (actor que dispara; nunca se impacta a sí mismo) }
+   * kind: 'bolt' | 'discharge' (jugador), 'bullet' (PDC), 'orb' (Acólito)
    */
   spawn(o) {
+    o = { faction: 'player', owner: null, ...o };
     const color = new THREE.Color(o.color);
     const big = o.kind === 'discharge';
+    const bullet = o.kind === 'bullet';
     const obj = new THREE.Group();
     const coreMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffffff).lerp(color, 0.25).multiplyScalar(2), toneMapped: false });
     const core = new THREE.Mesh(this._sphere, coreMat);
     core.scale.setScalar(o.radius);
     obj.add(core);
-    const halo = glowSprite(color.clone().multiplyScalar(2), o.radius * (big ? 9 : 8), 0.9);
+    const halo = glowSprite(color.clone().multiplyScalar(2), o.radius * (big ? 9 : bullet ? 5 : 8), bullet ? 0.6 : 0.9);
     obj.add(halo);
     const streakMat = new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(1.6), transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
     const streak = new THREE.Mesh(this._streak, streakMat);
-    streak.scale.set(o.radius, o.radius, big ? 2.2 : 1.4);
+    // Las balas son un trazo largo y fino; las esferas de energía, una estela corta.
+    streak.scale.set(o.radius, o.radius, big ? 2.2 : bullet ? 3.5 : 1.4);
     obj.add(streak);
     obj.position.set(o.origin.x, o.origin.y, o.origin.z);
     obj.lookAt(o.origin.x + o.dir.x, o.origin.y + o.dir.y, o.origin.z + o.dir.z);
     this.group.add(obj);
 
-    const light = this.vfx.lights.acquire(obj);
+    const light = bullet ? null : this.vfx.lights.acquire(obj);
     if (light) {
       light.color.copy(color);
       light.intensity = big ? 40 : 14;
@@ -67,11 +72,11 @@ export class ProjectileSystem {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
       const prev = { ...p.pos };
-      const res = stepProjectile(p, dt, this.world);
+      const res = stepProjectile(p, dt, this.world, (o, d, t) => this.combat.raycastActors(o, d, t, { excludeFaction: p.faction, ignore: p.owner }));
       p.obj.position.set(p.pos.x, p.pos.y, p.pos.z);
       p.light?.position.copy(p.obj.position);
       // Estela de partículas a lo largo del tramo recorrido
-      const n = p.kind === 'discharge' ? 6 : 2;
+      const n = p.kind === 'discharge' ? 6 : p.kind === 'bullet' ? 0 : 2;
       for (let k = 0; k < n; k++) {
         const t = Math.random();
         this.vfx.particles.emit({
@@ -90,18 +95,18 @@ export class ProjectileSystem {
   }
 
   _onHit(p, res) {
-    const owner = res.collider?.owner;
+    const owner = res.actor ?? res.collider?.owner;
     const target = owner && this.combat.targets.has(owner) ? owner : null;
     if (target) {
-      this.combat.applyDamage(target, p.damage, { point: res.point, dir: p.dir, knockback: p.knockback ?? 2, kind: p.kind });
+      this.combat.applyDamage(target, p.damage, { point: res.point, dir: p.dir, knockback: p.knockback ?? 2, kind: p.kind, faction: p.faction, source: p.owner });
     }
     if (p.splashRadius) {
-      this.combat.radial(res.point, p.splashRadius, Math.round(p.damage * 0.5), { knockback: p.splashKnockback ?? 0, exclude: target, kind: 'splash' });
+      this.combat.radial(res.point, p.splashRadius, Math.round(p.damage * 0.5), { knockback: p.splashKnockback ?? 0, exclude: target, kind: 'splash', faction: p.faction, source: p.owner });
     }
     const big = p.kind === 'discharge';
-    this.vfx.impact(res.point, res.normal, p.color, big ? 2.2 : 1);
+    this.vfx.impact(res.point, res.normal, p.color, big ? 2.2 : p.kind === 'bullet' ? 0.5 : 1);
     if (big) this.vfx.ring(res.point, p.splashRadius ?? 2, p.color, 0.35);
-    this.events?.emit('projectile:hit', { kind: p.kind, point: res.point, target });
+    this.events?.emit('projectile:hit', { kind: p.kind, point: res.point, target, faction: p.faction });
   }
 
   _remove(i) {

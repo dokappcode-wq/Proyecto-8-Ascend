@@ -28,7 +28,7 @@ export class MapManager {
     return [...this.maps.values()];
   }
 
-  /** @param {object} services { combat } compartidos con las entidades del mapa */
+  /** @param {object} services { combat, enemies, interactions } compartidos con el mapa */
   load(id, services = {}) {
     const def = this.maps.get(id);
     if (!def) throw new Error(`Mapa desconocido: ${id}`);

@@ -166,3 +166,40 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 .ability .ammo { font-size: 11px; color: var(--energy-glow); line-height: 1; }
 .ability .ammo:empty { display: none; }
 .ability.reloading { border-color: rgba(242,196,90,.6); }
+
+/* ---------- Etapa 3: combate ---------- */
+.hud-health { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); width: min(360px, 60vw); display: flex; align-items: center; gap: 8px; }
+.health-bar { position: relative; flex: 1; height: 12px; background: rgba(8,14,24,.75); border: 1px solid rgba(255,255,255,.18); overflow: hidden; }
+.health-fill, .health-lag { position: absolute; inset: 0; transform-origin: left; }
+.health-lag { background: rgba(255,255,255,.35); z-index: 0; transition: transform .6s .25s; }
+.health-fill { background: linear-gradient(90deg, #2fa866, #5fd38a); z-index: 1; }
+.health-fill.mid { background: linear-gradient(90deg, #c99a2a, #f2c45a); }
+.health-fill.low { background: linear-gradient(90deg, #a8321f, #e5533d); animation: blink .45s infinite alternate; }
+.hud-health.god .health-bar { border-color: #f2c45a; box-shadow: 0 0 8px rgba(242,196,90,.6); }
+.hud-health.invuln .health-bar { opacity: .7; }
+.health-text { font-size: 15px; min-width: 32px; text-align: right; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
+.hud-vignette { position: absolute; inset: 0; opacity: 0; transition: opacity .5s; background: radial-gradient(ellipse at center, transparent 55%, rgba(200,20,20,.55) 100%); }
+.hud-vignette.show { opacity: 1; transition: none; }
+.hud-vignette.critical { opacity: .55; animation: blink .6s infinite alternate; }
+.hud-hitdir { position: absolute; left: 50%; top: 50%; width: 260px; height: 260px; margin: -130px 0 0 -130px; opacity: 0; transition: opacity .9s; }
+.hud-hitdir.show { opacity: 1; transition: none; }
+.hitdir-arc { position: absolute; left: 50%; top: 0; width: 90px; height: 26px; margin-left: -45px; border-radius: 50% 50% 0 0 / 100% 100% 0 0; border-top: 5px solid rgba(255,70,50,.9); filter: drop-shadow(0 0 6px rgba(255,60,40,.9)); }
+.hud-prompt { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); font-size: 16px; letter-spacing: .14em; text-transform: uppercase; background: rgba(6,10,16,.7); border: 1px solid var(--line); padding: 8px 14px; display: none; }
+.hud-prompt.show { display: block; }
+.hud-prompt kbd { margin-right: 8px; }
+.hud-death { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(40,0,0,.35), rgba(0,0,0,.75)); }
+.hud-death.show { display: flex; }
+.hud-death h2 { font-size: 54px; letter-spacing: .4em; margin: 0; text-transform: uppercase; color: #e5533d; text-shadow: 0 0 20px rgba(229,83,61,.5); }
+.hud-death p { color: var(--muted); letter-spacing: .3em; text-transform: uppercase; }
+
+/* ---------- HUD adaptable ---------- */
+.hud-death { z-index: 5; }
+@media (max-width: 1100px) {
+  .hud-health, .hud-power { left: 22px; transform: none; width: min(300px, 38vw); }
+  .hud-abilities { transform: scale(.8); transform-origin: bottom right; }
+}
+@media (max-width: 760px) {
+  .hud-abilities { transform: scale(.6); }
+  .hud-hint { font-size: 10px; max-width: 60vw; }
+  .hud-death h2 { font-size: 34px; }
+}

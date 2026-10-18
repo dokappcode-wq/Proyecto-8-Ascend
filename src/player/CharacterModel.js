@@ -8,14 +8,32 @@ import { markSymbolTexture } from './markTextures.js';
  *
  * Mira hacia +Z en su espacio local. Los pies están en el origen.
  *
- * Expone `anchors` (muñecas, antebrazos, hombros, pecho…) para que el futuro
- * sistema de patrones de marcas (Etapa 2) pueda adherir geometría emisiva al
- * cuerpo sin modificar el modelo.
+ * Expone `anchors` (muñecas, antebrazos, hombros, pecho…) para que el
+ * sistema de patrones de marcas pueda adherir geometría emisiva al cuerpo
+ * sin modificar el modelo.
+ *
+ * Variantes (misma estructura y animación):
+ *  - 'protagonist': chaqueta, mochila tecnológica y marca del Destino.
+ *  - 'pdc': agente de la Policía del Control (uniforme, chaleco, casco con
+ *    visor y arma).
+ *  - 'acolyte': Acólito de Energía (capucha, túnica y brazaletes luminosos;
+ *    sin marca original, su poder es prestado).
  */
+const PALETTES = {
+  protagonist: { skin: 0xc99a7c, jacket: 0x1d2128, hoodie: 0x2a2f38, pants: 0x15171b, boots: 0x3a2c22 },
+  pdc: { skin: 0xb98a6c, jacket: 0x1f2b3d, hoodie: 0x2b3a50, pants: 0x18202c, boots: 0x111317 },
+  acolyte: { skin: 0xa77e66, jacket: 0x2a1f38, hoodie: 0x3a2a4e, pants: 0x1c1626, boots: 0x231a1a },
+};
+
 export class CharacterModel {
-  constructor() {
+  /** @param {object} [o] { variant: 'protagonist' | 'pdc' | 'acolyte', glow: color del Acólito } */
+  constructor({ variant = 'protagonist', glow = 0xb45cff } = {}) {
+    this.variant = variant;
+    this.glowColor = glow;
     this.root = new THREE.Group();
-    this.root.name = 'Protagonista';
+    this.root.name = variant === 'protagonist' ? 'Protagonista' : variant;
+    this._hit = 0;
+    this._punch = 0;
     this.anchors = {};
     this._phase = 0;
     this._time = 0;
@@ -33,12 +51,14 @@ export class CharacterModel {
 
   _build() {
     const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.05, ...opts });
+    const V = this.variant;
+    const pal = PALETTES[V] ?? PALETTES.protagonist;
     const M = {
-      skin: mat(0xc99a7c, { roughness: 0.6 }),
-      jacket: mat(0x1d2128, { roughness: 0.55, metalness: 0.15 }),
-      hoodie: mat(0x2a2f38),
-      pants: mat(0x15171b),
-      boots: mat(0x3a2c22, { roughness: 0.7 }),
+      skin: mat(pal.skin, { roughness: 0.6 }),
+      jacket: mat(pal.jacket, { roughness: 0.55, metalness: 0.15 }),
+      hoodie: mat(pal.hoodie),
+      pants: mat(pal.pants),
+      boots: mat(pal.boots, { roughness: 0.7 }),
       hair: mat(0x0d0d10, { roughness: 0.9 }),
       strap: mat(0x4a3b2e),
       tech: mat(0x2a3440, { metalness: 0.6, roughness: 0.35 }),
@@ -80,20 +100,46 @@ export class CharacterModel {
     collar.position.y = 0.55;
     chest.add(collar);
 
-    // Mochila con tecnología básica
-    const pack = box(0.32, 0.36, 0.13, M.tech);
-    pack.position.set(0, 0.3, -0.19);
-    chest.add(pack);
-    const packLight = new THREE.Mesh(
-      new THREE.BoxGeometry(0.16, 0.02, 0.01),
-      new THREE.MeshStandardMaterial({ color: 0x0, emissive: 0x6fb6ff, emissiveIntensity: 1.2 }),
-    );
-    packLight.position.set(0, 0.36, -0.26);
-    chest.add(packLight);
-    for (const sx of [-0.12, 0.12]) {
-      const strap = box(0.04, 0.5, 0.02, M.strap);
-      strap.position.set(sx, 0.3, 0.13);
-      chest.add(strap);
+    const glowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(this.glowColor).multiplyScalar(1.6), toneMapped: false });
+    if (V === 'protagonist') {
+      // Mochila con tecnología básica
+      const pack = box(0.32, 0.36, 0.13, M.tech);
+      pack.position.set(0, 0.3, -0.19);
+      chest.add(pack);
+      const packLight = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, 0.02, 0.01),
+        new THREE.MeshStandardMaterial({ color: 0x0, emissive: 0x6fb6ff, emissiveIntensity: 1.2 }),
+      );
+      packLight.position.set(0, 0.36, -0.26);
+      chest.add(packLight);
+      for (const sx of [-0.12, 0.12]) {
+        const strap = box(0.04, 0.5, 0.02, M.strap);
+        strap.position.set(sx, 0.3, 0.13);
+        chest.add(strap);
+      }
+    } else if (V === 'pdc') {
+      // Chaleco táctico con distintivo
+      const vest = box(0.48, 0.4, 0.3, mat(0x2c3138, { roughness: 0.7 }));
+      vest.position.y = 0.3;
+      chest.add(vest);
+      const badge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.01), new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xe0a53a, emissiveIntensity: 0.9 }));
+      badge.position.set(-0.12, 0.4, 0.156);
+      chest.add(badge);
+      const pouch = box(0.3, 0.08, 0.06, mat(0x2c3138));
+      pouch.position.set(0, 0.14, 0.17);
+      chest.add(pouch);
+    } else if (V === 'acolyte') {
+      // Túnica abierta y fajín con el brillo del poder prestado
+      const robe = box(0.46, 0.62, 0.28, M.hoodie);
+      robe.position.y = 0.22;
+      chest.add(robe);
+      const sash = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.3), glowMat);
+      sash.position.y = 0.05;
+      chest.add(sash);
+      const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.32, 0.45, 12, 1, true), M.hoodie);
+      skirt.position.y = -0.18;
+      skirt.castShadow = true;
+      hips.add(skirt);
     }
     this.anchors.chest = chest;
 
@@ -109,16 +155,37 @@ export class CharacterModel {
     head.position.y = 0.2;
     head.castShadow = true;
     neck.add(head);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.135, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), M.hair);
-    hair.position.y = 0.225;
-    hair.rotation.x = -0.25;
-    hair.scale.set(1.02, 1.05, 1.08);
-    hair.castShadow = true;
-    neck.add(hair);
-    const fringe = box(0.2, 0.06, 0.05, M.hair);
-    fringe.position.set(0, 0.29, 0.1);
-    fringe.rotation.x = 0.5;
-    neck.add(fringe);
+    if (V === 'protagonist') {
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.135, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), M.hair);
+      hair.position.y = 0.225;
+      hair.rotation.x = -0.25;
+      hair.scale.set(1.02, 1.05, 1.08);
+      hair.castShadow = true;
+      neck.add(hair);
+      const fringe = box(0.2, 0.06, 0.05, M.hair);
+      fringe.position.set(0, 0.29, 0.1);
+      fringe.rotation.x = 0.5;
+      neck.add(fringe);
+    } else if (V === 'pdc') {
+      const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), mat(0x1a2230, { metalness: 0.4, roughness: 0.45 }));
+      helmet.position.y = 0.22;
+      helmet.castShadow = true;
+      neck.add(helmet);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.05), new THREE.MeshStandardMaterial({ color: 0x0b0e12, emissive: 0xff6a3a, emissiveIntensity: 0.9, metalness: 0.8, roughness: 0.2 }));
+      visor.position.set(0, 0.22, 0.11);
+      neck.add(visor);
+    } else if (V === 'acolyte') {
+      const hood = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.7), M.hoodie);
+      hood.position.set(0, 0.2, -0.02);
+      hood.scale.set(1, 1.15, 1.05);
+      hood.castShadow = true;
+      neck.add(hood);
+      for (const ex of [-0.045, 0.045]) {
+        const eye = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.012, 0.01), glowMat);
+        eye.position.set(ex, 0.21, 0.122);
+        neck.add(eye);
+      }
+    }
     this.neck = neck;
 
     // --- Brazos ---
@@ -145,9 +212,24 @@ export class CharacterModel {
       hand.position.y = -0.05;
       wrist.add(hand);
       // Piel visible de la muñeca (la manga está remangada para mostrar la marca).
-      const wristSkin = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 12), M.skin);
+      const wristSkin = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 12), V === 'acolyte' ? glowMat : M.skin);
       wristSkin.position.y = 0.02;
       wrist.add(wristSkin);
+      if (V === 'pdc' && side === 'R') {
+        // Arma reglamentaria (alineada con el antebrazo; apunta al levantar el brazo)
+        const gun = new THREE.Group();
+        const body = box(0.06, 0.45, 0.09, mat(0x15181c, { metalness: 0.6, roughness: 0.4 }));
+        body.position.y = -0.2;
+        gun.add(body);
+        const grip = box(0.05, 0.05, 0.12, mat(0x15181c));
+        grip.position.set(0, -0.06, -0.08);
+        gun.add(grip);
+        gun.position.z = 0.03;
+        wrist.add(gun);
+        this.anchors.muzzle = new THREE.Object3D();
+        this.anchors.muzzle.position.set(0, -0.44, 0.03);
+        wrist.add(this.anchors.muzzle);
+      }
 
       this.arms[side] = { shoulder, elbow, wrist };
       this.anchors[`shoulder${side}`] = shoulder;
@@ -176,6 +258,11 @@ export class CharacterModel {
       boot.position.set(0, -0.44, 0.04);
       knee.add(boot);
       this.legs[side] = { hip, knee };
+    }
+
+    if (V !== 'protagonist') {
+      this.destinoMark = null;
+      return;
     }
 
     // --- Marca original del Destino (muñeca izquierda) ---
@@ -210,6 +297,8 @@ export class CharacterModel {
   trigger(kind) {
     if (kind === 'cast') this._cast = 1;
     if (kind === 'wave') this._waveT = 1;
+    if (kind === 'hit') this._hit = 1;
+    if (kind === 'punch') this._punch = 1;
   }
 
   /**
@@ -291,6 +380,18 @@ export class CharacterModel {
       this.arms.R.wrist.rotation.y = 0;
     }
 
+    // Golpe cuerpo a cuerpo: puñetazo recto con el brazo derecho
+    this._punch = Math.max(0, this._punch - dt * 4.5);
+    if (this._punch > 0) {
+      const e = Math.sin(Math.min(1, (1 - this._punch) * 1.6) * Math.PI);
+      A.R.shoulder.rotation.x = -1.5 * e + A.R.shoulder.rotation.x * (1 - e);
+      A.R.shoulder.rotation.z = 0.15 * e + A.R.shoulder.rotation.z * (1 - e);
+      A.R.elbow.rotation.x = -0.1 * e + A.R.elbow.rotation.x * (1 - e);
+      this.chest.rotation.y = -0.35 * e;
+    } else {
+      this.chest.rotation.y = 0;
+    }
+
     // Picado en rayo: cuerpo recto, piernas juntas, puño derecho hacia abajo
     this._dive += ((s.diving ? 1 : 0) - this._dive) * k(18);
     if (this._dive > 0.001) {
@@ -310,7 +411,9 @@ export class CharacterModel {
     // Torso: inclinación al correr / esquivar, respiración en reposo
     const targetLean = 0.08 * moving + 0.18 * run + this._dodge * 0.55 + airTuck * 0.05 + this._dive * 0.35;
     this._lean += (targetLean - this._lean) * k(10);
-    this.chest.rotation.x = this._lean;
+    // Reacción a impactos: sacudida hacia atrás del torso
+    this._hit = Math.max(0, this._hit - dt * 5);
+    this.chest.rotation.x = this._lean - Math.sin(this._hit * Math.PI) * 0.35;
     const breathe = Math.sin(this._time * 2.2) * 0.012 * (1 - moving);
     const bob = Math.abs(Math.cos(ph)) * 0.05 * moving * ground;
     this.hips.position.y = 0.95 + bob + breathe - this._land * 0.25 - this._dodge * 0.18;
@@ -318,6 +421,6 @@ export class CharacterModel {
 
     // Pulso suave de la marca del Destino
     const pulse = 0.75 + Math.sin(this._time * 2.5) * 0.25;
-    this.destinoMark.plane.material.opacity = pulse;
+    if (this.destinoMark) this.destinoMark.plane.material.opacity = pulse;
   }
 }
