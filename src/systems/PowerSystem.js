@@ -164,7 +164,8 @@ export class PowerSystem {
     // El picado termina aunque se pierda la marca en pleno vuelo.
     if (this.dive) this._updateDive();
 
-    if (!this.available || g.playerCombat?.dead || g.acquisition?.active || g.drain?.active) {
+    // Escalando no se usan poderes (las manos están ocupadas)
+    if (!this.available || g.playerCombat?.dead || g.acquisition?.active || g.drain?.active || motor.isClimbing) {
       this._cancelCharge();
       this._cancelTargeting();
       player.aiming = false;

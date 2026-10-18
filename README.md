@@ -15,6 +15,9 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
 - **Etapa 4 — Sistema de marcas** ✅: adquisición de la marca de Energía por
   contacto y voluntad en la estación de la Zona E, reglas canónicas, registro y
   persistencia, menú de marcas (Tab) y progresión con experiencia y mejoras.
+- **Etapa 5 — Parkour** ✅: saltar vallas corriendo, subir a bordes sin
+  saltar, agarre de cornisas (colgarse, desplazarse y trepar), escalada de
+  muros y fachadas, salto hacia atrás desde la pared y cámara de escalada.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -69,12 +72,54 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Golpe (con energía: eléctrico y con embestida) | F | ✅ |
 | Interactuar / mantener para la voluntad | E | ✅ |
 | Menú de marcas y habilidades | Tab | ✅ |
+| Escalar: agarrarse a un muro o cornisa | Saltar hacia él con W pulsado | ✅ |
+| Trepar / bajar / lateral (en la pared) | W / S / A D | ✅ |
+| Impulso hacia arriba en la pared | Espacio | ✅ |
+| Salto hacia atrás desde la pared | S + Espacio | ✅ |
+| Soltarse | C | ✅ |
 
 La tecla **Alt** es alternativa a Ctrl para esquivar porque algunos navegadores
 reservan combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña); **C** pasa a
 ser agacharse. El documento de diseño
 no asignaba tecla a la onda expansiva; se ha elegido **G** (reasignable). Los
 controles se definen como acciones en `src/core/Input.js`.
+
+## Etapa 5 — Parkour
+
+Todo el parkour es automático salvo el salto inicial: no hay teclas nuevas.
+
+| Situación | Qué ocurre |
+| --- | --- |
+| Corres (≥ 3.5 m/s) contra una valla de hasta 1.35 m y ≤ 1.1 m de grosor | La **saltas por encima** sin perder velocidad |
+| Caminas contra un borde de hasta 1.35 m | **Subes encima** sin saltar (si hay sitio; si el techo es bajo, agachado) |
+| Saltas hacia un borde que queda al alcance de las manos | Te **agarras** y subes; si sueltas W, te quedas **colgado** |
+| Colgado | A/D se desplaza por la cornisa (sin pasarse del extremo), W o Espacio sube, S baja a la pared si es trepable, C se suelta |
+| Saltas hacia un muro alto | Te **enganchas a la pared**: W sube (4.2 m/s), S baja, A/D de lado, Espacio da un impulso de ≈2 m, S + Espacio salta hacia atrás |
+| Llegas a lo alto trepando | Subes a la cima directamente; en fachadas con molduras estrechas pasas de una a otra y sigues trepando |
+
+- Se puede escalar cualquier muro, edificio o caja estática. No se escalan los
+  límites invisibles del mapa, los objetos móviles ni las fuentes de energía.
+- Escalando no se usan poderes ni se esquiva (las manos están ocupadas).
+- Subir a un borde no causa daño por caída: agarrarse a una cornisa durante una
+  caída la detiene.
+- **Cámara**: al escalar se aleja 1.3 m y se eleva para ver la pared y la
+  cornisa; el seguimiento vertical es más suave al subir a un borde.
+- **Animaciones**: trepar (brazos y piernas alternos según lo recorrido),
+  colgar, subir a la cornisa empujando con los brazos y salto de valla.
+- Los enemigos usan el mismo motor sin parkour.
+
+**Campo de Pruebas — Zona B**: muros de 3/5/8 m, fachada de 12 m con cuatro
+cornisas y un **circuito de parkour** (punto de depuración «Zona B — Circuito
+de parkour»): tres vallas de 1 m, bloque de 1.3 m, torre de 3 m, muro de 6 m y
+torre de 12 m con cornisas. **Zona A**: los peldaños de 0.5 m y las
+plataformas de hasta 1.3 m ya se suben solos; la de 2 m, saltando.
+**Distrito Cero**: todas las fachadas son escalables, además de las escaleras
+de incendios y pasarelas.
+
+Código: `src/physics/Parkour.js` (consultas geométricas puras: muro delante,
+cima de la cornisa, sitio para quedarse de pie o colgado, aterrizaje tras la
+valla) y los estados `wall`, `hang`, `mantle` y `vault` de
+`src/physics/CharacterMotor.js`. Parámetros en `PARKOUR_CONFIG`.
 
 ## Etapa 2 — Energía
 
@@ -269,7 +314,7 @@ colisión con la geometría y ligero aumento de FOV al esprintar.
   longitud de 2 a 7 m y un pasillo con esquinas para colisiones.
 - Zona B — Recorridos: ruta ascendente por saltos hasta 8.4 m, plataformas
   separadas, torre con escalera en zigzag, muros de 3/5/8 m y una fachada con
-  cornisas (preparados para la escalada de la Etapa 5).
+  cornisas, y el circuito de parkour (Etapa 5).
 - Zonas C–F: delimitadas y señalizadas con la etapa en la que recibirán contenido.
 
 **Distrito Cero**: barrio al atardecer con 8 edificios principales y 2 anexos,
@@ -322,6 +367,11 @@ contenedores y cajas (A1, A2).
     eléctrico aparece «Mantén E: absorber energía», absorber recarga la
     energía y vacía la reserva de la fuente; el HUD muestra un símbolo por
     disparo; la Encarnación no tiene luces ni aura.
+  - Parkour: el bot salta las vallas corriendo y sube al bloque de 1.3 m,
+    sube a la torre de 3 m y al muro de 6 m, escala la torre de 12 m por sus
+    cornisas y la fachada de B6 en el Distrito Cero; con el teclado, W +
+    Espacio engancha al muro de 5 m y sube a la cima; colgado de una cornisa,
+    A/D desplaza, no se usan poderes y C suelta.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.

@@ -27,6 +27,7 @@ export default {
     { id: 'inicio', name: 'Inicio', x: 0, y: 0.3, z: 18, yaw: Math.PI },
     { id: 'A', name: 'Zona A — Movimiento', x: -38, y: 0.2, z: 6, yaw: Math.PI },
     { id: 'B', name: 'Zona B — Recorridos', x: 34, y: 0.2, z: 6, yaw: Math.PI },
+    { id: 'parkour', name: 'Zona B — Circuito de parkour', x: 21, y: 0.2, z: 28, yaw: Math.PI / 2 },
     { id: 'C', name: 'Zona C — Poderes', x: -57, y: 0.2, z: -48, yaw: Math.PI },
     { id: 'C-alcance', name: 'Zona C — Prueba de alcance', x: -80, y: 0.2, z: -79, yaw: Math.PI / 2 },
     { id: 'D', name: 'Zona D — Combate', x: -15, y: 0.2, z: -41, yaw: Math.PI },
@@ -116,7 +117,7 @@ function buildZoneA(B, M) {
     B.block({ x: -38, z: -2.4 - i * 0.8, w: 3, d: 0.8, h: 0.5 * (i + 1), mat: M.orange });
   }
   B.block({ x: -38, z: -8, w: 3, d: 4, h: 2.5, mat: M.block });
-  B.floorText(['Peldaños 0.5 m', '(requieren salto)'], { x: -38, z: 0.5, w: 5, h: 2.5 });
+  B.floorText(['Peldaños 0.5 m', '(se suben solos)'], { x: -38, z: 0.5, w: 5, h: 2.5 });
 
   // Plataformas a distintas alturas
   const heights = [0.5, 1.0, 1.5, 2.0];
@@ -124,13 +125,13 @@ function buildZoneA(B, M) {
     B.block({ x: -46, z: -3 - i * 4.5, w: 3, d: 3, h, mat: i === 3 ? M.orange : M.blue });
   });
   B.floorText(['Alturas', '0.5 · 1.0 · 1.5 · 2.0 m'], { x: -46, z: 0.5, w: 5, h: 2.5 });
-  B.sign(['2.0 m', 'Desde el suelo: parkour (Etapa 5)'], { x: -46, y: 3.2, z: -18.2, w: 3, h: 1.2, facing: 0, opts: { width: 512, height: 200 } });
+  B.sign(['2.0 m', 'Salta hacia el borde: te agarras y subes'], { x: -46, y: 3.2, z: -18.2, w: 3, h: 1.2, facing: 0, opts: { width: 512, height: 200 } });
 
   // Obstáculos bajos
   [0.4, 0.8, 1.2].forEach((h, i) => {
     B.block({ x: -54, z: -3 - i * 5, w: 4, d: 0.6, h, mat: M.white });
   });
-  B.floorText(['Obstáculos', '0.4 · 0.8 · 1.2 m'], { x: -54, z: 0.5, w: 5, h: 2.5 });
+  B.floorText(['Obstáculos', '0.8 y 1.2 m: corre y sáltalos'], { x: -54, z: 0.5, w: 5, h: 2.5 });
 
   // Saltos de longitud: plataformas de 1 m de altura con huecos crecientes
   let xCursor = -16;
@@ -179,18 +180,45 @@ function buildZoneB(B, M) {
   B.stairTower({ x: 63, z: -13, axis: 'x', dir: 1, side: 1, height: topY, width: 1.6, mat: M.white, landingMat: M.metal });
   B.floorText(['Torre de acceso'], { x: 66, z: -4, w: 5, h: 2.5 });
 
-  // Muros para escalada futura
+  // Muros para escalar
   [3, 5, 8].forEach((h, i) => {
     B.block({ x: 26 + i * 6, z: 12, w: 4, d: 0.8, h, mat: i === 2 ? M.orange : M.dark });
   });
-  B.floorText(['Muros 3 · 5 · 8 m', 'Escalada en Etapa 5'], { x: 32, z: 16, w: 6, h: 3 });
+  B.floorText(['Muros 3 · 5 · 8 m', 'Salta hacia el muro y trepa (W)'], { x: 32, z: 16, w: 6, h: 3 });
 
-  // Fachada con cornisas (para el agarre de cornisas de la Etapa 5)
+  // Fachada con cornisas: colgarse, desplazarse (A/D) y trepar de una a otra
   B.block({ x: 54, z: 12, w: 10, d: 1, h: 12, mat: M.dark });
   for (let i = 1; i <= 4; i++) {
     B.block({ x: 54, z: 11.3, w: 10, d: 0.4, y: i * 2.6, h: 0.25, mat: M.stripe });
   }
-  B.floorText(['Fachada con cornisas', 'Agarre en Etapa 5'], { x: 54, z: 16, w: 6, h: 3 });
+  B.floorText(['Fachada con cornisas', 'Cuélgate · A/D · W trepar'], { x: 54, z: 16, w: 6, h: 3 });
+
+  buildParkourCourse(B, M);
+}
+
+/**
+ * Circuito de parkour (hacia +x desde x = 22, z = 28): vallas para saltar
+ * corriendo, bloque para subirse, torre de 3 m (salto + agarre), muro de 6 m
+ * (escalada) y torre de 12 m con cornisas. Cada tramo se puede repetir.
+ */
+function buildParkourCourse(B, M) {
+  const z = 28;
+  B.sign(['CIRCUITO DE PARKOUR', 'Corre hacia las vallas · Salta hacia un muro para agarrarte · W trepar · Espacio impulso',
+    'S + Espacio: salto hacia atrás · A/D: desplazarse por la cornisa · C: soltarse'], { x: 24, y: 3.4, z: z - 4.5, w: 8, h: 2.4, facing: 0, opts: { width: 1024, height: 300 } });
+  // Vallas de 1 m (se saltan corriendo)
+  for (const x of [26, 30, 34]) B.block({ x, z, w: 0.5, d: 4, h: 1.0, mat: M.white });
+  B.floorText(['Vallas 1 m', 'Corre: las saltas'], { x: 30, z: z + 3.6, w: 5, h: 2.2 });
+  // Bloque de 1.3 m: se sube sin saltar
+  B.block({ x: 39, z, w: 3, d: 4, h: 1.3, mat: M.blue });
+  // Torre de 3 m: salto y agarre desde el bloque
+  B.block({ x: 43.5, z, w: 3, d: 4, h: 3, mat: M.white });
+  // Muro de 6 m: escalada
+  B.block({ x: 48.5, z, w: 3, d: 4, h: 6, mat: M.orange });
+  B.floorText(['1.3 m · 3 m · 6 m', 'Salta hacia el borde y trepa'], { x: 43.5, z: z + 3.6, w: 7, h: 2.2 });
+  // Torre de 12 m con cornisas cada 2.6 m en su cara oeste (x = 53)
+  B.block({ x: 56, z, w: 6, d: 6, h: 12, mat: M.dark });
+  for (let i = 1; i <= 4; i++) B.block({ x: 52.8, z, w: 0.4, d: 6, y: i * 2.6, h: 0.25, mat: M.stripe });
+  B.floorText(['Torre de 12 m', 'Desde el muro: salta hacia ella'], { x: 56, z: z + 4.6, w: 6, h: 2.2 });
 }
 
 /** ZONA C — Poderes: dianas, maniquíes con salud, objetos físicos y prueba de alcance. */

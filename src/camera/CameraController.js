@@ -23,6 +23,8 @@ export class CameraController {
 
     this._aim = 0;
     this._aimTarget = 0;
+    this._parkour = 0;
+    this._parkourTarget = 0;
     this._trauma = 0;
     this._time = 0;
     /** Origen sobre el hombro en el último frame (lo usan los poderes para apuntar). */
@@ -44,6 +46,11 @@ export class CameraController {
   /** 0 = cámara normal, 1 = apuntando (más cerca y con menos FOV). */
   setAim(v) {
     this._aimTarget = v;
+  }
+
+  /** 1 = escalando: cámara más alejada y alta para ver la pared y la cornisa. */
+  setParkour(v) {
+    this._parkourTarget = v;
   }
 
   /** Sacudida de cámara (se acumula y decae). */
@@ -68,16 +75,21 @@ export class CameraController {
   update(dt, target, sprinting) {
     this._time += dt;
     this._aim += (this._aimTarget - this._aim) * (1 - Math.exp(-dt * 14));
-    const shoulder = this.shoulder + this._aim * 0.25;
-    const distance = this.distance - this._aim * 2.1;
-    this._pivot.set(target.x, target.y + this.pivotHeight, target.z);
+    this._parkour += (this._parkourTarget - this._parkour) * (1 - Math.exp(-dt * 5));
+    const pk = this._parkour * (1 - this._aim);
+    // Escalando, la cámara tiende a mirar algo hacia arriba (hacia la cornisa)
+    if (this._parkourTarget > 0 && this.pitch < 0.08) this.pitch = Math.min(0.08, this.pitch + dt * 0.6);
+    const shoulder = this.shoulder + this._aim * 0.25 - pk * 0.15;
+    const distance = this.distance - this._aim * 2.1 + pk * 1.3;
+    this._pivot.set(target.x, target.y + this.pivotHeight + pk * 0.45, target.z);
     if (!this._initialized) {
       this._smoothedPivot.copy(this._pivot);
       this._initialized = true;
     } else {
       // Seguimiento rápido en horizontal y algo más suave en vertical (saltos).
       const kh = 1 - Math.exp(-dt * 22);
-      const kv = 1 - Math.exp(-dt * 12);
+      // Escalando, el seguimiento vertical es más suave (subidas a cornisas).
+      const kv = 1 - Math.exp(-dt * (12 - this._parkour * 4));
       this._smoothedPivot.x += (this._pivot.x - this._smoothedPivot.x) * kh;
       this._smoothedPivot.z += (this._pivot.z - this._smoothedPivot.z) * kh;
       this._smoothedPivot.y += (this._pivot.y - this._smoothedPivot.y) * kv;

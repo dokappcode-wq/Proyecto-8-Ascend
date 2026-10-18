@@ -14,7 +14,7 @@ export class PlayerController {
     this.input = input;
     this.cameraController = camera;
     this.events = events;
-    this.motor = new CharacterMotor(world);
+    this.motor = new CharacterMotor(world, { parkour: true });
     this.model = new CharacterModel();
     this.facing = 0; // ángulo Y del modelo
     this._fwd = { x: 0, z: -1 };
@@ -145,7 +145,9 @@ export class PlayerController {
 
     // Agacharse / cobertura
     const m = this.motor;
-    if (on && inp.wasPressed('crouch')) this.toggleCrouch();
+    // C: agacharse, o soltarse si está escalando
+    const drop = on && m.isClimbing && inp.wasPressed('crouch');
+    if (on && !m.isClimbing && inp.wasPressed('crouch')) this.toggleCrouch();
     if (!on || m.isBusy) this.cover = null;
     let speedScale = this.speedScale;
     if (on && inp.isDown('sprint') && len > 0 && m.crouched && !this.cover) m.setCrouch(false);
@@ -159,7 +161,7 @@ export class PlayerController {
     // Pasos fijos (≤ 1/60 s): el movimiento es igual a cualquier tasa de frames.
     const steps = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6));
     const sdt = dt / steps;
-    const agg = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null };
+    const agg = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null };
     for (let i = 0; i < steps; i++) {
       this.motor.update(sdt, {
         speedScale,
@@ -168,6 +170,8 @@ export class PlayerController {
         sprint,
         jump: on && i === 0 && inp.wasPressed('jump'),
         dodge: on && i === 0 && inp.wasPressed('dodge'),
+        drop: drop && i === 0,
+        noParkour: !on || this.aiming || !!this.cover,
         facingX: Math.sin(this.facing),
         facingZ: Math.cos(this.facing),
       });
@@ -178,6 +182,7 @@ export class PlayerController {
       agg.landingImmune ||= e.landingImmune;
       agg.diveLanded ??= e.diveLanded;
       agg.travelEnded ??= e.travelEnded;
+      agg.parkour ??= e.parkour;
       if (e.landed) {
         agg.landed = true;
         agg.landingSpeed = Math.max(agg.landingSpeed, e.landingSpeed);
@@ -190,7 +195,14 @@ export class PlayerController {
     const v = this.motor.velocity;
     const hs = Math.hypot(v.x, v.z);
     this._faceAim = Math.max(0, this._faceAim - dt);
-    if (this.lookTarget) {
+    const wallN = this.motor.climbNormal;
+    if (wallN) {
+      // Escalando: de cara a la pared
+      const target = Math.atan2(-wallN.nx, -wallN.nz);
+      let d = target - this.facing;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.facing += d * (1 - Math.exp(-dt * 20));
+    } else if (this.lookTarget) {
       const p = this.motor.position;
       const target = Math.atan2(this.lookTarget.x - p.x, this.lookTarget.z - p.z);
       let d = target - this.facing;
@@ -219,9 +231,11 @@ export class PlayerController {
     if (ev.landed) this.events.emit('player:landed', { speed: ev.landingSpeed, immune: ev.landingImmune });
     if (ev.dodged) this.events.emit('player:dodged');
     if (ev.respawned) this.events.emit('player:respawned');
+    if (ev.parkour) this.events.emit('player:parkour', { kind: ev.parkour });
 
     this._aimWeight += ((aimLocked || this.lookTarget ? 1 : 0) - this._aimWeight) * (1 - Math.exp(-dt * 18));
     cam.setAim(this.aiming ? 1 : 0);
+    cam.setParkour(this.motor.isClimbing ? 1 : 0);
     this.model.animate(dt, {
       aimWeight: this._aimWeight,
       aimPitch: this.lookTarget ? -0.35 : cam.pitch,
@@ -234,6 +248,9 @@ export class PlayerController {
       verticalSpeed: v.y,
       landed: ev.landed,
       landingSpeed: ev.landingSpeed,
+      climb: this.motor.climbState,
+      climbDistance: this.motor.climbDistance,
+      mantleProgress: this.motor.mantleProgress,
     });
     this._syncModel();
 

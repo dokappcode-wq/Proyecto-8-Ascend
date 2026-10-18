@@ -6,6 +6,8 @@
  * recibe una intención de movimiento ya expresada en coordenadas del mundo.
  */
 
+import { PARKOUR_CONFIG, isClimbable, probeWall, findLedge, standSpot, hangSpot, wallAboveLedge, vaultLanding, ledgeTop } from './Parkour.js';
+
 export const DEFAULT_MOTOR_CONFIG = Object.freeze({
   radius: 0.38,
   height: 1.8,
@@ -26,6 +28,8 @@ export const DEFAULT_MOTOR_CONFIG = Object.freeze({
   dodgeExitFactor: 0.3,
   dodgeCooldown: 0.55,
   killY: -40,
+  /** Parkour (escalada, cornisas, obstáculos). Solo el protagonista. */
+  parkour: false,
 });
 
 /**
@@ -38,12 +42,15 @@ export const DEFAULT_MOTOR_CONFIG = Object.freeze({
  * @property {number} [facingX] Dirección hacia la que mira (para esquivar sin moverse).
  * @property {number} [facingZ]
  * @property {number} [speedScale] Multiplicador de velocidad (apuntar, cargar…). Por defecto 1.
+ * @property {boolean} [drop]   Soltarse de una pared o cornisa (solo el frame en que se pulsa).
+ * @property {boolean} [noParkour] Desactiva el agarre (apuntando, a cubierto…).
  */
 
 export class CharacterMotor {
   constructor(world, config = {}) {
     this.world = world;
     this.cfg = { ...DEFAULT_MOTOR_CONFIG, ...config };
+    this.pk = { ...PARKOUR_CONFIG, ...(config.parkourConfig ?? {}) };
     this.position = { x: 0, y: 0, z: 0 };
     this.velocity = { x: 0, y: 0, z: 0 };
     this.grounded = false;
@@ -59,13 +66,44 @@ export class CharacterMotor {
     this._dive = null;
     /** Desplazamiento dirigido a un punto: { from, to, t, duration } */
     this._travel = null;
+    /** Escalada: { mode: 'wall' | 'hang', nx, nz, ledgeY, time, leap, leapCd, moved } */
+    this._climb = null;
+    /** Subida a una cornisa o salto de obstáculo: { kind, from, to, t, duration, exit, crouch, then } */
+    this._mantle = null;
+    this._noGrab = 0;
 
     /**
      * Eventos del último paso (para animación / efectos).
      * `landingImmune`: el aterrizaje no debe causar daño por caída (picado).
      * `diveLanded`: { fallHeight } al terminar un picado.
      */
-    this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null };
+    this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null };
+  }
+
+  /** 'wall' | 'hang' | 'mantle' | 'vault' | null */
+  get climbState() {
+    if (this._mantle) return this._mantle.kind;
+    return this._climb?.mode ?? null;
+  }
+
+  /** Escalando, colgado o subiendo a una cornisa (sin poderes ni esquiva). */
+  get isClimbing() {
+    return this._climb !== null || this._mantle !== null;
+  }
+
+  /** Normal del muro al que está agarrado ({nx, nz}) o null. */
+  get climbNormal() {
+    const c = this._climb ?? this._mantle;
+    return c ? { nx: c.nx, nz: c.nz } : null;
+  }
+
+  /** Progreso del ciclo de escalada (metros recorridos por la pared). */
+  get climbDistance() {
+    return this._climb?.moved ?? 0;
+  }
+
+  get mantleProgress() {
+    return this._mantle?.t ?? 0;
   }
 
   /** Altura actual del cuerpo (menor agachado). */
@@ -98,7 +136,7 @@ export class CharacterMotor {
 
   /** Movimiento especial en curso (impulso, picado o desplazamiento dirigido). */
   get isBusy() {
-    return this._burst !== null || this._dive !== null || this._travel !== null;
+    return this._burst !== null || this._dive !== null || this._travel !== null || this._climb !== null || this._mantle !== null;
   }
 
   /**
@@ -173,6 +211,9 @@ export class CharacterMotor {
     this._burst = null;
     this._dive = null;
     this._travel = null;
+    this._climb = null;
+    this._mantle = null;
+    this._noGrab = 0;
     this._dodgeCooldown = 0;
     this._coyote = 0;
     this._jumpBuffer = 0;
@@ -192,9 +233,13 @@ export class CharacterMotor {
     const ev = this.events;
     ev.jumped = ev.landed = ev.dodged = ev.respawned = ev.landingImmune = false;
     ev.landingSpeed = 0;
-    ev.diveLanded = ev.travelEnded = null;
+    ev.diveLanded = ev.travelEnded = ev.parkour = null;
     if (dt <= 0) return;
     dt = Math.min(dt, 0.1);
+    this._noGrab = Math.max(0, this._noGrab - dt);
+
+    if (this._mantle) return this._updateMantle(dt);
+    if (this._climb) return this._updateClimb(dt, input);
 
     if (this._dive) return this._updateDive(dt);
     if (this._travel) return this._updateTravel(dt);
@@ -281,7 +326,319 @@ export class CharacterMotor {
       v.y = Math.max(v.y - g * dt, -c.maxFallSpeed);
     }
 
+    // Velocidad antes de chocar (para decidir si salta un obstáculo por encima)
+    const approachSpeed = this.horizontalSpeed;
     this._integrate(dt);
+
+    if (c.parkour && !input.noParkour && !this.isBusy && !this.crouched) this._tryParkour(mx, mz, mLen, approachSpeed);
+  }
+
+  // ------------------------------------------------------------------ Parkour
+
+  /** Agarre automático: obstáculos bajos en el suelo; cornisas y muros en el aire. */
+  _tryParkour(mx, mz, mLen, approachSpeed) {
+    if (mLen < 0.5) return;
+    const c = this.cfg;
+    const pk = this.pk;
+    const p = this.position;
+    const ux = mx / mLen;
+    const uz = mz / mLen;
+
+    if (this.grounded) {
+      // Obstáculo bajo delante: saltarlo por encima o subirse
+      const w = probeWall(this.world, p, ux, uz, p.y + c.stepHeight + 0.12, c.radius + 0.3);
+      if (!w || !isClimbable(w.collider) || ux * w.nx + uz * w.nz > -0.6) return;
+      const ledge = findLedge(this.world, p, w, c.radius, c.stepHeight + 0.02, pk.vaultMaxHeight);
+      if (!ledge) return;
+      if (approachSpeed >= pk.vaultMinSpeed) {
+        const land = vaultLanding(this.world, p, ledge, c.radius, c.height, pk.vaultMaxDepth);
+        if (land) return this._startMantle('vault', ledge, land, Math.max(approachSpeed, 5), null, approachSpeed);
+      }
+      const spot = standSpot(this.world, p, ledge, c.radius, c.height, c.crouchHeight);
+      if (spot) this._startMantle('mantle', ledge, spot, 1.5);
+      return;
+    }
+
+    if (this._noGrab > 0) return;
+    const w = probeWall(this.world, p, ux, uz, p.y + 1.1, c.radius + pk.reach);
+    const wHigh = w ?? probeWall(this.world, p, ux, uz, p.y + 1.7, c.radius + pk.reach);
+    const wall = w ?? wHigh;
+    if (!wall || !isClimbable(wall.collider) || ux * wall.nx + uz * wall.nz > -0.6) return;
+
+    // Cornisa al alcance de las manos
+    const ledge = findLedge(this.world, p, wall, c.radius, 0.3, pk.grabMax);
+    if (ledge) {
+      const rel = ledge.y - p.y;
+      if (rel <= pk.vaultMaxHeight) {
+        const spot = standSpot(this.world, p, ledge, c.radius, c.height, c.crouchHeight);
+        if (spot) return this._startMantle('mantle', ledge, spot, 1.5);
+      }
+      if (this.velocity.y < 3) {
+        const hang = hangSpot(this.world, p, ledge, c.radius, c.height, pk.hangReach);
+        if (hang) return this._startHang(ledge, hang);
+      }
+      return;
+    }
+    // Muro trepable (el pecho toca la pared)
+    if (w && this.velocity.y > pk.wallGrabMinVy) this._startWall(w);
+  }
+
+  _startWall(w) {
+    const c = this.cfg;
+    const p = this.position;
+    p.x = Math.abs(w.nx) > 0.5 ? w.x + w.nx * (c.radius + 0.02) : p.x;
+    p.z = Math.abs(w.nz) > 0.5 ? w.z + w.nz * (c.radius + 0.02) : p.z;
+    this._climb = { mode: 'wall', nx: w.nx, nz: w.nz, ledgeY: null, time: 0, leap: 0, leapCd: 0, moved: 0 };
+    this.velocity.x = this.velocity.y = this.velocity.z = 0;
+    this.grounded = false;
+    this.events.parkour = 'wall';
+  }
+
+  _startHang(ledge, spot) {
+    const p = this.position;
+    p.x = spot.x;
+    p.y = spot.y;
+    p.z = spot.z;
+    this._climb = { mode: 'hang', nx: ledge.nx, nz: ledge.nz, ledgeY: ledge.y, front: ledge.front, time: 0, leap: 0, leapCd: 0, moved: 0 };
+    this.velocity.x = this.velocity.y = this.velocity.z = 0;
+    this.grounded = false;
+    this.events.parkour = 'hang';
+  }
+
+  /**
+   * Movimiento animado hasta `to` (sin colisiones: el destino ya se validó).
+   * `then`: 'wall' para seguir escalando al terminar (fachadas con molduras).
+   */
+  _startMantle(kind, ledge, to, exitSpeed, then = null, speed = 5) {
+    const p = this.position;
+    const from = { x: p.x, y: p.y, z: p.z };
+    const rise = Math.max(0, ledge.y - from.y);
+    const dist = Math.hypot(to.x - from.x, to.z - from.z);
+    const duration = kind === 'vault' ? Math.max(0.28, Math.min(0.5, (dist + 0.5) / Math.max(speed, 5))) : 0.22 + rise * 0.12;
+    this._climb = null;
+    this._mantle = {
+      kind, from, to: { x: to.x, y: to.y, z: to.z }, peakY: ledge.y + 0.08, t: 0, duration,
+      nx: ledge.nx, nz: ledge.nz, exit: exitSpeed, crouch: !!to.crouch, then,
+    };
+    this.velocity.x = this.velocity.y = this.velocity.z = 0;
+    this.grounded = false;
+    this.events.parkour = kind;
+  }
+
+  _updateMantle(dt) {
+    const m = this._mantle;
+    const p = this.position;
+    m.t = Math.min(1, m.t + dt / m.duration);
+    const t = m.t;
+    if (m.kind === 'vault') {
+      // Arco por encima del obstáculo
+      const h = t < 0.45 ? t / 0.45 : 1 - (t - 0.45) / 0.55;
+      const base = m.from.y + (m.to.y - m.from.y) * t;
+      const peak = Math.max(m.peakY + 0.1, base);
+      p.y = t < 0.45 ? m.from.y + (peak - m.from.y) * Math.sin((h * Math.PI) / 2) : m.to.y + (peak - m.to.y) * Math.sin((h * Math.PI) / 2);
+      p.x = m.from.x + (m.to.x - m.from.x) * t;
+      p.z = m.from.z + (m.to.z - m.from.z) * t;
+    } else {
+      // Primero sube (manos en la cornisa), luego avanza sobre ella
+      const ty = Math.min(1, t / 0.6);
+      const th = Math.max(0, (t - 0.35) / 0.65);
+      const ey = 1 - (1 - ty) * (1 - ty);
+      const eh = th * th * (3 - 2 * th);
+      p.y = m.from.y + (Math.max(m.to.y, m.peakY - 0.08) - m.from.y) * ey;
+      if (t >= 1) p.y = m.to.y;
+      p.x = m.from.x + (m.to.x - m.from.x) * eh;
+      p.z = m.from.z + (m.to.z - m.from.z) * eh;
+    }
+    if (t < 1) return;
+
+    this._mantle = null;
+    p.x = m.to.x;
+    p.y = m.to.y;
+    p.z = m.to.z;
+    if (m.crouch) this.crouched = true;
+    if (m.then === 'wall') {
+      this._climb = { mode: 'wall', nx: m.nx, nz: m.nz, ledgeY: null, time: 0, leap: 0, leapCd: 0, moved: 0 };
+      return;
+    }
+    const hx = m.to.x - m.from.x;
+    const hz = m.to.z - m.from.z;
+    const hl = Math.hypot(hx, hz) || 1;
+    this.velocity.x = (hx / hl) * m.exit;
+    this.velocity.z = (hz / hl) * m.exit;
+    this.velocity.y = 0;
+    this.grounded = true;
+    this._coyote = this.cfg.coyoteTime;
+    this.events.landed = true;
+    this.events.landingSpeed = 0;
+    this.events.landingImmune = true;
+  }
+
+  /** Soltarse de la pared (opcionalmente con un impulso). */
+  _detach(vx = 0, vy = 0, vz = 0, delay = this.pk.regrabDelay) {
+    this._climb = null;
+    this.velocity.x = vx;
+    this.velocity.y = vy;
+    this.velocity.z = vz;
+    this.grounded = false;
+    this._noGrab = delay;
+  }
+
+  _updateClimb(dt, input) {
+    const c = this.cfg;
+    const pk = this.pk;
+    const cl = this._climb;
+    const p = this.position;
+    const n = { nx: cl.nx, nz: cl.nz };
+    cl.time += dt;
+    cl.leap = Math.max(0, cl.leap - dt);
+    cl.leapCd = Math.max(0, cl.leapCd - dt);
+    if (input.jump) this._jumpBuffer = c.jumpBuffer;
+    else this._jumpBuffer = Math.max(0, this._jumpBuffer - dt);
+
+    // Intención relativa a la pared: hacia ella = subir, alejarse = bajar
+    let mx = input.moveX || 0;
+    let mz = input.moveZ || 0;
+    const ml = Math.hypot(mx, mz);
+    if (ml > 1) {
+      mx /= ml;
+      mz /= ml;
+    }
+    const up = -(mx * n.nx + mz * n.nz);
+    const tx = -n.nz;
+    const tz = n.nx;
+    const side = mx * tx + mz * tz;
+
+    if (input.drop) return this._detach(n.nx * 1.5, 0, n.nz * 1.5, pk.dropRegrabDelay);
+    if (this._jumpBuffer > 0 && up < -0.4) {
+      // Salto hacia atrás, alejándose de la pared
+      this._jumpBuffer = 0;
+      this.events.jumped = true;
+      this.events.parkour = 'walljump';
+      return this._detach(n.nx * pk.wallJumpOut, pk.wallJumpUp, n.nz * pk.wallJumpOut);
+    }
+
+    if (cl.mode === 'hang') return this._updateHang(dt, input, n, up, side, tx, tz);
+
+    if (this._jumpBuffer > 0 && cl.leapCd === 0) {
+      this._jumpBuffer = 0;
+      cl.leap = pk.leapTime;
+      cl.leapCd = pk.leapCooldown;
+      this.events.parkour = 'leap';
+    }
+    let vy = 0;
+    if (cl.leap > 0) vy = pk.leapSpeed;
+    else if (up > 0.3) vy = pk.climbUpSpeed * Math.min(1, up);
+    else if (up < -0.3) vy = -pk.climbDownSpeed * Math.min(1, -up);
+    const vs = Math.abs(side) > 0.3 ? pk.climbSideSpeed * Math.sign(side) * Math.min(1, Math.abs(side)) : 0;
+
+    // Movimiento con colisiones (pegado a la pared)
+    const prev = { x: p.x, y: p.y, z: p.z };
+    p.x += (tx * vs - n.nx * 0.4) * dt;
+    p.z += (tz * vs - n.nz * 0.4) * dt;
+    this.world.resolveHorizontal(p, c.radius, p.y, c.height, 0.05);
+    // Al desplazarse de lado, no salir del borde de la pared
+    if (vs !== 0 && !this._wallAt(p, n, p.y + 1.1)) {
+      p.x = prev.x;
+      p.z = prev.z;
+    }
+    p.y += vy * dt;
+    const ceil = this.world.ceilingHeight(p.x, p.z, c.radius * 0.9, prev.y + c.height - 0.01);
+    if (p.y + c.height > ceil) p.y = ceil - c.height;
+    const ground = this.world.groundHeight(p.x, p.z, c.radius * 0.85, prev.y + c.stepHeight);
+    cl.moved += Math.hypot(p.x - prev.x, p.y - prev.y, p.z - prev.z);
+    this.velocity.x = this.velocity.z = 0;
+    this.velocity.y = 0;
+
+    if (p.y <= ground) {
+      // Ha bajado hasta el suelo
+      p.y = ground;
+      this._climb = null;
+      this.grounded = true;
+      this._noGrab = pk.regrabDelay;
+      return;
+    }
+
+    // Cornisa al alcance: subir directamente si se sigue trepando, o colgarse
+    const ledge = findLedge(this.world, p, n, c.radius, 1.0, pk.hangReach + 0.12);
+    if (ledge && ledge.y - p.y <= pk.hangReach + 0.12 && vy >= 0) {
+      if (up > 0.3 || cl.leap > 0) {
+        if (this._climbOver(ledge)) return;
+      }
+      const hang = hangSpot(this.world, p, ledge, c.radius, c.height, pk.hangReach);
+      if (hang) return this._startHang(ledge, hang);
+    }
+
+    // Sin pared delante: se suelta
+    if (!this._wallAt(p, n, p.y + 1.1) && !this._wallAt(p, n, p.y + 1.6)) this._detach(0, 0, 0);
+  }
+
+  _updateHang(dt, input, n, up, side, tx, tz) {
+    const c = this.cfg;
+    const pk = this.pk;
+    const cl = this._climb;
+    const p = this.position;
+
+    const wantsUp = up > 0.3 || this._jumpBuffer > 0;
+    if (wantsUp && cl.time >= pk.hangMinTime) {
+      const ledge = this._ledgeHere(p, cl);
+      if (ledge && this._climbOver(ledge)) {
+        this._jumpBuffer = 0;
+        return;
+      }
+    }
+    if (up < -0.3) {
+      // Bajar a la pared si hay muro trepable debajo; si no, se queda colgado
+      if (this._wallAt(p, { nx: cl.nx, nz: cl.nz }, p.y + 1.1)) {
+        cl.mode = 'wall';
+        return;
+      }
+    }
+    // Desplazamiento lateral por la cornisa mientras siga existiendo
+    if (Math.abs(side) > 0.3) {
+      const prev = { x: p.x, z: p.z };
+      const step = pk.shimmySpeed * Math.sign(side) * Math.min(1, Math.abs(side)) * dt;
+      p.x += tx * step;
+      p.z += tz * step;
+      this.world.resolveHorizontal(p, c.radius, p.y, c.height, 0.05);
+      const l = this._ledgeHere(p, cl);
+      if (!l || Math.abs(l.y - cl.ledgeY) > 0.15) {
+        p.x = prev.x;
+        p.z = prev.z;
+      } else cl.moved += Math.abs(step);
+    }
+    this.velocity.x = this.velocity.y = this.velocity.z = 0;
+  }
+
+  /** Cornisa justo delante de las manos estando colgado. */
+  _ledgeHere(p, cl) {
+    const sx = Math.abs(cl.nx) > 0.5 ? cl.front - cl.nx * 0.12 : p.x;
+    const sz = Math.abs(cl.nz) > 0.5 ? cl.front - cl.nz * 0.12 : p.z;
+    const top = ledgeTop(this.world, sx, sz, cl.ledgeY + 0.4, cl.ledgeY - 0.3);
+    if (!top || !isClimbable(top.collider)) return null;
+    return { y: top.y, collider: top.collider, front: cl.front, nx: cl.nx, nz: cl.nz };
+  }
+
+  /** Subir por encima de una cornisa: de pie sobre ella o, si es estrecha, seguir trepando por el muro de arriba. */
+  _climbOver(ledge) {
+    const c = this.cfg;
+    const p = this.position;
+    const spot = standSpot(this.world, p, ledge, c.radius, c.height, c.crouchHeight);
+    if (spot) {
+      this._startMantle('mantle', ledge, spot, 1.5);
+      return true;
+    }
+    const above = wallAboveLedge(this.world, p, ledge, c.radius, c.height);
+    if (above) {
+      this._startMantle('mantle', ledge, above, 0, 'wall');
+      return true;
+    }
+    return false;
+  }
+
+  /** ¿Hay pared trepable delante (normal n) a la altura y? */
+  _wallAt(p, n, y) {
+    const w = probeWall(this.world, p, -n.nx, -n.nz, y, this.cfg.radius + 0.3);
+    return !!w && isClimbable(w.collider) && Math.abs(w.nx - n.nx) < 0.1 && Math.abs(w.nz - n.nz) < 0.1;
   }
 
   /** Integración con sub-pasos (no atraviesa geometría) + eventos de aterrizaje y caída del mapa. */

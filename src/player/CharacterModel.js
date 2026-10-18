@@ -48,6 +48,8 @@ export class CharacterModel {
     this._cast = 0;
     this._waveT = 0;
     this._dive = 0;
+    this._climbW = 0;
+    this._climbPose = null;
     this._reload = null; // progreso 0..1 de la recarga, o null
     this._reloadW = 0;
     this._crouch = 0;
@@ -434,6 +436,64 @@ export class CharacterModel {
       mix(A.R.elbow, 'x', 0);
       mix(A.L.shoulder, 'x', 0.9);
       mix(A.L.shoulder, 'z', 0.5);
+    }
+
+    // Parkour: trepar, colgar, subir a una cornisa y saltar obstáculos
+    if (s.climb) this._climbPose = s.climb;
+    this._climbW += ((s.climb ? 1 : 0) - this._climbW) * k(s.climb ? 22 : 10);
+    if (this._climbW > 0.001 && this._climbPose) {
+      const cw = this._climbW;
+      const mix = (obj, axis, v) => (obj.rotation[axis] += (v - obj.rotation[axis]) * cw);
+      const pose = this._climbPose;
+      if (pose === 'wall') {
+        const a = Math.sin((s.climbDistance ?? 0) * 2.4);
+        mix(A.L.shoulder, 'x', -2.55 + a * 0.45);
+        mix(A.R.shoulder, 'x', -2.55 - a * 0.45);
+        mix(A.L.shoulder, 'z', 0.3);
+        mix(A.R.shoulder, 'z', -0.3);
+        mix(A.L.elbow, 'x', -0.7 - a * 0.35);
+        mix(A.R.elbow, 'x', -0.7 + a * 0.35);
+        mix(L.hip, 'x', -0.75 - a * 0.45);
+        mix(R.hip, 'x', -0.75 + a * 0.45);
+        mix(L.knee, 'x', 1.25 + a * 0.4);
+        mix(R.knee, 'x', 1.25 - a * 0.4);
+      } else if (pose === 'hang') {
+        const sway = Math.sin(this._time * 2.2) * 0.07;
+        mix(A.L.shoulder, 'x', -2.95);
+        mix(A.R.shoulder, 'x', -2.95);
+        mix(A.L.shoulder, 'z', 0.32);
+        mix(A.R.shoulder, 'z', -0.32);
+        mix(A.L.elbow, 'x', -0.15);
+        mix(A.R.elbow, 'x', -0.15);
+        mix(L.hip, 'x', -0.2 + sway);
+        mix(R.hip, 'x', 0.05 + sway);
+        mix(L.knee, 'x', 0.35);
+        mix(R.knee, 'x', 0.2);
+      } else if (pose === 'mantle') {
+        const t = s.mantleProgress ?? 0;
+        const e = Math.sin(Math.min(1, t) * Math.PI);
+        mix(A.L.shoulder, 'x', -2.8 + 2.3 * t);
+        mix(A.R.shoulder, 'x', -2.8 + 2.3 * t);
+        mix(A.L.shoulder, 'z', 0.3);
+        mix(A.R.shoulder, 'z', -0.3);
+        mix(A.L.elbow, 'x', -0.2 - 1.1 * e);
+        mix(A.R.elbow, 'x', -0.2 - 1.1 * e);
+        mix(L.hip, 'x', -1.5 * e);
+        mix(L.knee, 'x', 0.3 + 1.7 * e);
+        mix(R.hip, 'x', 0.25 * e);
+        mix(R.knee, 'x', 0.3 + 0.6 * e);
+      } else if (pose === 'vault') {
+        const e = Math.sin(Math.min(1, s.mantleProgress ?? 0) * Math.PI);
+        mix(A.L.shoulder, 'x', -0.9);
+        mix(A.L.shoulder, 'z', 0.2);
+        mix(A.L.elbow, 'x', -0.1);
+        mix(A.R.shoulder, 'x', -0.4);
+        mix(A.R.shoulder, 'z', -0.7);
+        mix(L.hip, 'x', -1.2 * e);
+        mix(R.hip, 'x', -1.0 * e);
+        mix(L.knee, 'x', 1.6 * e);
+        mix(R.knee, 'x', 1.4 * e);
+      }
     }
 
     // Torso: inclinación al correr / esquivar, respiración en reposo

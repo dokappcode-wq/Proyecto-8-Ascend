@@ -265,6 +265,7 @@ try {
           }
           const slow = d < 1.5 && !wp.jump ? 0.5 : 1;
           m.update(dt, { moveX: ux * slow, moveZ: uz * slow, sprint: !!wp.sprint, jump, dodge: false });
+          if (m.events.parkour) (window.__pk ??= []).push(m.events.parkour);
           t += dt;
         }
         for (let i = 0; i < 40; i++) m.update(dt, idle);
@@ -311,6 +312,8 @@ try {
   await route('Distrito · A2 por el callejón', { x: 12.2, y: 0.2, z: -48 }, [
     { x: 12.2, z: -45, jump: true }, { x: 12.2, z: -42.4, jump: true }, { x: 12.2, z: -40.2, jump: true }, { x: 13.5, z: -38, jump: true }, { x: 18, z: -38, jump: true },
   ], 6);
+  // Etapa 5: escalando la fachada sur de B6 desde la acera
+  await route('Distrito · fachada de B6 escalando', { x: 9, y: 0.2, z: 30.5 }, [{ x: 9, z: 34.5, jump: true }], 10);
 
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__ascend.state === 'paused');
@@ -333,6 +336,63 @@ try {
     { x: 67.8, z: -12.2 }, { x: 67.8, z: -14.5 },
   ], 8.4);
   await route('Campo · salto de 6 m con sprint', { x: -48, y: 1.2, z: 9 }, [{ x: -58, z: 9, jump: true, sprint: true }], 1);
+
+  // ---------------- Parkour (Etapa 5) ----------------
+  console.log('\n[parkour]');
+  await page.evaluate(() => {
+    window.__pk = [];
+    window.__ascend.events.on('player:parkour', (e) => window.__pk.push(e.kind));
+  });
+  const pkSeen = () => q(() => [...new Set(window.__pk)]);
+  await q(() => { window.__pk.length = 0; });
+  await route('Parkour · vallas (saltar corriendo) y bloque de 1.3 m', { x: 21, y: 0.2, z: 28 }, [{ x: 39, z: 28, sprint: true }], 1.3);
+  check((await pkSeen()).includes('vault') && (await pkSeen()).includes('mantle'), `Las vallas se saltan corriendo y el bloque se sube sin saltar (${(await pkSeen()).join(', ')})`);
+  await route('Parkour · torre de 3 m y muro de 6 m', { x: 39, y: 1.5, z: 28 }, [{ x: 43.5, z: 28, jump: true, sprint: true }, { x: 48.5, z: 28, jump: true }], 6);
+  await q(() => { window.__pk.length = 0; });
+  await route('Parkour · torre de 12 m con cornisas', { x: 49.5, y: 6.2, z: 28 }, [{ x: 56, z: 28, jump: true }], 12, 'parkour-01-tower-top.png');
+  check((await pkSeen()).some((k) => k === 'wall' || k === 'hang'), `La torre se escala por la pared y las cornisas (${(await pkSeen()).join(', ')})`);
+
+  // Con el teclado: W + Espacio contra el muro de 6 m del circuito
+  await q(() => { window.__pk.length = 0; window.__ascend.player.spawnAt({ x: 45.9, y: 0.3, z: 28, yaw: Math.PI / 2 }); });
+  await page.waitForTimeout(300);
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => window.__ascend.player.motor.climbState === 'wall', null, { timeout: 8000 }).catch(() => {});
+  await page.screenshot({ path: path.join(out, 'parkour-02-climbing.png') });
+  const climbing = await q(() => ({ s: window.__ascend.player.motor.climbState, cam: window.__ascend.cameraController._parkourTarget }));
+  // Al empezar a subir a la cima se suelta W para no seguir andando
+  await page.waitForFunction(() => window.__ascend.player.motor.climbState === 'mantle' || window.__ascend.player.motor.position.y > 5.9, null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyW');
+  await page.waitForFunction(() => { const m = window.__ascend.player.motor; return m.grounded && m.position.y > 5.9; }, null, { timeout: 10000 }).catch(() => {});
+  const atTop = await q(() => ({ y: window.__ascend.player.motor.position.y, kinds: [...new Set(window.__pk)] }));
+  check(atTop.kinds.includes('wall') && ['wall', 'mantle'].includes(climbing.s), `W + Espacio contra un muro: el personaje se engancha y trepa (${climbing.s})`);
+  check(Math.abs(atTop.y - 6) < 0.1 && atTop.kinds.includes('mantle'), `Al llegar arriba sube a la cima (y=${atTop.y.toFixed(2)}; ${atTop.kinds.join(', ')})`);
+  check(climbing.cam === 1, 'La cámara pasa al modo de escalada');
+
+  // Colgado de una cornisa de la fachada y C para soltarse
+  // (el salto hasta agarrarse se simula en la página para no depender de la tasa de frames)
+  await q(() => {
+    const a = window.__ascend;
+    a.player.spawnAt({ x: 54, y: 0.3, z: 9.6, yaw: 0 });
+    const m = a.player.motor;
+    for (let i = 0; i < 120 && m.climbState !== 'hang'; i++) m.update(1 / 60, { moveX: 0, moveZ: 1, jump: i === 2 });
+  });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(out, 'parkour-03-hang.png') });
+  const hang = await q(() => ({ s: window.__ascend.player.motor.climbState, x: window.__ascend.player.motor.position.x }));
+  check(hang.s === 'hang', `Saltar hacia una cornisa y soltar W: queda colgado (${hang.s})`);
+  await page.keyboard.down('KeyD');
+  await page.waitForTimeout(700);
+  await page.keyboard.up('KeyD');
+  const hx = await q(() => ({ s: window.__ascend.player.motor.climbState, x: window.__ascend.player.motor.position.x }));
+  check(hx.s === 'hang' && Math.abs(hx.x - hang.x) > 0.4, `A/D desplaza por la cornisa (${hang.x.toFixed(2)} → ${hx.x.toFixed(2)})`);
+  check(await q(() => { const p = window.__ascend.powers; return !p.isCharging && window.__ascend.player.motor.isClimbing; }), 'Colgado no se usan poderes');
+  await page.keyboard.press('KeyC');
+  await page.waitForFunction(() => window.__ascend.player.motor.grounded, null, { timeout: 8000 }).catch(() => {});
+  const dropped = await q(() => ({ s: window.__ascend.player.motor.climbState, y: window.__ascend.player.motor.position.y, crouch: window.__ascend.player.motor.crouched }));
+  check(dropped.s === null && dropped.y < 0.5 && !dropped.crouch, `C suelta la cornisa y cae al suelo sin agacharse (y=${dropped.y.toFixed(2)})`);
+  if (process.env.E2E_STOP === 'parkour') throw new Error('E2E_STOP=parkour');
 
   // ---------------- Poderes de Energía (Etapa 2) ----------------
   console.log('\n[poderes]');

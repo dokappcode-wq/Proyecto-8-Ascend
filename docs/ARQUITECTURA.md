@@ -10,7 +10,8 @@ src/
 │   └── SaveSystem.js           Guardado versionado (ajustes, controles, perfil)
 ├── physics/
 │   ├── CollisionWorld.js       Cajas y rampas estáticas, consultas y raycast (sin Three.js)
-│   └── CharacterMotor.js       Controlador cinemático del personaje (sin Three.js)
+│   ├── CharacterMotor.js       Controlador cinemático del personaje (sin Three.js)
+│   └── Parkour.js              Consultas de escalada, cornisas y obstáculos (sin Three.js)
 ├── player/
 │   ├── PlayerController.js     Input → motor, orientación, animación, cámara
 │   ├── CharacterModel.js       Modelo provisional + anclajes para marcas
@@ -98,7 +99,7 @@ src/
 | MarkSystem | ✅ Etapa 4 | `systems/MarkSystem.js`, `player/MarkVisual.js`, `data/marks.js` |
 | CombatSystem | ✅ daño, área, actores y facciones | `combat/CombatSystem.js`; golpe en `systems/PlayerCombat.js` |
 | HealthSystem | ✅ Etapa 3 | `combat/Health.js`, `systems/PlayerCombat.js` |
-| ParkourSystem | Etapa 5 | Consultará `CollisionWorld` (cajas con `maxY` para cornisas) y añadirá estados al `CharacterMotor` |
+| ParkourSystem | ✅ Etapa 5 | `physics/Parkour.js` + estados de `physics/CharacterMotor.js`; animación en `CharacterModel`, cámara en `CameraController.setParkour` |
 | EnemyAI / PDCEnemy / AcolyteEnemy | ✅ Etapa 3 | `ai/EnemyBrain.js`, `ai/Enemy.js`, `ai/enemyTypes.js`, `systems/EnemySystem.js` |
 | PowerAcquisitionSystem | ✅ Etapa 4 | `systems/PowerAcquisitionSystem.js`, `powers/acquisition.js` |
 | PowerProgressionSystem | ✅ Etapa 4 | `powers/Progression.js`, `data/progression.js`; `PowerSystem.applyModifiers` |
@@ -177,3 +178,25 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   transfiere `drain.rate` por segundo de la reserva a la energía, orienta al
   personaje hacia la fuente y emite `energy:drain-start` / `energy:drain-stop`.
 - La mejora «Absorción rápida» multiplica `drain.rate` (`drainMul`).
+
+## Parkour (Etapa 5)
+
+- **Sin sistema aparte en el bucle**: el parkour son estados del
+  `CharacterMotor` (`wall`, `hang`, `mantle`, `vault`), activados con
+  `parkour: true` (solo el jugador). Así se ejecuta en los mismos pasos fijos
+  que el resto del movimiento y se prueba con `node --test`.
+- **Detección** (`physics/Parkour.js`): rayos horizontales contra el
+  `CollisionWorld` dan el muro y su normal; un rayo vertical desde encima de
+  la pared da la cima de la cornisa (si empieza dentro de un sólido, el muro
+  sigue y no hay cornisa); `bodyFits` comprueba que el cilindro cabe en el
+  destino (de pie, agachado o colgado). Los salientes (molduras) se detectan
+  porque quedan más cerca que el muro.
+- **Entrada**: en la pared, la intención de movimiento se proyecta sobre la
+  normal (hacia la pared = subir) y la tangente (lateral), de modo que funciona
+  con la cámara en cualquier ángulo. C (`drop`) suelta; Espacio da un impulso
+  o, alejándose de la pared, un salto hacia atrás.
+- **Subidas** (`mantle`/`vault`): trayectoria animada a un destino ya
+  validado (primero sube, luego avanza; la valla, en arco). Terminan con
+  `landingImmune`, sin daño por caída.
+- `player:parkour` (`{ kind }`) se emite al engancharse, colgarse, subir,
+  saltar una valla, dar un impulso o saltar desde la pared.
