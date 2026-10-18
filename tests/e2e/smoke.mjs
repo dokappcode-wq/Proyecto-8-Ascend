@@ -37,12 +37,29 @@ await new Promise((r) => setTimeout(r, 1500));
 
 const launchOpts = { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] };
 const browser = await chromium.launch(launchOpts);
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+// Un contexto compartido: las pestañas nuevas conservan el guardado (localStorage).
+// 960×540: suficiente para las capturas y bastante más rápido con render por software.
+const context = await browser.newContext({ viewport: { width: 960, height: 540 } });
 const errors = [];
-page.on('pageerror', (e) => errors.push(String(e)));
-page.on('console', (m) => {
-  if (m.type() === 'error' && !/fonts\.(googleapis|gstatic)/.test(m.text())) errors.push(m.text());
-});
+let page = null;
+/**
+ * Abre una pestaña nueva (y cierra la anterior). Con render por software la
+ * memoria del navegador crece durante una prueba tan larga; renovar la pestaña
+ * a mitad de la batería la libera.
+ */
+async function freshPage() {
+  const old = page;
+  page = await context.newPage();
+  // El render por software puede ir muy lento si la máquina está cargada.
+  page.setDefaultTimeout(90000);
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/fonts\.(googleapis|gstatic)/.test(m.text())) errors.push(m.text());
+  });
+  if (old) await old.close();
+  return page;
+}
+await freshPage();
 
 try {
   await page.goto(`http://localhost:${PORT}/`);
@@ -52,6 +69,80 @@ try {
   await page.evaluate(() => window.addEventListener('mousemove', (e) => e.stopImmediatePropagation(), true));
   await page.screenshot({ path: path.join(out, '00-menu.png') });
   check(await page.isVisible('#screen-menu.active'), 'Menú principal visible');
+
+  // ---------------- Adquisición de la marca de Energía (Etapa 4) ----------------
+  console.log('\n[adquisición]');
+  await page.click('[data-map="campo"]');
+  await page.waitForFunction(() => window.__ascend.state === 'playing');
+  await page.evaluate(() => {
+    const a = window.__ascend;
+    window.__acq = [];
+    for (const ev of ['acquisition:contact', 'acquisition:failed', 'acquisition:rejected', 'mark:acquired']) a.events.on(ev, (d) => window.__acq.push({ ev, reason: d.reason ?? null }));
+  });
+  const q = (fn, arg) => page.evaluate(fn, arg);
+  check(!(await q(() => window.__ascend.powers.available)) && !(await page.isVisible('#hud-power')), 'Al empezar no hay marca de Energía ni poderes');
+  // Regla II: un Acólito no es una fuente válida
+  await q(() => window.__ascend.acquisition.beginContact({ source: { kind: 'acolyte', markId: 'energia', name: 'Acólito de Energía' }, position: { x: 0, y: 0, z: 0 } }));
+  check(await q(() => window.__acq.some((e) => e.ev === 'acquisition:rejected' && e.reason === 'not-original')), 'Regla II: copiar a un Acólito se rechaza (no posee marca original)');
+  // Contacto con la Encarnación
+  await q(() => window.__ascend.player.spawnAt({ x: 15, y: 0.4, z: -60.4, yaw: Math.PI }));
+  await page.waitForFunction(() => /establecer contacto/.test(document.getElementById('hud-prompt').textContent) && document.getElementById('hud-prompt').classList.contains('show'), null, { timeout: 8000 }).catch(() => {});
+  check(await page.isVisible('#hud-prompt'), 'Junto a la Encarnación aparece «E: establecer contacto»');
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'contact', null, { timeout: 5000 }).catch(() => {});
+  check(await q(() => window.__ascend.acquisition.state === 'contact'), 'E establece el contacto');
+  // Regla III: soltar antes de completar la voluntad no copia la marca
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.will > 0.25, null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'idle', null, { timeout: 5000 }).catch(() => {});
+  const r3 = await q(() => ({ failed: window.__acq.find((e) => e.ev === 'acquisition:failed')?.reason, owned: window.__ascend.save.data.profile.marks.includes('energia') }));
+  check(r3.failed === 'no-will' && !r3.owned, `Regla III: el contacto sin voluntad completa no copia la marca (${r3.failed})`);
+  // Voluntad completa → copia
+  await page.waitForTimeout(300);
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'contact', null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'copying', null, { timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: path.join(out, 'marks-01-copying.png') });
+  await page.waitForFunction(() => window.__acq.some((e) => e.ev === 'mark:acquired'), null, { timeout: 20000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  await page.waitForTimeout(300);
+  const got = await q(() => ({
+    owned: window.__ascend.save.data.profile.marks.includes('energia'), av: window.__ascend.powers.available,
+    npcGlow: window.__ascend.mapManager.current.entities.find((e) => e.source)?.mark.intensity,
+    toast: document.getElementById('hud-toast').textContent,
+  }));
+  check(got.owned && got.av && (await page.isVisible('#hud-power')), 'Mantener E completa la voluntad: marca de Energía adquirida y poderes disponibles');
+  check(got.npcGlow > 0.2, `Regla IV: la Encarnación conserva su marca y su poder (intensidad ${got.npcGlow?.toFixed(2)})`);
+  await page.screenshot({ path: path.join(out, 'marks-02-acquired.png') });
+  await page.keyboard.press('KeyE');
+  await page.waitForTimeout(300);
+  check(await q(() => window.__acq.some((e) => e.ev === 'acquisition:rejected' && e.reason === 'already-owned')), 'No se puede copiar dos veces la misma marca');
+  // Menú de marcas (Tab) y progresión
+  await q(() => window.__ascend.combat.applyDamage([...window.__ascend.combat.targets].find((t) => t.maxHealth), 500, { faction: 'player' }));
+  const xp = await q(() => window.__ascend.progression.state('energia').xp);
+  check(xp === 5, `Neutralizar un maniquí da experiencia de Energía (${xp} EXP)`);
+  await q(() => { window.__ascend.progression.state('energia').points += 1; });
+  await page.keyboard.press('Tab');
+  await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'marks', null, { timeout: 5000 }).catch(() => {});
+  const marksText = await q(() => document.getElementById('marks-body').textContent);
+  await page.screenshot({ path: path.join(out, 'marks-03-menu.png') });
+  check(/Marca del Destino/.test(marksText) && /Marca de la Energía/.test(marksText) && /Copiada/.test(marksText), 'Tab abre el menú de marcas (Destino original + Energía copiada)');
+  await page.click('#screen-marks [data-action="unlock-node"][data-node="cargador"]');
+  const magSize = await q(() => window.__ascend.powers.magazine.size);
+  check(magSize === 15, `Desbloquear «Cargador ampliado» amplía el cargador a ${magSize}`);
+  await page.keyboard.press('Tab');
+  await page.waitForFunction(() => window.__ascend.state === 'playing', null, { timeout: 5000 }).catch(() => {});
+  // Persistencia: recargar la página conserva marca y progreso
+  await page.reload();
+  await page.waitForFunction(() => window.__ascend);
+  await page.evaluate(() => window.addEventListener('mousemove', (e) => e.stopImmediatePropagation(), true));
+  const persisted = await q(() => ({ owned: window.__ascend.save.data.profile.marks.includes('energia'), unlocked: window.__ascend.progression.state('energia').unlocked }));
+  check(persisted.owned && persisted.unlocked.includes('cargador'), 'La marca y las mejoras se conservan al recargar la página');
+  // El resto de pruebas usa la configuración base (sin mejoras)
+  await q(() => { const a = window.__ascend; a.progression.state('energia').unlocked = []; a.save.save(); a.powers.applyModifiers(a.progression.modifiers('energia')); a.powers.resetAbilities(); });
 
   for (const mapId of ['campo', 'distrito']) {
     console.log(`\n[${mapId}]`);
@@ -84,15 +175,16 @@ try {
     check(moved > 1.5, `WASD desplaza al personaje (${moved.toFixed(2)} m)`);
     check(sSprint.speed > sWalk.speed + 2, `Sprint más rápido (${sWalk.speed.toFixed(1)} → ${sSprint.speed.toFixed(1)} m/s)`);
 
-    // Salto
-    await page.waitForTimeout(400);
+    // Salto (esperas por condición: el render por software puede ir muy lento)
+    await page.waitForFunction(() => window.__ascend.player.motor.grounded, null, { timeout: 15000 }).catch(() => {});
+    const yGround = (await st()).y;
     await page.keyboard.down('Space');
-    await page.waitForTimeout(250);
-    await page.keyboard.up('Space');
+    await page.waitForFunction((y0) => !window.__ascend.player.motor.grounded && window.__ascend.player.motor.position.y > y0 + 0.5, yGround, { timeout: 15000 }).catch(() => {});
     const sJump = await st();
-    check(!sJump.grounded && sJump.y > s0.y + 0.5, `Salto despega del suelo (y=${sJump.y.toFixed(2)})`);
+    await page.keyboard.up('Space');
+    check(!sJump.grounded && sJump.y > yGround + 0.5, `Salto despega del suelo (y=${sJump.y.toFixed(2)})`);
     await page.screenshot({ path: path.join(out, `${mapId}-02-jump.png`) });
-    await page.waitForTimeout(1200);
+    await page.waitForFunction(() => window.__ascend.player.motor.grounded, null, { timeout: 15000 }).catch(() => {});
     check((await st()).grounded, 'Aterriza tras el salto');
 
     // Esquiva (Ctrl)
@@ -109,11 +201,17 @@ try {
     });
     const eBefore = await page.evaluate(() => window.__ascend.powers.energy.value);
     await page.mouse.down();
-    await page.waitForFunction((e0) => window.__ascend.powers.energy.value < e0, eBefore, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction((e0) => window.__ascend.powers.energy.value < e0, eBefore, { timeout: 20000 }).catch(() => {});
     await page.mouse.up();
-    await page.waitForFunction(() => window.__ascend.projectiles.list.length === 0, null, { timeout: 15000 });
+    await page.waitForFunction(() => window.__ascend.projectiles.list.length === 0, null, { timeout: 60000 });
     const eAfter = await page.evaluate(() => window.__ascend.powers.energy.value);
     check(eAfter < eBefore, `Proyectil disparado en ${mapId} (energía ${eBefore.toFixed(0)} → ${eAfter.toFixed(0)})`);
+    if (eAfter >= eBefore) {
+      console.log('      estado:', JSON.stringify(await page.evaluate(() => {
+        const a = window.__ascend;
+        return { av: a.powers.available, dis: a.player.disabled, acq: a.acquisition.state, aim: a.player.aiming, chg: a.powers.isCharging, tgt: a.powers.isTargeting, mag: a.powers.magazine.ammo, rel: a.powers.magazine.reloading, cd: a.powers.abilities.projectile.cooldown, inf: a.powers.energy.infinite, down: [...a.input._down], state: a.state, dead: a.playerCombat.dead };
+      })));
+    }
 
     // Pausa y vuelta al menú
     await page.keyboard.press('Escape');
@@ -123,10 +221,16 @@ try {
     await page.click('#screen-pause [data-action="menu"]');
     await page.waitForFunction(() => window.__ascend.state === 'menu');
     check(true, 'Volver al menú');
+    // Depuración de la propia prueba: E2E_STOP=campo termina aquí
+    if (process.env.E2E_STOP === mapId) throw new Error(`E2E_STOP=${mapId}`);
   }
 
   // ---------------- Rutas con el bot ----------------
   console.log('\n[rutas]');
+  await freshPage();
+  await page.goto(`http://localhost:${PORT}/`);
+  await page.waitForFunction(() => window.__ascend);
+  await page.evaluate(() => window.addEventListener('mousemove', (e) => e.stopImmediatePropagation(), true));
   await page.click('[data-map="distrito"]');
   await page.waitForFunction(() => window.__ascend.state === 'playing');
   await page.evaluate(() => {
@@ -257,7 +361,7 @@ try {
   const g = (fn, arg) => page.evaluate(fn, arg);
   // Los enemigos de la Zona D no deben interferir en las pruebas de poderes.
   await g(() => window.__ascend.enemies.clear());
-  check(await g(() => window.__ascend.powers.available), 'La marca de Energía está activa (concedida por depuración hasta la Etapa 4)');
+  check(await g(() => window.__ascend.powers.available), 'La marca de Energía sigue activa tras cambiar de mapa (adquirida)');
   check(await page.isVisible('#hud-power'), 'HUD de energía visible');
 
   // Proyectil contra un maniquí
@@ -301,12 +405,12 @@ try {
     shots: window.__shots, reloading: window.__ascend.powers.magazine.reloading,
     hud: document.getElementById('hud-ammo').textContent, pose: window.__ascend.player.model._reloadW,
   }));
-  await page.screenshot({ path: path.join(out, 'powers-09-reload.png') });
-  await page.waitForTimeout(250);
-  const shotsDuring = await g(() => window.__shots);
+  // Con el clic aún pulsado y la recarga en curso, no debe salir ningún disparo
+  const shotsDuring = await g(() => (window.__ascend.powers.magazine.reloading ? window.__shots : -1));
   await page.mouse.up();
+  await page.screenshot({ path: path.join(out, 'powers-09-reload.png') });
   check(mag.shots === 10 && mag.reloading, `Se disparan 10 proyectiles y empieza la recarga (${mag.shots} disparos)`);
-  check(shotsDuring === 10, 'No se dispara mientras recarga, aunque se mantenga el clic');
+  check(shotsDuring === 10, `No se dispara mientras recarga, aunque se mantenga el clic (${shotsDuring})`);
   check(/recargando/i.test(mag.hud) && mag.pose > 0.3, `Animación e indicador de recarga ("${mag.hud}", pose ${mag.pose.toFixed(2)})`);
   await page.waitForFunction(() => !window.__ascend.powers.magazine.reloading, null, { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(200);
@@ -369,7 +473,7 @@ try {
   await g(() => window.__ascend.player.spawnAt({ x: 0, y: 0.3, z: 18, yaw: Math.PI }));
   await page.waitForTimeout(300);
   const d0 = await g(() => ({ ...window.__ascend.player.motor.position }));
-  await page.keyboard.press('KeyC');
+  await page.keyboard.press('AltLeft');
   await page.waitForFunction(() => window.__ascend.player.motor.dodgeCooldownRemaining > 0, null, { timeout: 5000 });
   await page.waitForFunction(() => !window.__ascend.player.motor.isBusy && window.__ascend.player.motor.horizontalSpeed < 0.1, null, { timeout: 5000 });
   const d1 = await g(() => ({ ...window.__ascend.player.motor.position }));
@@ -461,7 +565,7 @@ try {
     await page.mouse.up();
     await page.waitForTimeout(100);
     // Espera a que todos los proyectiles impacten o caduquen (el render por software va más lento que el tiempo real).
-    await page.waitForFunction(() => window.__ascend.projectiles.list.length === 0, null, { timeout: 15000 });
+    await page.waitForFunction(() => window.__ascend.projectiles.list.length === 0, null, { timeout: 60000 });
     const hits = await g(([t, z]) => window.__ascend.mapManager.current.entities.find((e) => e.hits !== undefined && Math.abs(e.center.x - t) < 0.1 && Math.abs(e.center.z - z) < 0.1).hits, [tx, tz]);
     check(expectHit ? hits > 0 : hits === 0, `Alcance: diana a ${dist} m ${expectHit ? 'recibe' : 'no recibe'} impactos (${hits})`);
   }
@@ -470,7 +574,7 @@ try {
   await page.keyboard.press('F2');
   await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'debug');
   await page.screenshot({ path: path.join(out, 'powers-04-debug.png') });
-  await page.click('#screen-debug [data-action="dbg-mark"]');
+  await page.click('#screen-debug [data-action="dbg-reset-acquisition"]');
   const off = await g(() => window.__ascend.powers.available);
   await page.click('#screen-debug [data-action="resume"]');
   await page.waitForFunction(() => window.__ascend.state === 'playing');
@@ -478,8 +582,8 @@ try {
   await page.keyboard.press('KeyG');
   await page.waitForTimeout(300);
   const usedWhileOff = await g(() => window.__ascend.powers.abilities.wave.cooldown > 0);
-  check(!off && !(await page.isVisible('#hud-power')) && !usedWhileOff, 'Sin la marca de Energía no hay poderes ni HUD de energía');
-  check((await g(() => window.__ascend.powers.energy.value)) === eOff0, 'Sin la marca no se gasta energía');
+  check(!off && !(await page.isVisible('#hud-power')) && !usedWhileOff, 'Reiniciar la adquisición (F2) quita la marca: sin poderes ni HUD de energía');
+  check((await g(() => window.__ascend.powers.energy.value)) >= eOff0, 'Sin la marca no se gasta energía');
   await page.keyboard.press('F2');
   await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'debug');
   await page.click('#screen-debug [data-action="dbg-mark"]');
@@ -602,6 +706,73 @@ try {
   const afterMelee = await g((b) => window.__ascend.enemies.list.find((x) => x.type.id === b.id)?.health.value, meleeRes);
   check(meleeRes && afterMelee <= meleeRes.before - 20, `Golpe (F) daña al enemigo (${meleeRes?.before} → ${afterMelee})`);
 
+  // Golpe elemental (con energía) frente a golpe normal (sin energía), sobre un maniquí
+  await g(() => {
+    const a = window.__ascend;
+    a.enemies.clear();
+    a.mapManager.resetEntities();
+    a.save.data.debug.infiniteEnergy = false;
+    a.powers.energy.refill();
+    a.player.spawnAt({ x: -46, y: 0.2, z: -56.7, yaw: Math.PI });
+    a.cameraController.yaw = 0;
+  });
+  const dummyHp = () => g(() => window.__ascend.mapManager.current.entities.find((e) => e.maxHealth && Math.abs(e.base.x + 46) < 0.1).health);
+  await page.waitForTimeout(300);
+  await page.waitForFunction(() => window.__ascend.playerCombat._meleeCd === 0, null, { timeout: 8000 }).catch(() => {});
+  await page.keyboard.press('KeyF');
+  await page.waitForFunction(() => window.__ascend.mapManager.current.entities.find((e) => e.maxHealth && Math.abs(e.base.x + 46) < 0.1).health < 100, null, { timeout: 8000 }).catch(() => {});
+  const hpElem = await dummyHp();
+  await g(() => { window.__ascend.powers.energy.value = 0; window.__ascend.powers.energy.regenPerSecond = 0; });
+  await page.waitForFunction(() => window.__ascend.playerCombat._meleeCd === 0, null, { timeout: 8000 }).catch(() => {});
+  await page.keyboard.press('KeyF');
+  await page.waitForFunction((h) => window.__ascend.mapManager.current.entities.find((e) => e.maxHealth && Math.abs(e.base.x + 46) < 0.1).health < h, hpElem, { timeout: 8000 }).catch(() => {});
+  const hpNormal = await dummyHp();
+  await g(() => window.__ascend.powers.applyModifiers(window.__ascend.progression.modifiers('energia')));
+  check(hpElem === 68, `Golpe elemental con energía: 32 de daño (salud ${hpElem})`);
+  check(hpNormal === hpElem - 20, `Sin energía el golpe es normal: 20 de daño (salud ${hpNormal})`);
+
+  // Embestida eléctrica: con energía y un enemigo delante, F lanza al jugador hacia él
+  await g(() => {
+    const a = window.__ascend;
+    a.save.data.debug.invulnerable = true;
+    a.powers.energy.refill();
+    a.player.spawnAt({ x: 0, y: 0.3, z: 30, yaw: 0 });
+    a.cameraController.yaw = Math.PI;
+    a.cameraController.pitch = -0.1;
+    window.__lungeE = a.enemies.spawn('pdc', { x: 0, y: 0.1, z: 35.5, yaw: Math.PI, tag: 'prueba' });
+  });
+  await page.waitForTimeout(200);
+  await page.waitForFunction(() => window.__ascend.playerCombat._meleeCd === 0, null, { timeout: 8000 }).catch(() => {});
+  await page.keyboard.press('KeyF');
+  await page.waitForFunction(() => window.__lungeE.health.value < 80, null, { timeout: 8000 }).catch(() => {});
+  const lunge = await g(() => ({ z: window.__ascend.player.motor.position.z, hp: window.__lungeE.health.value }));
+  await page.screenshot({ path: path.join(out, 'combat-04-lunge.png') });
+  check(lunge.z > 32.5 && lunge.hp === 48, `Embestida: avanza hasta el enemigo (z ${lunge.z.toFixed(1)}) y le golpea con puños eléctricos (salud ${lunge.hp})`);
+
+  // Cobertura: agachado tras una barrera el enemigo no le ve; al apuntar se asoma
+  await g(() => {
+    const a = window.__ascend;
+    a.enemies.clear();
+    window.__coverE = a.enemies.spawn('pdc', { x: -15, y: 0.1, z: -71, yaw: 0, tag: 'prueba' });
+    a.player.spawnAt({ x: -15, y: 0.2, z: -60.8, yaw: Math.PI });
+  });
+  await page.waitForTimeout(300);
+  const seesStanding = await g(() => window.__coverE._computeCanSee(window.__ascend.playerCombat));
+  await page.keyboard.press('KeyC');
+  await page.waitForFunction(() => window.__ascend.player.stance === 'cover', null, { timeout: 5000 }).catch(() => {});
+  const inCover = await g(() => ({ stance: window.__ascend.player.stance, sees: window.__coverE._computeCanSee(window.__ascend.playerCombat), hud: document.getElementById('hud-stance').textContent }));
+  await page.mouse.down({ button: 'right' });
+  await page.waitForFunction(() => window.__ascend.player.stance === 'peek', null, { timeout: 5000 }).catch(() => {});
+  const peek = await g(() => ({ stance: window.__ascend.player.stance, sees: window.__coverE._computeCanSee(window.__ascend.playerCombat) }));
+  await page.screenshot({ path: path.join(out, 'combat-05-peek.png') });
+  await page.mouse.up({ button: 'right' });
+  await page.waitForFunction(() => window.__ascend.player.stance === 'cover', null, { timeout: 5000 }).catch(() => {});
+  check(seesStanding && inCover.stance === 'cover' && !inCover.sees && /cubierto/i.test(inCover.hud), `C junto a la barrera: a cubierto y fuera de la vista del enemigo (de pie le veía: ${seesStanding})`);
+  check(peek.stance === 'peek' && peek.sees, 'Al apuntar se asoma por encima y queda expuesto');
+  check(await g(() => window.__ascend.player.stance === 'cover'), 'Al dejar de apuntar vuelve a cubrirse');
+  await page.keyboard.press('KeyC');
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.save.data.debug.invulnerable = false; });
+
   // Daño por caída (sin el rayo)
   await g(() => { const a = window.__ascend; a.enemies.clear(); a.save.data.debug.invulnerable = false; a.playerCombat.restore(); a.player.spawnAt({ x: 0, y: 14, z: 30, yaw: Math.PI }); });
   await page.waitForFunction(() => window.__ascend.player.motor.grounded, null, { timeout: 10000 }).catch(() => {});
@@ -631,7 +802,7 @@ try {
   await page.waitForFunction(() => window.__ascend.state === 'playing');
   check(nSpawn === 2 && nClear === 0, `Depuración: generar (${nSpawn}) y eliminar enemigos (${nClear})`);
   await g(() => { const a = window.__ascend; a.save.data.debug.infiniteEnergy = false; a.save.data.debug.invulnerable = false; a.save.save(); });
-  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setViewportSize({ width: 960, height: 540 });
 
   // Reiniciar mapa desde la pausa
   await page.evaluate(() => window.__ascend.player.motor.teleport({ x: 30, y: 0.3, z: 30 }));

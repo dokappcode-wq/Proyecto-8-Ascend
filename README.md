@@ -12,6 +12,12 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
 - **Etapa 3 — Enemigos y combate** ✅: salud del jugador, daño por caída,
   golpe cuerpo a cuerpo, Agente PDC, Acólito de Energía, IA por estados y
   Zona D de combate con consola de reinicio.
+- **Etapa 4 — Sistema de marcas** ✅: adquisición de la marca de Energía por
+  contacto y voluntad en la estación de la Zona E, reglas canónicas, registro y
+  persistencia, menú de marcas (Tab) y progresión con experiencia y mejoras.
+- **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
+  golpe elemental con energía (puños eléctricos y embestida) y golpe normal
+  sin energía.
 
 ## Motor y por qué
 
@@ -48,7 +54,8 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Cámara | Ratón (clic en la pantalla para capturarlo) | ✅ |
 | Saltar | Espacio | ✅ |
 | Sprint | Shift | ✅ |
-| Esquivar (≈2 m) | Ctrl o C | ✅ |
+| Esquivar (≈2 m) | Ctrl o Alt | ✅ |
+| Agacharse / cubrirse junto a un muro (alterna) | C | ✅ |
 | Proyectil energético | Clic izquierdo (mantener = ráfaga) | ✅ |
 | Apuntar | Clic derecho | ✅ |
 | Dash energético | Q | ✅ |
@@ -59,12 +66,13 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Pausa | Esc | ✅ |
 | Menú de depuración | F2 o º | ✅ |
 | Ocultar ayuda / datos técnicos | H / F3 | ✅ |
-| Cuerpo a cuerpo (golpe) | F | ✅ |
-| Interactuar | E | ✅ |
-| Menú de poderes | Tab | Etapa 4 |
+| Golpe (con energía: eléctrico y con embestida) | F | ✅ |
+| Interactuar / mantener para la voluntad | E | ✅ |
+| Menú de marcas y habilidades | Tab | ✅ |
 
-La tecla **C** es alternativa a Ctrl porque algunos navegadores reservan
-combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña). El documento de diseño
+La tecla **Alt** es alternativa a Ctrl para esquivar porque algunos navegadores
+reservan combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña); **C** pasa a
+ser agacharse. El documento de diseño
 no asignaba tecla a la onda expansiva; se ha elegido **G** (reasignable). Los
 controles se definen como acciones en `src/core/Input.js`.
 
@@ -110,6 +118,65 @@ volver al menú. (Salud del jugador y enemigos: Etapa 3.)
 
 **Ajustes**: nueva opción de resplandor (bloom).
 
+## Etapa 4 — Sistema de marcas
+
+**Al empezar no tienes la marca de Energía.** Se obtiene en la **Zona E** del
+Campo de Pruebas (estación experimental):
+
+1. Acércate a la Encarnación de la Energía de prueba.
+2. **E** — contacto físico (la agarras del brazo).
+3. **Mantén E** — voluntad (barra). Si sueltas antes, la conexión se pierde:
+   el contacto solo no basta.
+4. Copia: arcos entre las muñecas, aparece la marca en tu muñeca derecha, se
+   registra y se guarda. La Encarnación **conserva** su marca y su poder.
+
+Reglas aplicadas (`src/powers/acquisition.js`): solo se copian Encarnaciones
+originales (intentarlo con un Acólito se rechaza: su poder es prestado), hace
+falta contacto y voluntad, no se copia dos veces la misma marca y la copia no
+debilita a la fuente.
+
+**Persistencia**: las marcas y la progresión se guardan solas (y con «Guardar
+partida» en la pausa) y se conservan al cambiar de mapa, reiniciar o recargar.
+
+**Menú de marcas (Tab)**: marca original del Destino, marcas copiadas con su
+nivel y experiencia, y el árbol de habilidades. Las cuatro habilidades de
+Energía son **fundamentales** (vienen con la marca); las mejoras cuestan puntos:
+
+| Mejora | Coste | Requiere | Efecto |
+| --- | --- | --- | --- |
+| Cargador ampliado | 1 | — | +5 disparos |
+| Recarga rápida | 1 | Cargador ampliado | recarga −35 % |
+| Carga rápida | 1 | — | descarga completa en 0.9 s |
+| Onda amplia | 2 | — | +2 m de radio y +10 de daño (onda y rayo) |
+| Dash eficiente | 1 | — | dashes −5 de energía, dirigido +5 m |
+| Flujo constante | 2 | Recarga rápida y Dash eficiente | regeneración +40 % |
+| Sobrecarga | — | — | próximamente (no implementada) |
+
+Experiencia: Agente PDC 40, Acólito 60, maniquí 5 (con la marca activa). Cada
+100 EXP = 1 nivel = 1 punto. Datos en `src/data/progression.js`.
+
+**Depuración (F2)**: reiniciar la adquisición (quita la marca y su progreso),
+conceder Energía como atajo, +60 EXP y +1 punto.
+
+Los guardados de etapas anteriores se migran: se retira la Energía concedida
+por depuración, así que hay que copiarla en la Zona E.
+
+## Agacharse, coberturas y golpe elemental
+
+- **C** alterna agacharse (cuerpo más bajo, más lento; caben bajo obstáculos
+  de 1.4 m). Si al agacharte hay un muro a menos de 1 m, te **pones a
+  cubierto**: te pegas a él, te deslizas a lo largo sin pasar del borde y
+  alejarte (o C de nuevo) sale de la cobertura.
+- **A cubierto los enemigos no te ven ni te alcanzan** por encima de una
+  barrera baja: su visión y su puntería usan tu altura real.
+- **Al apuntar te asomas**: en coberturas bajas te levantas y disparas por
+  encima; en muros altos te desplazas al borde más cercano. Al soltar vuelves
+  a cubrirte. El HUD indica «Agachado», «A cubierto» o «Asomado».
+- **Golpe (F) elemental** mientras tengas energía (8 por golpe): puños
+  eléctricos, 32 de daño, más retroceso y aturde. Si hay un enemigo a menos de
+  7.5 m delante, te **lanzas hacia él** y le golpeas. **Sin energía** el golpe
+  es normal: 20 de daño, sin efecto eléctrico ni embestida.
+
 ## Etapa 3 — Enemigos y combate
 
 **Jugador**: 100 de salud (barra sobre la de energía), se regenera 8/s tras 5 s
@@ -118,8 +185,8 @@ caída a partir de ≈ 8 m (la caída en rayo y el dash dirigido son inmunes). A
 quedar a 0: pantalla «Neutralizado» y reaparición en el inicio del mapa a los
 3 s con 2 s de invulnerabilidad; los enemigos pierden el rastro.
 
-**Golpe (F)**: 20 de daño (28 con la marca de Energía), alcance 2.1 m en un arco
-frontal, retroceso. Afecta a enemigos, maniquíes y objetos físicos.
+**Golpe (F)**: ver «Golpe elemental» más arriba. Alcance 2.1 m en un arco
+frontal. Afecta a enemigos, maniquíes y objetos físicos.
 
 **Enemigos** (`src/ai/enemyTypes.js`):
 
@@ -181,9 +248,9 @@ límites físicos. **Todas las azoteas son accesibles** sin escalada:
 escaleras de incendios (B1, B5, B6), pasarelas entre azoteas y cadenas de
 contenedores y cajas (A1, A2).
 
-## Qué se ha probado realmente (Etapas 1, 2 y 3)
+## Qué se ha probado realmente (Etapas 1 a 4)
 
-- `npm test` — 48 tests unitarios: físicas (gravedad, velocidades, salto, muros,
+- `npm test` — 60 tests unitarios: físicas (gravedad, velocidades, salto, muros,
   túnel a alta velocidad, escalones, rampas, techos, *coyote time*,
   reaparición, esquiva corta, dash, caída en picado, desplazamiento dirigido,
   IA por estados, facciones, impactos en personajes, salud,
@@ -212,7 +279,18 @@ contenedores y cajas (A1, A2).
     normal de 14 m quita salud y la caída en rayo desde 12 m no; al quedar a 0
     aparece «Neutralizado» y se reaparece con salud completa; generar y
     eliminar enemigos desde F2.
+  - Etapa 4: sin marca no hay poderes; un Acólito se rechaza como fuente; E
+    establece contacto; soltar la voluntad antes de tiempo no copia; mantener
+    E copia la marca y da poderes; la Encarnación conserva su poder; no se
+    copia dos veces; un maniquí da experiencia; Tab muestra las marcas;
+    desbloquear «Cargador ampliado» da 15 disparos; todo se conserva al
+    recargar la página.
+  - Añadidos: golpe elemental 32 y normal 20 sin energía; embestida hasta el
+    enemigo; a cubierto tras una barrera el enemigo no te ve y al apuntar te
+    asomas y te ve; al soltar vuelves a cubrirte.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
+  - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
+    la detiene tras la sección del Campo de Pruebas para iterar más rápido.
 
 **No probado**: rendimiento en GPU real (las pruebas usan SwiftShader; el bloom
 añade coste, se puede desactivar en Ajustes) ni la sensación de control con

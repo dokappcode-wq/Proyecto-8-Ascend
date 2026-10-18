@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { EnergyPool } from '../powers/EnergyPool.js';
 import { Ability } from '../powers/Ability.js';
 import { Magazine } from '../powers/Magazine.js';
-import { ENERGY_CONFIG as CFG } from '../powers/energy/energyConfig.js';
+import { ENERGY_CONFIG } from '../powers/energy/energyConfig.js';
 import { glowSprite } from '../vfx/glowTexture.js';
 
 /**
@@ -16,17 +16,20 @@ import { glowSprite } from '../vfx/glowTexture.js';
 export class PowerSystem {
   constructor(game) {
     this.game = game;
-    this.energy = new EnergyPool(CFG.pool);
+    /** Configuración efectiva: la base de energyConfig.js con las mejoras desbloqueadas aplicadas. */
+    this.cfg = structuredClone(ENERGY_CONFIG);
+    this.energy = new EnergyPool(this.cfg.pool);
     this.abilities = {
-      projectile: new Ability(CFG.projectile),
-      dash: new Ability(CFG.dash),
-      discharge: new Ability(CFG.discharge),
-      wave: new Ability(CFG.wave),
+      projectile: new Ability(this.cfg.projectile),
+      dash: new Ability(this.cfg.dash),
+      discharge: new Ability(this.cfg.discharge),
+      wave: new Ability(this.cfg.wave),
     };
     // Todas las habilidades de proyectiles con cargador lo declaran en su configuración.
     for (const a of Object.values(this.abilities)) {
       if (a.def.magazineSize) a.magazine = new Magazine({ size: a.def.magazineSize, reloadTime: a.def.reloadTime });
     }
+    this.mods = null;
     this.charge = null; // { time }
     this.targeting = null; // dash dirigido: { feet: Vector3 } mientras se mantiene Q apuntando
     this.dive = null; // { last: Vector3 } durante la caída en rayo
@@ -73,6 +76,42 @@ export class PowerSystem {
     this.game.scene.add(this.ghostRing);
   }
 
+  /**
+   * Aplica los modificadores de progresión (Progression.modifiers) sobre la
+   * configuración base. Se llama al cargar y al desbloquear una mejora.
+   */
+  applyModifiers(m) {
+    this.mods = m;
+    const c = structuredClone(ENERGY_CONFIG);
+    c.projectile.magazineSize += m.magazineBonus;
+    c.projectile.reloadTime *= m.reloadMul;
+    if (m.fullCharge !== null) c.discharge.fullCharge = m.fullCharge;
+    c.wave.radius += m.waveRadiusAdd;
+    c.wave.damage += m.waveDamageAdd;
+    c.wave.diveRadius += m.waveRadiusAdd;
+    c.wave.diveRadiusMax += m.waveRadiusAdd;
+    c.wave.diveDamage += m.waveDamageAdd;
+    c.wave.diveDamageMax += m.waveDamageAdd;
+    c.dash.cost = Math.max(0, c.dash.cost - m.dashCostSub);
+    c.dash.targetedCost = Math.max(0, c.dash.targetedCost - m.dashCostSub);
+    c.dash.targetedMaxDistance += m.targetedRangeAdd;
+    c.pool.regenPerSecond *= m.regenMul;
+    this.cfg = c;
+    this.abilities.projectile.def = c.projectile;
+    this.abilities.dash.def = c.dash;
+    this.abilities.discharge.def = c.discharge;
+    this.abilities.wave.def = c.wave;
+    this.energy.regenPerSecond = c.pool.regenPerSecond;
+    const mag = this.abilities.projectile.magazine;
+    if (mag) {
+      const grew = c.projectile.magazineSize > mag.size;
+      mag.size = c.projectile.magazineSize;
+      mag.reloadTime = c.projectile.reloadTime;
+      if (grew && !mag.reloading) mag.ammo = mag.size;
+      mag.ammo = Math.min(mag.ammo, mag.size);
+    }
+  }
+
   get available() {
     return this.game.marks.activeFamily === 'energia';
   }
@@ -94,7 +133,7 @@ export class PowerSystem {
   }
 
   get chargeRatio() {
-    return this.charge ? Math.min(1, this.charge.time / CFG.discharge.fullCharge) : 0;
+    return this.charge ? Math.min(1, this.charge.time / this.cfg.discharge.fullCharge) : 0;
   }
 
   /** Reinicia tiempos de reutilización y cargas (depuración / cambio de mapa). */
@@ -125,7 +164,7 @@ export class PowerSystem {
     // El picado termina aunque se pierda la marca en pleno vuelo.
     if (this.dive) this._updateDive();
 
-    if (!this.available || g.playerCombat?.dead) {
+    if (!this.available || g.playerCombat?.dead || g.acquisition?.active) {
       this._cancelCharge();
       this._cancelTargeting();
       player.aiming = false;
@@ -171,15 +210,15 @@ export class PowerSystem {
       player.faceAim(0.2);
       this._updateOrb(r, dt);
       if (!input.isDown('charged')) {
-        if (this.charge.time >= CFG.discharge.minCharge) this._releaseDischarge(r);
+        if (this.charge.time >= this.cfg.discharge.minCharge) this._releaseDischarge(r);
         this._cancelCharge();
       }
     }
 
     // --- Onda expansiva (en el aire: caída en rayo) ---
     if (input.wasPressed('wave') && !this.dive) {
-      if (this._heightAboveGround() >= CFG.wave.diveMinHeight && !motor.isBusy) this._startDive();
-      else if (motor.grounded || this._heightAboveGround() < CFG.wave.diveMinHeight) this._wave();
+      if (this._heightAboveGround() >= this.cfg.wave.diveMinHeight && !motor.isBusy) this._startDive();
+      else if (motor.grounded || this._heightAboveGround() < this.cfg.wave.diveMinHeight) this._wave();
     }
   }
 
@@ -195,7 +234,7 @@ export class PowerSystem {
     const g = this.game;
     const motor = g.player.motor;
     if (!this.abilities.wave.canActivate(this.energy)) return this._fail('wave');
-    if (!motor.startDive(CFG.wave.diveSpeed)) return;
+    if (!motor.startDive(this.cfg.wave.diveSpeed)) return;
     this.abilities.wave.commit(this.energy);
     this._cancelCharge();
     this._cancelTargeting();
@@ -223,7 +262,7 @@ export class PowerSystem {
 
   _diveImpact(fallHeight) {
     const g = this.game;
-    const c = CFG.wave;
+    const c = this.cfg.wave;
     const p = g.player.motor.position;
     const radius = Math.min(c.diveRadiusMax, c.diveRadius + fallHeight * c.diveRadiusPerMeter);
     const damage = Math.round(Math.min(c.diveDamageMax, c.diveDamage + fallHeight * c.diveDamagePerMeter));
@@ -247,7 +286,7 @@ export class PowerSystem {
   _startTargeting() {
     const motor = this.game.player.motor;
     if (motor.isBusy) return;
-    if (!this.abilities.dash.canActivate(this.energy, CFG.dash.targetedCost)) return this._fail('dash');
+    if (!this.abilities.dash.canActivate(this.energy, this.cfg.dash.targetedCost)) return this._fail('dash');
     this.targeting = { feet: new THREE.Vector3() };
     this._updateTargeting();
   }
@@ -263,7 +302,7 @@ export class PowerSystem {
     const point = hit.point.clone();
     let normal = hit.normal;
     const toPoint = point.clone().sub(chest);
-    const max = CFG.dash.targetedMaxDistance;
+    const max = this.cfg.dash.targetedMaxDistance;
     if (toPoint.length() > max) {
       point.copy(chest).addScaledVector(toPoint.normalize(), max);
       normal = null;
@@ -317,9 +356,9 @@ export class PowerSystem {
     const motor = g.player.motor;
     const feet = this.targeting.feet.clone();
     this._cancelTargeting();
-    if (!this.abilities.dash.canActivate(this.energy, CFG.dash.targetedCost)) return this._fail('dash');
-    if (!motor.startTravel({ x: feet.x, y: feet.y, z: feet.z, speed: CFG.dash.targetedSpeed })) return;
-    this.abilities.dash.commit(this.energy, CFG.dash.targetedCost);
+    if (!this.abilities.dash.canActivate(this.energy, this.cfg.dash.targetedCost)) return this._fail('dash');
+    if (!motor.startTravel({ x: feet.x, y: feet.y, z: feet.z, speed: this.cfg.dash.targetedSpeed })) return;
+    this.abilities.dash.commit(this.energy, this.cfg.dash.targetedCost);
     const p = motor.position;
     g.vfx.lightning({ x: p.x, y: p.y + 1, z: p.z }, { x: feet.x, y: feet.y + 1, z: feet.z }, this.color, { width: 0.05, duration: 0.3, jitter: 0.25, branches: 0 });
     g.vfx.lights.flash({ x: p.x, y: p.y + 1, z: p.z }, this.color, 25, 8, 0.3);
@@ -428,7 +467,7 @@ export class PowerSystem {
     g.player.updateModelMatrices();
     const hand = this._handPosition();
     const dir = this._aimDirFrom(hand);
-    const c = CFG.projectile;
+    const c = this.cfg.projectile;
     g.projectiles.spawn({ origin: { x: hand.x, y: hand.y, z: hand.z }, dir, speed: c.speed, range: c.range, radius: c.radius, damage: c.damage, color: this.color, kind: 'bolt', knockback: 2 });
     g.marks.pulse(0.35, 0.1);
     g.vfx.particles.burst(hand, { count: 6, speed: 3, color: new THREE.Color(this.color), size: 0.1, life: 0.15 });
@@ -440,14 +479,14 @@ export class PowerSystem {
     const g = this.game;
     const a = this.abilities.dash;
     const motor = g.player.motor;
-    if (!motor.grounded && this._airDashes >= CFG.dash.airDashes) return this._fail('dash');
+    if (!motor.grounded && this._airDashes >= this.cfg.dash.airDashes) return this._fail('dash');
     if (motor.isBusy) return;
     if (!a.canActivate(this.energy)) return this._fail('dash');
     const d = g.player.moveIntent.lengthSq() > 0.01 ? g.player.moveIntent : g.player.facingVector();
-    if (!motor.startBurst({ x: d.x, z: d.z, speed: CFG.dash.speed, duration: CFG.dash.duration, gravityScale: 0, exitFactor: 0.5 })) return;
+    if (!motor.startBurst({ x: d.x, z: d.z, speed: this.cfg.dash.speed, duration: this.cfg.dash.duration, gravityScale: 0, exitFactor: 0.5 })) return;
     a.commit(this.energy);
     if (!motor.grounded) this._airDashes++;
-    this._dashVfx = CFG.dash.duration;
+    this._dashVfx = this.cfg.dash.duration;
     g.marks.pulse(0.6, 0.15);
     g.vfx.lights.flash({ x: motor.position.x, y: motor.position.y + 1, z: motor.position.z }, this.color, 20, 8, 0.3);
     g.cameraController.shake(0.15);
@@ -480,7 +519,7 @@ export class PowerSystem {
     const g = this.game;
     const a = this.abilities.discharge;
     if (!a.commit(this.energy)) return this._fail('discharge');
-    const c = CFG.discharge;
+    const c = this.cfg.discharge;
     g.player.updateModelMatrices();
     const hand = this._handPosition();
     const dir = this._aimDirFrom(hand);
@@ -506,7 +545,7 @@ export class PowerSystem {
     const g = this.game;
     const a = this.abilities.wave;
     if (!a.commit(this.energy)) return this._fail('wave');
-    const c = CFG.wave;
+    const c = this.cfg.wave;
     const p = g.player.motor.position;
     const center = { x: p.x, y: p.y + 1, z: p.z };
     g.combat.radial(center, c.radius, c.damage, { knockback: c.knockback, kind: 'wave' });

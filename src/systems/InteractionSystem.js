@@ -11,7 +11,8 @@ export class InteractionSystem {
   }
 
   /**
-   * @param {object} o { position: {x,y,z}, radius=2, label, onInteract() }
+   * @param {object} o { position | getPosition(), radius=2, label (texto o función),
+   *   enabled?() (por defecto siempre), onInteract() }
    * @returns {object} el interactuable (para poder quitarlo)
    */
   add(o) {
@@ -36,17 +37,22 @@ export class InteractionSystem {
     let best = null;
     let bestD = Infinity;
     if (!g.playerCombat.dead) {
+      if (g.acquisition?.active) return; // el sistema de adquisición gestiona su propio aviso
       for (const it of this.list) {
-        const d = Math.hypot(it.position.x - p.x, it.position.y - p.y, it.position.z - p.z);
+        if (it.enabled && !it.enabled()) continue;
+        const pos = it.getPosition ? it.getPosition() : it.position;
+        const d = Math.hypot(pos.x - p.x, pos.y - p.y, pos.z - p.z);
         if (d <= it.radius && d < bestD) {
           best = it;
           bestD = d;
         }
       }
     }
-    if (best !== this.current) {
+    const label = best ? (typeof best.label === 'function' ? best.label() : best.label) : null;
+    if (best !== this.current || label !== this._label) {
       this.current = best;
-      g.ui.setPrompt(best ? best.label : null);
+      this._label = label;
+      g.ui.setPrompt(label);
     }
     if (best && g.input.wasPressed('interact')) best.onInteract();
   }

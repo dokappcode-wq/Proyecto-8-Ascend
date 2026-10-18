@@ -195,3 +195,27 @@ test('raycast detecta cajas y rampas', () => {
   const t = w2.raycast({ x: 0, y: 10, z: 0 }, { x: 0, y: -1, z: 0 }, 20);
   assert.ok(Math.abs(t - 9) < 1e-6);
 });
+
+test('agachado cabe bajo un obstáculo bajo y no puede levantarse debajo', () => {
+  const w = makeWorld();
+  w.addBox({ x: -3, y: 1.4, z: 3 }, { x: 3, y: 2, z: 10 }); // techo a 1.4 m
+  const m = new CharacterMotor(w);
+  m.teleport({ x: 0, y: 0, z: 0 });
+  run(m, 1.5, { ...idle, moveZ: 1 });
+  assert.ok(m.position.z < 3, 'de pie no pasa');
+  m.setCrouch(true);
+  run(m, 1.5, { ...idle, moveZ: 1 });
+  assert.ok(m.position.z > 4, `agachado pasa (z=${m.position.z})`);
+  assert.equal(m.setCrouch(false), true, 'sigue agachado bajo el techo');
+  run(m, 3, { ...idle, moveZ: 1 });
+  assert.equal(m.setCrouch(false), false, 'fuera ya puede levantarse');
+});
+
+test('se puede saltar mientras se esprinta', () => {
+  const m = new CharacterMotor(makeWorld());
+  m.teleport({ x: 0, y: 0, z: 0 });
+  run(m, 1, { ...idle, moveZ: 1, sprint: true });
+  m.update(DT, { ...idle, moveZ: 1, sprint: true, jump: true });
+  assert.ok(m.events.jumped);
+  assert.ok(m.horizontalSpeed > 9);
+});

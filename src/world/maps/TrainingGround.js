@@ -4,14 +4,14 @@ import { gridTexture, concreteTexture } from '../textures.js';
 import { TrainingTarget } from '../entities/TrainingTarget.js';
 import { TrainingDummy } from '../entities/TrainingDummy.js';
 import { PhysicsProp } from '../entities/PhysicsProp.js';
+import { Incarnation } from '../entities/Incarnation.js';
 
 /**
  * MAPA 1 — CAMPO DE PRUEBAS
  *
  * Entorno técnico y modular para verificar mecánicas.
- * Zona A (movimiento), B (recorridos), C (poderes), D (combate) y F (efectos
- * visuales) son jugables. La zona E (adquisición de marcas, Etapa 4) está
- * delimitada y señalizada a la espera de su contenido.
+ * Zonas: A (movimiento), B (recorridos), C (poderes), D (combate),
+ * E (estación de adquisición de marcas) y F (efectos visuales).
  */
 
 const HALF = 85; // medio lado del recinto
@@ -29,6 +29,7 @@ export default {
     { id: 'C', name: 'Zona C — Poderes', x: -57, y: 0.2, z: -48, yaw: Math.PI },
     { id: 'C-alcance', name: 'Zona C — Prueba de alcance', x: -80, y: 0.2, z: -79, yaw: Math.PI / 2 },
     { id: 'D', name: 'Zona D — Combate', x: -15, y: 0.2, z: -41, yaw: Math.PI },
+    { id: 'E', name: 'Zona E — Adquisición de marcas', x: 15, y: 0.2, z: -48, yaw: Math.PI },
     { id: 'F', name: 'Zona F — Efectos visuales', x: 45, y: 0.2, z: -48, yaw: Math.PI },
   ],
 
@@ -71,15 +72,15 @@ export default {
 
     // --- Núcleo central / punto de aparición ---
     B.block({ x: 0, z: 18, w: 10, d: 10, h: 0.25, mat: M.dark });
-    B.sign(['CAMPO DE PRUEBAS', 'Oeste: Zona A — Movimiento · Este: Zona B — Recorridos', 'Norte: C Poderes · D Combate · F Efectos · E en la Etapa 4'], { x: 0, y: 3.2, z: 10, w: 9, h: 2.6, facing: 0, opts: { width: 1024, height: 300 } });
+    B.sign(['CAMPO DE PRUEBAS', 'Oeste: Zona A — Movimiento · Este: Zona B — Recorridos', 'Norte: E Adquisición de marcas (empieza aquí) · C Poderes · D Combate · F Efectos'], { x: 0, y: 3.2, z: 10, w: 9, h: 2.6, facing: 0, opts: { width: 1024, height: 300 } });
     B.block({ x: 0, z: 10.05, w: 9.4, d: 0.1, y: 0, h: 1.9, mat: M.metal, collide: false });
 
     buildZoneA(B, M);
     buildZoneB(B, M);
     buildZoneC(B, M, ctx);
     buildZoneD(B, M, ctx);
+    buildZoneE(B, M, ctx);
     buildZoneF(B, M, ctx);
-    buildFutureZones(B, M);
 
     return {
       spawn: { x: 0, y: 0.3, z: 18, yaw: Math.PI },
@@ -309,13 +310,44 @@ function buildZoneD(B, M, ctx) {
   });
 }
 
-/** Zona E: delimitada y señalizada para la Etapa 4. */
-function buildFutureZones(B, M) {
-  const zones = [
-    { id: 'E', name: 'ADQUISICIÓN DE MARCAS', stage: 'Etapa 4', x: 15 },
-  ];
-  for (const z of zones) {
-    B.block({ x: z.x, z: -60, w: 26, d: 30, h: 0.06, mat: M.pad, cast: false });
-    B.floorText([`ZONA ${z.id} — ${z.name}`, `Contenido previsto para la ${z.stage}`], { x: z.x, z: -52, y: 0.08, w: 20, h: 6, opts: { width: 1024, height: 300 } });
+/**
+ * ZONA E — Estación experimental de adquisición: plataforma circular con
+ * pilones y una Encarnación de la Energía de prueba (fuente original).
+ */
+function buildZoneE(B, M, ctx) {
+  const x0 = 15;
+  const z0 = -60;
+  const energy = '#2f8bff';
+  B.block({ x: x0, z: z0, w: 26, d: 30, h: 0.06, mat: M.pad, cast: false });
+  // Plataforma
+  const plat = new THREE.Mesh(new THREE.CylinderGeometry(5, 5.3, 0.3, 40), new THREE.MeshStandardMaterial({ color: 0x2a313b, roughness: 0.6, metalness: 0.4 }));
+  plat.position.set(x0, 0.15, z0 - 2);
+  plat.receiveShadow = true;
+  ctx.group.add(plat);
+  ctx.world.addBox({ x: x0 - 4.2, y: 0, z: z0 - 6.2 }, { x: x0 + 4.2, y: 0.3, z: z0 + 2.2 });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(4.6, 4.8, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(energy).multiplyScalar(1.5), toneMapped: false, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(x0, 0.31, z0 - 2);
+  ctx.group.add(ring);
+  // Pilones (la Encarnación les lanza arcos de energía de vez en cuando)
+  ctx.pylons = [];
+  const topMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(energy).multiplyScalar(1.6), toneMapped: false });
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    const px = x0 + Math.cos(a) * 6.5;
+    const pz = z0 - 2 + Math.sin(a) * 6.5;
+    B.block({ x: px, z: pz, w: 0.6, d: 0.6, h: 3, mat: M.metal });
+    const top = new THREE.Mesh(new THREE.OctahedronGeometry(0.35), topMat);
+    top.position.set(px, 3.4, pz);
+    ctx.group.add(top);
+    ctx.pylons.push({ x: px, y: 3.4, z: pz });
   }
+  B.sign(['ZONA E — ADQUISICIÓN DE MARCAS', 'Encarnación de la Energía (prueba) · Contacto + voluntad'], {
+    x: x0, y: 3.4, z: z0 + 13, w: 9, h: 1.9, facing: 0, opts: { width: 1024, height: 220 },
+  });
+  B.block({ x: x0, z: z0 + 12.95, w: 0.2, d: 0.2, h: 2.4, mat: M.metal, collide: false });
+  B.floorText(['1. Acércate · 2. E: contacto', '3. Mantén E: voluntad'], { x: x0, z: z0 + 6, w: 8, h: 3 });
+
+  const npc = ctx.addEntity(new Incarnation(ctx, { x: x0, y: 0.3, z: z0 - 2, yaw: 0, markId: 'energia' }));
+  ctx.acquisition.registerSource(npc);
 }

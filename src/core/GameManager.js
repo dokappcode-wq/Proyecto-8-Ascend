@@ -20,6 +20,9 @@ import { PowerSystem } from '../systems/PowerSystem.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { PlayerCombat } from '../systems/PlayerCombat.js';
 import { InteractionSystem } from '../systems/InteractionSystem.js';
+import { PowerAcquisitionSystem } from '../systems/PowerAcquisitionSystem.js';
+import { Progression } from '../powers/Progression.js';
+import { PROGRESSION } from '../data/progression.js';
 
 /**
  * GameManager — estado general del juego y bucle principal.
@@ -85,6 +88,9 @@ export class GameManager {
     });
 
     this.interactions = new InteractionSystem(this);
+    this.acquisition = new PowerAcquisitionSystem(this);
+    this.progression = new Progression(this.save.data.profile);
+    this.powers.applyModifiers(this.progression.modifiers('energia'));
 
     this._clock = new THREE.Clock();
     this._fps = 60;
@@ -112,7 +118,8 @@ export class GameManager {
       this.playerCombat.dead = false;
       this.playerCombat.restore();
       this.player.model.root.rotation.x = 0;
-      const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions });
+      this.acquisition.cancel();
+      const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx });
       this.playerCombat.attach();
       this.player.object3d.visible = true;
       this.player.spawn(map.spawn);
@@ -126,6 +133,9 @@ export class GameManager {
       this.ui.setWaypoints(def.waypoints ?? []);
       this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef);
       this.ui.showDeath(false);
+      if (id === 'campo' && !this.marks.activeFamily) {
+        setTimeout(() => this.ui.toast('Sin poderes todavía', 'Ve a la Zona E para copiar la marca de la Energía', 4000), 3000);
+      }
       this.state = 'playing';
       this.save.data.lastMap = id;
       this.save.save();
@@ -194,6 +204,12 @@ export class GameManager {
         } else if (this.state === 'menu' && this.ui.currentScreen !== 'menu') this.ui.show('menu');
         return;
       }
+      if (this.input.bindings.powerMenu.includes(e.code)) {
+        e.preventDefault();
+        if (this.state === 'playing' && !this.acquisition.active) this._openMarks();
+        else if (this.state === 'paused' && this.ui.currentScreen === 'marks') this.resume();
+        return;
+      }
       if (this.input.bindings.debugMenu.includes(e.code)) {
         e.preventDefault();
         if (this.state === 'playing') this._openDebug();
@@ -216,9 +232,41 @@ export class GameManager {
     });
     this.events.on('player:damaged', (d) => this.ui.playerDamaged(d, this.camera, this.player.motor.position));
     this.events.on('player:died', () => this.ui.showDeath(true));
-    this.events.on('enemy:neutralized', (e) => this.ui.toast(`${e.enemy.type.name} neutralizado`, '', 1400));
+    this.events.on('enemy:neutralized', (e) => {
+      this.ui.toast(`${e.enemy.type.name} neutralizado`, '', 1400);
+      this._awardXp(e.type);
+    });
+    this.events.on('combat:damage', (d) => {
+      if (d.killed && d.target?.maxHealth && d.faction === 'player') this._awardXp('dummy');
+    });
+    this.events.on('marks:changed', () => this.powers.applyModifiers(this.progression.modifiers('energia')));
     this.events.on('power:failed', (d) => this.ui.abilityFailed(d.id));
     this.events.on('marks:changed', () => this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef));
+  }
+
+  /** Experiencia para la familia de poderes activa (solo si se posee la marca). */
+  _awardXp(source) {
+    const mark = this.marks.activeFamily;
+    if (!mark) return;
+    const amount = PROGRESSION[mark]?.xpRewards?.[source] ?? 0;
+    if (!amount) return;
+    const levels = this.progression.addXp(mark, amount);
+    this.save.save();
+    this.ui.xpGain(amount, mark);
+    if (levels > 0) {
+      const s = this.progression.state(mark);
+      this.ui.toast(`Nivel ${s.level} de Energía`, `Punto de mejora disponible · Tab`, 3000);
+      this.events.emit('progression:level', { mark, level: s.level });
+    }
+  }
+
+  _openMarks() {
+    this.ui.renderMarks(this._marksState());
+    this.pause('marks');
+  }
+
+  _marksState() {
+    return { profile: this.save.data.profile, progression: this.progression, marks: this.marks };
   }
 
   _openDebug() {
@@ -228,7 +276,7 @@ export class GameManager {
 
   _debugState() {
     const d = this.save.data.debug;
-    return { grantEnergy: d.grantEnergy, infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
+    return { grantEnergy: d.grantEnergy, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
   }
 
   _onUiAction(action, data) {
@@ -241,6 +289,9 @@ export class GameManager {
         break;
       case 'restart':
         this.restartMap();
+        break;
+      case 'save-game':
+        this.ui.toast(this.save.save() ? 'Partida guardada' : 'No se pudo guardar', 'Marcas, progreso y ajustes (también se guardan solos)', 1800);
         break;
       case 'menu':
         this.returnToMenu();
@@ -278,6 +329,33 @@ export class GameManager {
         this.marks.setDebugGrant('energia', !this.save.data.debug.grantEnergy);
         this.powers.resetAbilities();
         break;
+      case 'dbg-reset-acquisition':
+        this.acquisition.cancel();
+        this.marks.revoke('energia');
+        this.progression.reset('energia');
+        this.save.save();
+        this.powers.applyModifiers(this.progression.modifiers('energia'));
+        this.powers.resetAbilities();
+        this.ui.toast('Adquisición reiniciada', 'Se ha quitado la marca de la Energía y su progreso', 1800);
+        break;
+      case 'dbg-points':
+        this.progression.state('energia').points += 1;
+        this.save.save();
+        this.ui.toast('+1 punto de mejora', 'Energía', 1200);
+        break;
+      case 'dbg-xp':
+        this._awardXp('acolyte');
+        break;
+      case 'unlock-node': {
+        const r = this.progression.unlock(data.mark, data.node);
+        if (r.ok) {
+          this.save.save();
+          this.powers.applyModifiers(this.progression.modifiers(data.mark));
+          this.events.emit('progression:unlocked', { mark: data.mark, node: data.node });
+        }
+        this.ui.renderMarks(this._marksState());
+        return;
+      }
       case 'dbg-maxmarks':
         this.save.data.debug.maxMarks = !this.save.data.debug.maxMarks;
         this.save.save();
@@ -349,11 +427,12 @@ export class GameManager {
 
     if (this.state === 'playing') {
       if (this.input.wasPressed('debug')) this.ui.toggleDebug();
-      this.player.disabled = this.playerCombat.dead;
+      this.player.disabled = this.playerCombat.dead || this.acquisition.active;
       this.player.update(dt);
       this.playerCombat.update(dt);
       this.powers.update(dt);
       this.interactions.update(dt);
+      this.acquisition.update(dt);
       this.enemies.update(dt);
       this.projectiles.update(dt);
       this.mapManager.update(dt);
@@ -387,6 +466,8 @@ export class GameManager {
       dodging: m.isDodging,
       health: { value: this.playerCombat.health.value, max: this.playerCombat.health.max, god: this.playerCombat.health.godMode, invuln: this.playerCombat.health.invulnerable > 0 },
       meleeCooldown: this.playerCombat._meleeCd / 0.55,
+      stance: this.player.stance,
+      meleeElemental: this.playerCombat.canElemental(),
       sprinting: this.player.sprinting && m.horizontalSpeed > 6,
       pointerLocked: this.input.pointerLocked,
       fps: this._fps,

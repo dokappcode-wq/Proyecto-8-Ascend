@@ -9,6 +9,7 @@
 export const DEFAULT_MOTOR_CONFIG = Object.freeze({
   radius: 0.38,
   height: 1.8,
+  crouchHeight: 1.15,
   stepHeight: 0.45,
   walkSpeed: 5.2,
   sprintSpeed: 9.5,
@@ -46,6 +47,7 @@ export class CharacterMotor {
     this.position = { x: 0, y: 0, z: 0 };
     this.velocity = { x: 0, y: 0, z: 0 };
     this.grounded = false;
+    this.crouched = false;
     this.spawnPoint = { x: 0, y: 0, z: 0 };
 
     this._coyote = 0;
@@ -64,6 +66,26 @@ export class CharacterMotor {
      * `diveLanded`: { fallHeight } al terminar un picado.
      */
     this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null };
+  }
+
+  /** Altura actual del cuerpo (menor agachado). */
+  get currentHeight() {
+    return this.crouched ? this.cfg.crouchHeight : this.cfg.height;
+  }
+
+  /** ¿Hay sitio para ponerse de pie aquí? */
+  canStand() {
+    const p = this.position;
+    const c = this.cfg;
+    const ceil = this.world.ceilingHeight(p.x, p.z, c.radius * 0.9, p.y + c.crouchHeight - 0.01);
+    return ceil >= p.y + c.height;
+  }
+
+  /** Agacharse o levantarse. Levantarse falla si hay un techo bajo. Devuelve el estado final. */
+  setCrouch(v) {
+    if (!v && this.crouched && !this.canStand()) return true;
+    this.crouched = v;
+    return this.crouched;
   }
 
   get isDiving() {
@@ -241,6 +263,10 @@ export class CharacterMotor {
     }
 
     // --- Salto ---
+    if (this._jumpBuffer > 0 && this._coyote > 0 && this.crouched) {
+      // Saltar estando agachado: primero se levanta (si hay sitio)
+      if (!this.setCrouch(false)) this._jumpBuffer = 0;
+    }
     if (this._jumpBuffer > 0 && this._coyote > 0) {
       v.y = c.jumpVelocity;
       this._jumpBuffer = 0;
@@ -347,8 +373,9 @@ export class CharacterMotor {
     p.x += v.x * dt;
     p.z += v.z * dt;
     // Dos pasadas resuelven mejor las esquinas interiores.
-    if (w.resolveHorizontal(p, c.radius, p.y, c.height, c.stepHeight) > 0) {
-      w.resolveHorizontal(p, c.radius, p.y, c.height, c.stepHeight);
+    const h = this.currentHeight;
+    if (w.resolveHorizontal(p, c.radius, p.y, h, c.stepHeight) > 0) {
+      w.resolveHorizontal(p, c.radius, p.y, h, c.stepHeight);
       // Ajusta la velocidad a lo que realmente se movió (deslizamiento por muros).
       if (dt > 0) {
         const ax = (p.x - prevX) / dt;
@@ -363,9 +390,9 @@ export class CharacterMotor {
     p.y += v.y * dt;
 
     if (v.y > 0) {
-      const ceil = w.ceilingHeight(p.x, p.z, c.radius * 0.9, prevFeet + c.height - 0.01);
-      if (p.y + c.height > ceil) {
-        p.y = ceil - c.height;
+      const ceil = w.ceilingHeight(p.x, p.z, c.radius * 0.9, prevFeet + h - 0.01);
+      if (p.y + h > ceil) {
+        p.y = ceil - h;
         v.y = 0;
       }
     }

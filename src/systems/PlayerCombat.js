@@ -15,7 +15,13 @@ export const PLAYER_COMBAT = Object.freeze({
   // Daño por caída: a partir de esta velocidad de impacto (≈ 7.7 m de caída)
   fallDamageSpeed: 21,
   fallDamagePerMs: 3.5,
-  melee: { damage: 20, energyBonus: 8, range: 2.1, arc: 65, knockback: 7, cooldown: 0.55, hitDelay: 0.12 },
+  melee: {
+    damage: 20, range: 2.1, arc: 65, knockback: 7, cooldown: 0.55, hitDelay: 0.12,
+    // Golpe elemental (con la marca de Energía y energía suficiente)
+    elementalDamage: 32, elementalCost: 8, elementalKnockback: 10,
+    // Embestida: si hay un enemigo cerca y delante, se lanza hacia él
+    lungeRange: 7.5, lungeArc: 40, lungeSpeed: 30, lungeStop: 1.1,
+  },
 });
 
 export class PlayerCombat {
@@ -28,6 +34,9 @@ export class PlayerCombat {
     this._deadTime = 0;
     this._meleeCd = 0;
     this._meleePending = -1;
+    this._meleeElemental = false;
+    this._lunge = null; // { target }
+    this._fists = 0;
     this.registered = false;
   }
 
@@ -45,12 +54,13 @@ export class PlayerCombat {
 
   get center() {
     const p = this.position;
-    return { x: p.x, y: p.y + 1, z: p.z };
+    return { x: p.x, y: p.y + this.game.player.motor.currentHeight * 0.55, z: p.z };
   }
 
   capsule() {
     const p = this.position;
-    return { x: p.x, y: p.y, z: p.z, r: this.radius, h: 1.8 };
+    // Agachado (p. ej. tras una cobertura) el cuerpo es más bajo
+    return { x: p.x, y: p.y, z: p.z, r: this.radius, h: this.game.player.motor.currentHeight };
   }
 
   /** Se registra en el combate al cargar un mapa (el registro se vacía al descargar). */
@@ -125,16 +135,105 @@ export class PlayerCombat {
 
     // Cuerpo a cuerpo (F)
     this._meleeCd = Math.max(0, this._meleeCd - dt);
-    if (g.input.wasPressed('melee') && this._meleeCd === 0 && !g.player.motor.isBusy) {
-      this._meleeCd = PLAYER_COMBAT.melee.cooldown;
-      this._meleePending = PLAYER_COMBAT.melee.hitDelay;
-      g.player.faceAim(0.35);
-      g.player.model.trigger('punch');
+    const busy = g.player.motor.isBusy || g.acquisition?.active || g.player.disabled;
+    if (g.input.wasPressed('melee') && this._meleeCd === 0 && !busy) this._startMelee();
+    if (this._lunge) {
+      const m = g.player.motor;
+      this._lungeVfx();
+      if (!m.isTraveling) {
+        // Llegada: golpe inmediato
+        this._lunge = null;
+        g.player.faceAim(0.3);
+        g.player.model.trigger('punch');
+        this._meleePending = 0.06;
+      }
     }
     if (this._meleePending >= 0) {
       this._meleePending -= dt;
       if (this._meleePending < 0) this._meleeHit();
     }
+    // Puños eléctricos visibles mientras dura el golpe elemental
+    this._fists = Math.max(0, this._fists - dt * 2.2);
+    g.player.model.setFists(this._fists, g.powers.color);
+    if (this._fists > 0.05 && Math.random() < 0.5) {
+      g.player.updateModelMatrices();
+      const hand = g.player.handWorldPosition();
+      g.vfx.particles.burst(hand, { count: 2, speed: 2.5, color: new THREE.Color(g.powers.color), size: 0.06, life: 0.15 });
+    }
+  }
+
+  /** ¿El golpe actual será elemental? Requiere la marca y energía suficiente. */
+  canElemental() {
+    const g = this.game;
+    return g.powers.available && g.powers.energy.canSpend(PLAYER_COMBAT.melee.elementalCost);
+  }
+
+  _startMelee() {
+    const g = this.game;
+    const c = PLAYER_COMBAT.melee;
+    this._meleeCd = c.cooldown;
+    this._meleeElemental = this.canElemental();
+    if (this._meleeElemental) {
+      g.powers.energy.spend(c.elementalCost);
+      this._fists = 1;
+      g.marks.pulse(0.45, 0.15);
+      // Embestida hacia el enemigo más cercano delante
+      const target = this._lungeTarget();
+      if (target) {
+        const p = g.player.motor.position;
+        const t = target.center;
+        const dx = t.x - p.x;
+        const dz = t.z - p.z;
+        const d = Math.hypot(dx, dz);
+        const stop = Math.max(0, d - c.lungeStop);
+        const dest = { x: p.x + (dx / d) * stop, y: p.y, z: p.z + (dz / d) * stop };
+        const gy = g.world.groundHeight(dest.x, dest.z, 0.3, p.y + 1.5);
+        if (Number.isFinite(gy) && Math.abs(gy - p.y) < 1.5) dest.y = gy;
+        if (g.player.motor.startTravel({ ...dest, speed: c.lungeSpeed })) {
+          this._lunge = { target };
+          this._fists = 1.6;
+          g.events.emit('player:lunge', { target });
+          return;
+        }
+      }
+    }
+    g.player.faceAim(0.35);
+    g.player.model.trigger('punch');
+    this._meleePending = c.hitDelay;
+  }
+
+  /** Enemigo vivo más cercano dentro del alcance de embestida, delante (según la cámara) y visible. */
+  _lungeTarget() {
+    const g = this.game;
+    const c = PLAYER_COMBAT.melee;
+    const p = g.player.motor.position;
+    const f = g.cameraController.forward();
+    let best = null;
+    let bestD = Infinity;
+    for (const a of g.combat.actors) {
+      if (a === this || !a.alive || a.faction !== 'enemy') continue;
+      const t = a.center;
+      const dx = t.x - p.x;
+      const dz = t.z - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d > c.lungeRange || d < c.range * 0.8 || d >= bestD) continue;
+      if ((dx * f.x + dz * f.z) / d < Math.cos(THREE.MathUtils.degToRad(c.lungeArc))) continue;
+      const eye = { x: p.x, y: p.y + 1.2, z: p.z };
+      const dir = { x: dx / d, y: (t.y - eye.y) / d, z: dz / d };
+      const l = Math.hypot(dir.x, dir.y, dir.z);
+      const hit = g.world.raycastHit(eye, { x: dir.x / l, y: dir.y / l, z: dir.z / l }, d, { ignoreTags: ['bounds'] });
+      if (hit && hit.t < d - 0.5) continue;
+      best = a;
+      bestD = d;
+    }
+    return best;
+  }
+
+  _lungeVfx() {
+    const g = this.game;
+    const p = g.player.motor.position;
+    g.vfx.afterimage(p, g.player.facing, g.powers.color);
+    g.vfx.particles.burst({ x: p.x, y: p.y + 1, z: p.z }, { count: 4, speed: 2, color: new THREE.Color(g.powers.color), size: 0.08, life: 0.25 });
   }
 
   _meleeHit() {
@@ -142,8 +241,9 @@ export class PlayerCombat {
     const c = PLAYER_COMBAT.melee;
     const p = this.position;
     const f = g.player.facingVector();
-    const energy = g.powers.available;
-    const damage = c.damage + (energy ? c.energyBonus : 0);
+    const energy = this._meleeElemental;
+    const damage = energy ? c.elementalDamage : c.damage;
+    const knockback = energy ? c.elementalKnockback : c.knockback;
     let hits = 0;
     for (const t of [...g.combat.targets]) {
       if (t === this || !t.alive) continue;
@@ -157,8 +257,12 @@ export class PlayerCombat {
       const cos = (dx * f.x + dz * f.z) / l;
       if (cos < Math.cos(THREE.MathUtils.degToRad(c.arc))) continue;
       const dir = { x: (dx / l) * 0.85, y: 0.35, z: (dz / l) * 0.85 };
-      g.combat.applyDamage(t, damage, { point: tc, dir, knockback: c.knockback, kind: 'melee', faction: 'player', source: this });
+      g.combat.applyDamage(t, damage, { point: tc, dir, knockback, kind: energy ? 'melee-energia' : 'melee', faction: 'player', source: this });
       hits++;
+      if (energy) {
+        g.player.updateModelMatrices();
+        g.vfx.lightning(g.player.handWorldPosition(), tc, g.powers.color, { width: 0.05, duration: 0.2, jitter: 0.2, branches: 2 });
+      }
     }
     if (hits) {
       g.player.updateModelMatrices();
@@ -168,6 +272,6 @@ export class PlayerCombat {
       if (energy) g.marks.pulse(0.5, 0.1);
       g.cameraController.shake(0.15);
     }
-    g.events.emit('player:melee', { hits });
+    g.events.emit('player:melee', { hits, elemental: energy });
   }
 }

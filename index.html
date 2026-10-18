@@ -67,6 +67,8 @@
       <pre class="hud-debug hidden" id="hud-debug"></pre>
       <div class="hud-fps hidden" id="hud-fps"></div>
       <div class="hud-toast" id="hud-toast"></div>
+      <div class="hud-xp" id="hud-xp"></div>
+      <div class="hud-stance" id="hud-stance"></div>
     </section>
 
     <!-- Pausa -->
@@ -76,6 +78,7 @@
         <nav class="menu-list compact">
           <button class="menu-btn" data-action="resume"><span class="btn-title">Continuar</span></button>
           <button class="menu-btn" data-action="restart"><span class="btn-title">Reiniciar mapa</span></button>
+          <button class="menu-btn" data-action="save-game"><span class="btn-title">Guardar partida</span></button>
           <button class="menu-btn" data-action="settings"><span class="btn-title">Ajustes</span></button>
           <button class="menu-btn" data-action="menu"><span class="btn-title">Volver al menú</span></button>
         </nav>
@@ -103,6 +106,17 @@
         <p class="note">La reasignación de teclas desde esta pantalla llegará en una versión posterior; el sistema de acciones ya lo admite.</p>
         <nav class="menu-list compact row">
           <button class="menu-btn" data-action="settings-back"><span class="btn-title">Volver</span></button>
+        </nav>
+      </div>
+    </section>
+
+    <!-- Marcas (Tab) -->
+    <section id="screen-marks" class="screen overlay" aria-label="Marcas">
+      <div class="panel marks-panel">
+        <h2>Marcas</h2>
+        <div id="marks-body"></div>
+        <nav class="menu-list compact row">
+          <button class="menu-btn" data-action="resume"><span class="btn-title">Cerrar (Tab)</span></button>
         </nav>
       </div>
     </section>

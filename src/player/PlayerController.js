@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CharacterMotor } from '../physics/CharacterMotor.js';
 import { CharacterModel } from './CharacterModel.js';
+import { findCover, wallBehind, findPeek } from './Cover.js';
 
 /**
  * PlayerController — traduce el input en movimiento del protagonista.
@@ -22,8 +23,14 @@ export class PlayerController {
     /** Lo fijan los poderes: apuntando/cargando y multiplicador de velocidad. */
     this.aiming = false;
     this.speedScale = 1;
-    /** Sin control (neutralizado). */
+    /** Sin control (neutralizado, en contacto con una Encarnación…). */
     this.disabled = false;
+    /** Punto hacia el que mira y extiende el brazo (contacto de adquisición). */
+    this.lookTarget = null;
+    /** Cobertura actual: { nx, nz, height, high, anchor: {x,z}, peek } o null. */
+    this.cover = null;
+    /** 'none' | 'cover' | 'peek' (para el HUD). */
+    this.stance = 'none';
     this._faceAim = 0;
     this._aimWeight = 0;
   }
@@ -65,8 +72,47 @@ export class PlayerController {
     this._syncModel();
   }
 
+  get crouched() {
+    return this.motor.crouched;
+  }
+
+  /** C: agacharse (y ponerse a cubierto si hay un muro al lado) o levantarse. */
+  toggleCrouch() {
+    const m = this.motor;
+    if (m.crouched || this.cover) {
+      if (!m.setCrouch(false)) return; // techo bajo: no puede levantarse
+      this.cover = null;
+      return;
+    }
+    m.setCrouch(true);
+    this._enterCover();
+  }
+
+  _enterCover() {
+    const m = this.motor;
+    const c = findCover(m.world, m.position, m.cfg.radius);
+    if (!c) return false;
+    // Pegarse al muro
+    const gap = c.distance - m.cfg.radius - 0.04;
+    if (gap > 0) {
+      m.position.x -= c.nx * gap;
+      m.position.z -= c.nz * gap;
+    }
+    this.cover = { ...c, anchor: { x: m.position.x, z: m.position.z }, peek: null };
+    this.facing = Math.atan2(-c.nx, -c.nz);
+    this.events.emit('player:cover', { high: c.high });
+    return true;
+  }
+
+  exitCover() {
+    if (!this.cover) return;
+    this.cover = null;
+  }
+
   /** Teletransporta sin cambiar el punto de reaparición del mapa. */
   spawnAt(p) {
+    this.cover = null;
+    this.motor.setCrouch(false);
     this.motor.teleport(p);
     this.facing = p.yaw ?? this.facing;
     this.cameraController.reset(this.facing + Math.PI);
@@ -97,16 +143,26 @@ export class PlayerController {
       mz /= len;
     }
 
+    // Agacharse / cobertura
+    const m = this.motor;
+    if (on && inp.wasPressed('crouch')) this.toggleCrouch();
+    if (!on || m.isBusy) this.cover = null;
+    let speedScale = this.speedScale;
+    if (on && inp.isDown('sprint') && len > 0 && m.crouched && !this.cover) m.setCrouch(false);
+    if (this.cover) ({ mx, mz } = this._coverMove(mx, mz, dt));
+    if (m.crouched) speedScale *= 0.5;
+    this.stance = this.cover ? (this.cover.peeking ? 'peek' : 'cover') : m.crouched ? 'crouch' : 'none';
+
     this.moveIntent.set(mx, 0, mz);
     const aimLocked = this.aiming || this._faceAim > 0;
-    const sprint = on && inp.isDown('sprint') && len > 0 && iz >= 0 && !this.aiming;
+    const sprint = on && inp.isDown('sprint') && Math.hypot(mx, mz) > 0 && iz >= 0 && !this.aiming && !m.crouched && !this.cover;
     // Pasos fijos (≤ 1/60 s): el movimiento es igual a cualquier tasa de frames.
     const steps = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6));
     const sdt = dt / steps;
     const agg = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null };
     for (let i = 0; i < steps; i++) {
       this.motor.update(sdt, {
-        speedScale: this.speedScale,
+        speedScale,
         moveX: mx,
         moveZ: mz,
         sprint,
@@ -134,7 +190,19 @@ export class PlayerController {
     const v = this.motor.velocity;
     const hs = Math.hypot(v.x, v.z);
     this._faceAim = Math.max(0, this._faceAim - dt);
-    if (aimLocked && !this.motor.isBursting) {
+    if (this.lookTarget) {
+      const p = this.motor.position;
+      const target = Math.atan2(this.lookTarget.x - p.x, this.lookTarget.z - p.z);
+      let d = target - this.facing;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.facing += d * (1 - Math.exp(-dt * 12));
+    } else if (this.cover && !aimLocked) {
+      // A cubierto: de cara al muro
+      const target = Math.atan2(-this.cover.nx, -this.cover.nz);
+      let d = target - this.facing;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.facing += d * (1 - Math.exp(-dt * 14));
+    } else if (aimLocked && !this.motor.isBursting) {
       const target = cam.yaw + Math.PI;
       let d = target - this.facing;
       d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -152,16 +220,17 @@ export class PlayerController {
     if (ev.dodged) this.events.emit('player:dodged');
     if (ev.respawned) this.events.emit('player:respawned');
 
-    this._aimWeight += ((aimLocked ? 1 : 0) - this._aimWeight) * (1 - Math.exp(-dt * 18));
+    this._aimWeight += ((aimLocked || this.lookTarget ? 1 : 0) - this._aimWeight) * (1 - Math.exp(-dt * 18));
     cam.setAim(this.aiming ? 1 : 0);
     this.model.animate(dt, {
       aimWeight: this._aimWeight,
-      aimPitch: cam.pitch,
+      aimPitch: this.lookTarget ? -0.35 : cam.pitch,
       speed: hs,
       grounded: this.motor.grounded,
       sprinting: sprint,
       dodging: this.motor.isDodging,
       diving: this.motor.isDiving,
+      crouch: this.motor.crouched ? 1 : 0,
       verticalSpeed: v.y,
       landed: ev.landed,
       landingSpeed: ev.landingSpeed,
@@ -170,6 +239,78 @@ export class PlayerController {
 
     cam.update(dt, this.motor.position, sprint && hs > 6);
     this.sprinting = sprint;
+  }
+
+  /**
+   * Movimiento a cubierto: deslizarse a lo largo del muro sin pasar del
+   * borde; alejarse del muro sale de la cobertura. Al apuntar, se asoma:
+   * se levanta (cobertura baja) o se desplaza al borde (cobertura alta).
+   */
+  _coverMove(mx, mz, dt) {
+    const m = this.motor;
+    const c = this.cover;
+    const r = m.cfg.radius;
+    const tx = -c.nz;
+    const tz = c.nx;
+    const p = m.position;
+
+    if (this.aiming) {
+      if (!c.high) {
+        // Cobertura baja: se levanta para disparar por encima
+        m.setCrouch(false);
+        c.peeking = true;
+        return { mx: 0, mz: 0 };
+      }
+      if (!c.peek) c.peek = findPeek(m.world, { x: c.anchor.x, y: p.y, z: c.anchor.z }, c, r);
+      if (c.peek) {
+        m.setCrouch(false);
+        c.peeking = true;
+        const dx = c.peek.x - p.x;
+        const dz = c.peek.z - p.z;
+        const d = Math.hypot(dx, dz);
+        return d > 0.12 ? { mx: (dx / d) * Math.max(0.5, Math.min(1, d * 3)), mz: (dz / d) * Math.max(0.5, Math.min(1, d * 3)) } : { mx: 0, mz: 0 };
+      }
+      c.peeking = false; // muro alto sin borde cerca: no puede asomarse
+      return { mx: 0, mz: 0 };
+    }
+
+    if (c.peeking) {
+      // Vuelve a su sitio y se agacha
+      const dx = c.anchor.x - p.x;
+      const dz = c.anchor.z - p.z;
+      const d = Math.hypot(dx, dz);
+      c.returnTime = (c.returnTime ?? 0) + dt;
+      // Vuelve hasta su sitio (con un límite de tiempo por si algo lo bloquea)
+      if (d > 0.12 && c.returnTime < 1.5) return { mx: (dx / d) * Math.max(0.5, Math.min(1, d * 3)), mz: (dz / d) * Math.max(0.5, Math.min(1, d * 3)) };
+      c.returnTime = 0;
+      c.peeking = false;
+      c.peek = null;
+      m.setCrouch(true);
+    }
+
+    const along = mx * tx + mz * tz;
+    const away = mx * c.nx + mz * c.nz;
+    if (away > 0.7) {
+      this.exitCover();
+      return { mx, mz };
+    }
+    let ox = tx * along;
+    let oz = tz * along;
+    if (Math.abs(along) > 0.1) {
+      // No pasar del borde de la cobertura
+      const s = Math.sign(along);
+      const probe = { x: p.x + tx * s * (r + 0.15), y: p.y, z: p.z + tz * s * (r + 0.15) };
+      if (!wallBehind(m.world, probe, c, r)) {
+        ox = 0;
+        oz = 0;
+      }
+    }
+    // Se mantiene pegado al muro
+    ox -= c.nx * 0.15;
+    oz -= c.nz * 0.15;
+    c.anchor = { x: p.x, z: p.z };
+    c.peek = null;
+    return { mx: ox, mz: oz };
   }
 
   _syncModel() {

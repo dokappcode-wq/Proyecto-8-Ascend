@@ -15,6 +15,7 @@ src/
 │   ├── PlayerController.js     Input → motor, orientación, animación, cámara
 │   ├── CharacterModel.js       Modelo provisional + anclajes para marcas
 │   ├── MarkVisual.js           Patrones luminosos de una marca sobre el modelo
+│   ├── Cover.js                Detección de coberturas, bordes y punto para asomarse
 │   └── markTextures.js         Símbolos de marcas generados por canvas
 ├── camera/CameraController.js  Cámara en tercera persona con colisión
 ├── world/
@@ -35,6 +36,9 @@ src/
 │   ├── geometry.js             Rayo contra cilindro vertical (impacto en personajes)
 │   └── projectile.js           Simulación de proyectiles (sin Three.js)
 ├── powers/
+│   ├── acquisition.js          Reglas de adquisición de marcas (sin Three.js)
+│   ├── Progression.js          Experiencia, niveles, puntos y mejoras por marca
+│   ├── Magazine.js             Cargador genérico
 │   ├── EnergyPool.js           Recurso de energía con regeneración
 │   ├── Ability.js              Coste y tiempo de reutilización de una habilidad
 │   └── energy/energyConfig.js  Parámetros de la familia Energía
@@ -43,15 +47,17 @@ src/
 │   ├── ProjectileSystem.js     Proyectiles: movimiento, impacto, daño, efectos
 │   ├── EnemySystem.js          Alta/baja de enemigos, ruido, separación de personajes
 │   ├── PlayerCombat.js         Salud del jugador, caídas, golpe, muerte y reaparición
-│   └── InteractionSystem.js    Interacción con E (consolas, futura estación de marcas)
+│   ├── InteractionSystem.js    Interacción con E (consolas, Encarnaciones)
+│   └── PowerAcquisitionSystem.js  Contacto → voluntad → copia de marcas
 │   ├── MarkSystem.js           Marcas poseídas e intensidad de sus patrones
 ├── vfx/
 │   ├── VfxSystem.js            Impactos, anillos, estelas, destellos
 │   ├── ParticleSystem.js       Partículas aditivas (una sola llamada de dibujo)
 │   ├── LightPool.js            Luces puntuales reutilizables (sin recompilar shaders)
 │   └── glowTexture.js          Halos
-├── world/entities/             Dianas, maniquíes y objetos físicos
+├── world/entities/             Dianas, maniquíes, objetos físicos y Encarnación de prueba
 ├── data/marks.js               Definiciones de marcas (datos configurables)
+├── data/progression.js         Árboles de habilidades por marca
 └── ui/
     ├── UIManager.js            Menús, HUD, ajustes y transiciones
     └── styles.css
@@ -87,13 +93,13 @@ src/
 | UIManager | ✅ menús, HUD de energía, depuración | `ui/UIManager.js` |
 | SaveSystem | ✅ ajustes y depuración; perfil reservado | `core/SaveSystem.js` → `profile.marks`, `profile.skillProgress` |
 | PowerSystem | ✅ Etapa 2 (Energía) | `systems/PowerSystem.js` |
-| MarkSystem | ✅ visual y posesión; adquisición en Etapa 4 | `systems/MarkSystem.js`, `player/MarkVisual.js`, `data/marks.js` |
+| MarkSystem | ✅ Etapa 4 | `systems/MarkSystem.js`, `player/MarkVisual.js`, `data/marks.js` |
 | CombatSystem | ✅ daño, área, actores y facciones | `combat/CombatSystem.js`; golpe en `systems/PlayerCombat.js` |
 | HealthSystem | ✅ Etapa 3 | `combat/Health.js`, `systems/PlayerCombat.js` |
 | ParkourSystem | Etapa 5 | Consultará `CollisionWorld` (cajas con `maxY` para cornisas) y añadirá estados al `CharacterMotor` |
 | EnemyAI / PDCEnemy / AcolyteEnemy | ✅ Etapa 3 | `ai/EnemyBrain.js`, `ai/Enemy.js`, `ai/enemyTypes.js`, `systems/EnemySystem.js` |
-| PowerAcquisitionSystem | Etapa 4 | Reglas I–IV sobre `data/marks.js` (`original`), guardado en `profile.marks` |
-| PowerProgressionSystem | Etapa 4 | `profile.skillProgress` por marca; parámetros en `energyConfig.js` |
+| PowerAcquisitionSystem | ✅ Etapa 4 | `systems/PowerAcquisitionSystem.js`, `powers/acquisition.js` |
+| PowerProgressionSystem | ✅ Etapa 4 | `powers/Progression.js`, `data/progression.js`; `PowerSystem.applyModifiers` |
 | FactionReputationSystem | Etapa 6 (hostilidad PDC) | Escuchará `combat:damage` por `EventBus` |
 | MissionSystem | Etapa 6 | Sistema registrado + HUD de objetivo |
 
@@ -140,3 +146,20 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   arma usa `Magazine` y `ProjectileSystem`.
 - **Orden por frame**: jugador → combate del jugador → poderes →
   interacciones → enemigos → proyectiles → entidades → marcas → VFX → HUD.
+
+## Marcas (Etapa 4)
+
+- **Posesión**: `profile.marks` (guardado). `MarkSystem.acquire()` la añade y
+  guarda; `owns()` también acepta el atajo de depuración.
+- **Adquisición**: `PowerAcquisitionSystem` gestiona contacto → voluntad →
+  copia y consulta `evaluateAcquisition` (reglas puras y probadas). Las
+  fuentes se registran con `registerSource(entity)` (una Encarnación expone
+  `source = { kind: 'incarnation', markId }`); los Acólitos se registran
+  automáticamente como fuentes no válidas.
+- **Progresión**: `Progression` trabaja sobre `profile.skillProgress`; sus
+  `modifiers()` se aplican con `PowerSystem.applyModifiers()`, que reconstruye
+  la configuración efectiva a partir de `energyConfig.js`.
+- **Coberturas**: `player/Cover.js` detecta muros con rayos a la altura de un
+  personaje agachado; el `CharacterMotor` reduce su altura al agacharse y el
+  `PlayerCombat.capsule()` la expone, de modo que la visión y la puntería de
+  los enemigos respetan la cobertura sin código específico.

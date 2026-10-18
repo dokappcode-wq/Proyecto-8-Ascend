@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Input } from '../core/Input.js';
 import { markSymbolTexture } from '../player/markTextures.js';
+import { MARKS } from '../data/marks.js';
 
 /**
  * UIManager — menús (principal, pausa, ajustes, depuración, salir), HUD y
@@ -15,6 +16,7 @@ const CONTROL_ROWS = [
   ['Saltar', ['jump'], true],
   ['Sprint', ['sprint'], true],
   ['Esquivar', ['dodge'], true],
+  ['Agacharse / cubrirse junto a un muro', ['crouch'], true],
   ['Proyectil energético', ['attack'], true],
   ['Apuntar', ['aim'], true],
   ['Dash energético (apuntando + mantener: dash dirigido)', ['special'], true],
@@ -23,9 +25,9 @@ const CONTROL_ROWS = [
   ['Pausa', null, true, 'Esc'],
   ['Menú de depuración', ['debugMenu'], true],
   ['Datos de depuración', ['debug'], true],
-  ['Cuerpo a cuerpo', ['melee'], true],
+  ['Golpe (con energía: puños eléctricos y embestida)', ['melee'], true],
   ['Interactuar', ['interact'], true],
-  ['Menú de poderes', ['powerMenu'], false, null, 'Etapa 4'],
+  ['Menú de marcas y habilidades', ['powerMenu'], true],
 ];
 
 /** Casillas de habilidades del HUD. `power` = requiere la marca activa. */
@@ -51,6 +53,7 @@ export class UIManager {
       pause: this.$('screen-pause'),
       settings: this.$('screen-settings'),
       debug: this.$('screen-debug'),
+      marks: this.$('screen-marks'),
       quit: this.$('screen-quit'),
     };
     this.hud = {
@@ -81,7 +84,10 @@ export class UIManager {
       hitdir: this.$('hud-hitdir'),
       prompt: this.$('hud-prompt'),
       death: this.$('hud-death'),
+      xp: this.$('hud-xp'),
+      stance: this.$('hud-stance'),
     };
+    this._xpTimer = null;
     this._vigTimer = null;
     this._dirTimer = null;
     this._settingsReturn = 'menu';
@@ -187,12 +193,90 @@ export class UIManager {
   }
 
   // ---------------------------------------------------------------- Combate
-  /** Aviso de interacción (E). `label` null lo oculta. */
-  setPrompt(label) {
+  /** Aviso de interacción (E). `label` null lo oculta; `progress` (0..1) muestra una barra. */
+  setPrompt(label, progress = null) {
     const p = this.hud.prompt;
     if (!label) return p.classList.remove('show');
-    p.innerHTML = `<kbd>${Input.labelFor(this.input.bindings.interact[0])}</kbd>${escapeHtml(label)}`;
+    const meter = progress !== null ? `<div class="prompt-meter"><div style="width:${(progress * 100).toFixed(1)}%"></div></div>` : '';
+    p.innerHTML = `<kbd>${Input.labelFor(this.input.bindings.interact[0])}</kbd>${escapeHtml(label)}${meter}`;
     p.classList.add('show');
+  }
+
+  /** «+40 EXP» breve junto a la barra de energía. */
+  xpGain(amount) {
+    const el = this.hud.xp;
+    el.textContent = `+${amount} EXP`;
+    el.classList.add('show');
+    clearTimeout(this._xpTimer);
+    this._xpTimer = setTimeout(() => el.classList.remove('show'), 900);
+  }
+
+  // ---------------------------------------------------------------- Marcas (Tab)
+  /**
+   * Menú de marcas: marca original del Destino, marcas adquiridas con su
+   * progreso y árbol de habilidades de cada una.
+   */
+  renderMarks({ profile, progression, marks }) {
+    const icon = (def) => markSymbolTexture(def.symbol, def.glowColor).image.toDataURL();
+    const destino = MARKS.destino;
+    const copied = Object.values(MARKS).filter((d) => !d.original);
+    let html = '<div class="marks-layout"><div>';
+    html += `<div class="mark-card"><img src="${icon(destino)}" alt="" /><div><span class="tag">Original</span><h4>${destino.name}</h4>
+      <p>Innata. Permite copiar las marcas de otras Encarnaciones por contacto y voluntad. Su naturaleza sigue siendo un misterio.</p></div></div>`;
+    for (const def of copied) {
+      const has = profile.marks.includes(def.id);
+      const viaDebug = !has && marks.owns(def.id);
+      if (has || viaDebug) {
+        const st = progression.state(def.id);
+        const tree = progression.tree(def.id);
+        const pct = tree ? (st.xp / tree.xpPerLevel) * 100 : 0;
+        html += `<div class="mark-card"><img src="${icon(def)}" alt="" /><div style="flex:1"><span class="tag">${viaDebug ? 'Concedida (depuración)' : 'Copiada'}</span><h4>${def.name}</h4>
+          <p>Nivel ${st.level} · ${st.xp}/${tree?.xpPerLevel ?? '—'} EXP · <span class="points">${st.points} punto${st.points === 1 ? '' : 's'}</span></p>
+          <div class="xp-bar"><div style="width:${pct.toFixed(1)}%"></div></div>
+          <p>Se gana experiencia neutralizando enemigos con esta marca activa.</p></div></div>`;
+      } else {
+        html += `<div class="mark-card locked"><img src="${icon(def)}" alt="" /><div><span class="tag">No adquirida</span><h4>${def.name}</h4>
+          <p>Cópiala por contacto con la Encarnación de la ${def.concept} (Campo de Pruebas, Zona E).</p></div></div>`;
+      }
+    }
+    html += '</div><div>';
+    const active = copied.find((d) => marks.owns(d.id));
+    if (!active) {
+      html += '<p class="note">Aún no tienes marcas copiadas. Sus habilidades aparecerán aquí.</p>';
+    } else {
+      const tree = progression.tree(active.id);
+      html += `<h3 style="margin-top:0">Habilidades — ${active.concept}</h3><div class="tree">`;
+      for (const n of tree.nodes) {
+        const unlocked = progression.isUnlocked(active.id, n.id);
+        const can = progression.canUnlock(active.id, n.id);
+        let cls;
+        let status;
+        if (n.type === 'base') {
+          cls = 'base';
+          status = 'Fundamental · disponible';
+        } else if (n.type === 'future') {
+          cls = 'future';
+          status = 'Próximamente';
+        } else if (unlocked) {
+          cls = 'unlocked';
+          status = 'Desbloqueada';
+        } else if (can.ok) {
+          cls = 'available';
+          status = `Disponible · ${n.cost} punto${n.cost === 1 ? '' : 's'}`;
+        } else if (can.reason === 'requires') {
+          cls = 'locked';
+          status = `Requiere: ${can.missing.map((m) => tree.nodes.find((x) => x.id === m)?.name ?? m).join(', ')}`;
+        } else {
+          cls = 'locked';
+          status = `${n.cost} punto${n.cost === 1 ? '' : 's'}`;
+        }
+        const btn = can.ok ? `<button class="menu-btn" data-action="unlock-node" data-mark="${active.id}" data-node="${n.id}"><span class="btn-title">Desbloquear</span></button>` : '';
+        html += `<div class="node ${cls}" data-node="${n.id}"><h5>${escapeHtml(n.name)}</h5><p>${escapeHtml(n.desc)}</p><span class="status">${escapeHtml(status)}</span>${btn}</div>`;
+      }
+      html += '</div>';
+    }
+    html += '</div></div>';
+    this.$('marks-body').innerHTML = html;
   }
 
   /** Viñeta roja e indicador de la dirección del impacto. */
@@ -314,11 +398,18 @@ export class UIManager {
     const power = this._powerAvailable
       ? ' · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> (mantener) descarga · <b>G</b> onda (en el aire: rayo)'
       : '';
-    this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Ctrl / C</b> esquivar · <b>F</b> golpe · <b>E</b> interactuar${power} · <b>Esc</b> pausa · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
+    this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Ctrl / Alt</b> esquivar · <b>C</b> agacharse / cubrirse · <b>F</b> golpe · <b>E</b> interactuar${power} · <b>Esc</b> pausa · <b>Tab</b> marcas · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
   }
 
-  updateHud({ dt, camera, dodgeCooldown, dodgeCooldownMax, dodging, sprinting, pointerLocked, fps, debugText, power, health, meleeCooldown }) {
+  updateHud({ dt, camera, dodgeCooldown, dodgeCooldownMax, dodging, sprinting, pointerLocked, fps, debugText, power, health, meleeCooldown, stance, meleeElemental }) {
     const sl = this._slots;
+    if (stance !== undefined && stance !== this._stance) {
+      this._stance = stance;
+      const labels = { none: '', crouch: 'Agachado', cover: 'A cubierto', peek: 'Asomado' };
+      this.hud.stance.textContent = labels[stance] ?? '';
+      this.hud.stance.className = `hud-stance ${stance}`;
+    }
+    sl.melee.el.classList.toggle('elemental', !!meleeElemental);
     if (health) {
       const r = Math.max(0, health.value / health.max);
       this.hud.healthFill.style.transform = `scaleX(${r})`;
@@ -409,10 +500,13 @@ export class UIManager {
         ${btn('dbg-abilities', 'Reiniciar habilidades')}
       </div></section>
       <section><h3>Marcas</h3><div class="dbg-row">
-        ${toggle('dbg-mark', 'Marca de Energía', state.grantEnergy)}
+        ${btn('dbg-reset-acquisition', 'Reiniciar adquisición de Energía')}
+        ${toggle('dbg-mark', 'Conceder Energía (atajo)', state.grantEnergy)}
         ${toggle('dbg-maxmarks', 'Marcas al máximo', state.maxMarks)}
+        ${btn('dbg-xp', '+60 EXP')}
+        ${btn('dbg-points', '+1 punto de mejora')}
       </div>
-      <p class="note">Hasta la Etapa 4 la marca de Energía se concede desde aquí; después se obtendrá en la estación de adquisición.</p></section>
+      <p class="note">Marca de Energía adquirida: ${state.acquired ? 'sí' : 'no'}. La forma normal de obtenerla es la estación de la Zona E (contacto + voluntad).</p></section>
       <section><h3>Escenario</h3><div class="dbg-row">
         ${btn('dbg-scenario', 'Reiniciar dianas y objetos')}
         ${btn('restart', 'Reiniciar mapa')}

@@ -18,11 +18,14 @@ import { markSymbolTexture } from './markTextures.js';
  *    visor y arma).
  *  - 'acolyte': Acólito de Energía (capucha, túnica y brazaletes luminosos;
  *    sin marca original, su poder es prestado).
+ *  - 'incarnation': Encarnación (abrigo claro y pelo plateado); su marca
+ *    original se añade con MarkVisual.
  */
 const PALETTES = {
   protagonist: { skin: 0xc99a7c, jacket: 0x1d2128, hoodie: 0x2a2f38, pants: 0x15171b, boots: 0x3a2c22 },
   pdc: { skin: 0xb98a6c, jacket: 0x1f2b3d, hoodie: 0x2b3a50, pants: 0x18202c, boots: 0x111317 },
   acolyte: { skin: 0xa77e66, jacket: 0x2a1f38, hoodie: 0x3a2a4e, pants: 0x1c1626, boots: 0x231a1a },
+  incarnation: { skin: 0xd9a888, jacket: 0xdfe4ec, hoodie: 0x2a4a78, pants: 0x232b3a, boots: 0x1b1d22, hair: 0xd7dde6 },
 };
 
 export class CharacterModel {
@@ -46,6 +49,8 @@ export class CharacterModel {
     this._dive = 0;
     this._reload = null; // progreso 0..1 de la recarga, o null
     this._reloadW = 0;
+    this._crouch = 0;
+    this._fists = null;
     this._build();
   }
 
@@ -59,7 +64,7 @@ export class CharacterModel {
       hoodie: mat(pal.hoodie),
       pants: mat(pal.pants),
       boots: mat(pal.boots, { roughness: 0.7 }),
-      hair: mat(0x0d0d10, { roughness: 0.9 }),
+      hair: mat(pal.hair ?? 0x0d0d10, { roughness: 0.9 }),
       strap: mat(0x4a3b2e),
       tech: mat(0x2a3440, { metalness: 0.6, roughness: 0.35 }),
     };
@@ -128,6 +133,12 @@ export class CharacterModel {
       const pouch = box(0.3, 0.08, 0.06, mat(0x2c3138));
       pouch.position.set(0, 0.14, 0.17);
       chest.add(pouch);
+    } else if (V === 'incarnation') {
+      // Abrigo largo abierto
+      const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.33, 0.6, 14, 1, true), M.jacket);
+      coat.position.y = -0.2;
+      coat.castShadow = true;
+      hips.add(coat);
     } else if (V === 'acolyte') {
       // Túnica abierta y fajín con el brillo del poder prestado
       const robe = box(0.46, 0.62, 0.28, M.hoodie);
@@ -155,7 +166,7 @@ export class CharacterModel {
     head.position.y = 0.2;
     head.castShadow = true;
     neck.add(head);
-    if (V === 'protagonist') {
+    if (V === 'protagonist' || V === 'incarnation') {
       const hair = new THREE.Mesh(new THREE.SphereGeometry(0.135, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), M.hair);
       hair.position.y = 0.225;
       hair.rotation.x = -0.25;
@@ -288,6 +299,28 @@ export class CharacterModel {
     this.destinoMark = { plane: mark, band };
   }
 
+  /**
+   * Puños cargados de energía (golpe elemental). `intensity` 0 los oculta.
+   */
+  setFists(intensity, color = '#2f8bff') {
+    if (!this._fists) {
+      if (intensity <= 0) return;
+      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+      this._fists = [];
+      for (const side of ['L', 'R']) {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 8), mat);
+        m.position.y = -0.06;
+        this.anchors[`wrist${side}`].add(m);
+        this._fists.push(m);
+      }
+    }
+    for (const m of this._fists) {
+      m.visible = intensity > 0.01;
+      m.material.opacity = Math.min(1, intensity);
+      m.scale.setScalar(0.8 + intensity * 0.6 + Math.random() * 0.15 * intensity);
+    }
+  }
+
   /** Pose de recarga: las manos se juntan ante el pecho mientras se carga energía. */
   setReload(progress) {
     this._reload = progress;
@@ -418,6 +451,18 @@ export class CharacterModel {
     const bob = Math.abs(Math.cos(ph)) * 0.05 * moving * ground;
     this.hips.position.y = 0.95 + bob + breathe - this._land * 0.25 - this._dodge * 0.18;
     this.neck.rotation.x = -this._lean * 0.6;
+
+    // Agachado: cadera baja, rodillas flexionadas, torso inclinado
+    this._crouch += ((s.crouch ?? 0) - this._crouch) * k(14);
+    if (this._crouch > 0.001) {
+      const c = this._crouch;
+      L.hip.rotation.x -= 1.15 * c;
+      R.hip.rotation.x -= 0.95 * c;
+      L.knee.rotation.x += 2.0 * c;
+      R.knee.rotation.x += 1.8 * c;
+      this.hips.position.y -= 0.4 * c;
+      this.chest.rotation.x += 0.25 * c;
+    }
 
     // Pulso suave de la marca del Destino
     const pulse = 0.75 + Math.sin(this._time * 2.5) * 0.25;

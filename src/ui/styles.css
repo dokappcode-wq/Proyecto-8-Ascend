@@ -203,3 +203,40 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
   .hud-hint { font-size: 10px; max-width: 60vw; }
   .hud-death h2 { font-size: 34px; }
 }
+
+/* ---------- Etapa 4: marcas ---------- */
+.prompt-meter { height: 6px; margin-top: 6px; background: rgba(255,255,255,.12); }
+.prompt-meter > div { height: 100%; background: linear-gradient(90deg, var(--energy), var(--energy-glow)); box-shadow: 0 0 10px var(--energy); }
+.hud-xp { position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); font-size: 15px; letter-spacing: .14em; color: var(--energy-glow); opacity: 0; transition: opacity .6s, transform .6s; text-shadow: 0 1px 6px rgba(0,0,0,.9); }
+.hud-xp.show { opacity: 1; transform: translate(-50%, -8px); transition: none; }
+@media (max-width: 1100px) { .hud-xp { left: 22px; transform: none; } .hud-xp.show { transform: translateY(-8px); } }
+.marks-panel { max-width: min(96vw, 980px); width: 100%; max-height: 92vh; overflow-y: auto; }
+.marks-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; }
+@media (max-width: 760px) { .marks-layout { grid-template-columns: 1fr; } }
+.mark-card { border: 1px solid var(--line); padding: 12px; margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start; background: rgba(255,255,255,.02); }
+.mark-card img { width: 46px; height: 46px; flex: none; }
+.mark-card h4 { margin: 0 0 4px; font-family: var(--display); letter-spacing: .1em; text-transform: uppercase; font-size: 17px; }
+.mark-card p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.mark-card.locked { opacity: .5; }
+.mark-card .tag { display: inline-block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; padding: 1px 6px; border: 1px solid var(--line); margin-bottom: 6px; }
+.xp-bar { height: 6px; background: rgba(255,255,255,.1); margin: 6px 0 2px; }
+.xp-bar > div { height: 100%; background: var(--energy); }
+.tree { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.node { border: 1px solid var(--line); padding: 10px; background: rgba(255,255,255,.02); display: flex; flex-direction: column; gap: 6px; }
+.node h5 { margin: 0; font-family: var(--display); font-size: 15px; letter-spacing: .06em; text-transform: uppercase; }
+.node p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; flex: 1; }
+.node .status { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.node.base { border-color: rgba(47,139,255,.45); }
+.node.base .status, .node.unlocked .status { color: #5fd38a; }
+.node.unlocked { border-color: rgba(95,211,138,.5); }
+.node.available { border-color: var(--energy-glow); box-shadow: 0 0 10px rgba(47,139,255,.35) inset; }
+.node.locked, .node.future { opacity: .55; }
+.node .menu-btn { padding: 6px 10px; align-items: center; }
+.node .menu-btn .btn-title { font-size: 14px; }
+.points { color: var(--energy-glow); font-family: var(--display); letter-spacing: .1em; }
+
+.hud-stance { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); font-size: 13px; letter-spacing: .24em; text-transform: uppercase; color: #c9d6e6; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
+.hud-stance.cover { color: #5fd38a; }
+.hud-stance.peek { color: #f2c45a; }
+@media (max-width: 1100px) { .hud-stance { left: 22px; transform: none; bottom: 118px; } }
+.ability.elemental { border-color: var(--energy); box-shadow: 0 0 10px rgba(47,139,255,.35) inset; }

@@ -4,9 +4,9 @@ import { MarkVisual } from '../player/MarkVisual.js';
 /**
  * MarkSystem — marcas que posee el protagonista y su representación visual.
  *
- * Posesión: `profile.marks` del guardado. Hasta la Etapa 4 (adquisición por
- * contacto y voluntad) la marca de Energía se concede mediante un ajuste de
- * depuración (`debug.grantEnergy`, activado por defecto en este prototipo).
+ * Posesión: `profile.marks` del guardado (persistente). Las marcas copiadas
+ * se añaden con `acquire()` (PowerAcquisitionSystem). Para pruebas existe el
+ * atajo de depuración `debug.grantEnergy`.
  *
  * Intensidad visual: `pulse()` la eleva puntualmente (ataques) y decae;
  * `sustain()` la mantiene durante un frame (cargas).
@@ -52,6 +52,27 @@ export class MarkSystem {
       }
     }
     this.events?.emit('marks:changed', { active: this.activeFamily });
+  }
+
+  /** Registra una marca adquirida y la guarda. */
+  acquire(id) {
+    const marks = this.save.data.profile.marks;
+    if (!marks.includes(id)) marks.push(id);
+    this.save.save();
+    this.refresh();
+  }
+
+  /** Quita una marca adquirida (depuración: reiniciar la adquisición). */
+  revoke(id) {
+    const p = this.save.data.profile;
+    p.marks = p.marks.filter((m) => m !== id);
+    this.save.save();
+    this.refresh();
+  }
+
+  /** ¿La posee de verdad (adquirida), sin contar el atajo de depuración? */
+  acquired(id) {
+    return this.save.data.profile.marks.includes(id);
   }
 
   setDebugGrant(id, value) {

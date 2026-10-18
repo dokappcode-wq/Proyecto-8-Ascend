@@ -45,6 +45,7 @@ export class EnemySystem {
   remove(enemy) {
     const i = this.list.indexOf(enemy);
     if (i >= 0) this.list.splice(i, 1);
+    this.events.emit('enemy:removed', { enemy });
     enemy.dispose();
   }
 

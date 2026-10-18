@@ -22,6 +22,8 @@ export function createDefaultSave() {
       showFps: false,
     },
     bindings: null, // null = controles por defecto (ver core/Input.js)
+    // Etapa del prototipo que escribió el guardado (para migraciones).
+    stage: 4,
     lastMap: null,
     profile: {
       // Marcas que posee el protagonista. La del Destino es innata.
@@ -30,12 +32,25 @@ export function createDefaultSave() {
     },
     // Herramientas de depuración del prototipo (menú F2).
     debug: {
-      grantEnergy: true, // concede Energía hasta que exista la adquisición (Etapa 4)
+      grantEnergy: false, // atajo: concede Energía sin pasar por la estación de adquisición
       infiniteEnergy: false,
       maxMarks: false, // fuerza las marcas al máximo para revisar efectos
       invulnerable: false, // el jugador no recibe daño
     },
   };
+}
+
+/**
+ * Migraciones entre etapas del prototipo:
+ *  - < 4: la Energía estaba concedida por depuración; desde la Etapa 4 se
+ *    obtiene en la estación de adquisición, así que se retira el atajo.
+ */
+function migrate(data) {
+  if (!(data.stage >= 4)) {
+    data.debug.grantEnergy = false;
+    data.stage = 4;
+  }
+  return data;
 }
 
 function memoryStorage() {
@@ -79,13 +94,15 @@ export class SaveSystem {
     try {
       const parsed = JSON.parse(raw);
       if (!parsed || parsed.version !== SAVE_VERSION) return base;
-      return {
+      const merged = {
         ...base,
         ...parsed,
         settings: { ...base.settings, ...(parsed.settings || {}) },
         profile: { ...base.profile, ...(parsed.profile || {}) },
         debug: { ...base.debug, ...(parsed.debug || {}) },
+        stage: parsed.stage ?? 0, // los guardados anteriores no la tenían
       };
+      return migrate(merged);
     } catch {
       return base;
     }

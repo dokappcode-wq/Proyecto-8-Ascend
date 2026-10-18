@@ -165,9 +165,15 @@ export class Enemy {
     return this._lineOfSight({ x: p.x, y: p.y + 1.6, z: p.z }, t);
   }
 
+  /** Altura actual del objetivo (más baja si está agachado o a cubierto). */
+  _targetHeight() {
+    return this.sys.player?.capsule().h ?? 1.8;
+  }
+
   /** ¿Hay línea de visión desde `eye` hasta el pecho o la cabeza del objetivo (pies en `t`)? */
   _lineOfSight(eye, t) {
-    for (const h of [1.2, 1.7]) {
+    const H = this._targetHeight();
+    for (const h of [H * 0.6, H * 0.93]) {
       const dx = t.x - eye.x;
       const dy = t.y + h - eye.y;
       const dz = t.z - eye.z;
@@ -410,7 +416,7 @@ export class Enemy {
     this.root.updateMatrixWorld(true);
     const muzzle = (this.model.anchors.muzzle ?? this.model.anchors.wristR).getWorldPosition(tmp);
     const origin = { x: muzzle.x, y: muzzle.y, z: muzzle.z };
-    const target = { x: tp.x, y: tp.y + 1.1, z: tp.z };
+    const target = { x: tp.x, y: tp.y + this._targetHeight() * 0.6, z: tp.z };
     let dx = target.x - origin.x;
     let dy = target.y - origin.y;
     let dz = target.z - origin.z;
