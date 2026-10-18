@@ -65,3 +65,11 @@ test('Migración: los guardados anteriores dejan de tener la Energía concedida 
   assert.equal(s.data.debug.grantEnergy, false);
   assert.equal(s.settings.fov, 80, 'conserva los ajustes');
 });
+
+test('cada nivel de la marca amplía la energía máxima', () => {
+  const p = new Progression({});
+  assert.equal(p.modifiers('energia').energyMaxAdd, 0);
+  p.addXp('energia', 250); // nivel 3
+  assert.equal(p.state('energia').level, 3);
+  assert.equal(p.modifiers('energia').energyMaxAdd, 30);
+});

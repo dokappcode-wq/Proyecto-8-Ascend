@@ -102,6 +102,11 @@ export class PowerSystem {
     this.abilities.discharge.def = c.discharge;
     this.abilities.wave.def = c.wave;
     this.energy.regenPerSecond = c.pool.regenPerSecond;
+    // Energía máxima según el nivel; lo ganado al subir de nivel llega lleno
+    const max = c.pool.max + (m.energyMaxAdd ?? 0);
+    const grow = max - this.energy.max;
+    this.energy.max = max;
+    this.energy.value = Math.min(max, this.energy.value + Math.max(0, grow));
     const mag = this.abilities.projectile.magazine;
     if (mag) {
       const grew = c.projectile.magazineSize > mag.size;
@@ -200,9 +205,23 @@ export class PowerSystem {
     }
 
     // --- Descarga concentrada (mantener R para cargar, soltar para lanzar) ---
-    if (input.wasPressed('charged') && !this.isCharging) {
+    // R pulsada una vez (menos de minCharge) = recargar el cargador
+    if (input.wasPressed('charged') && !this.isCharging && !this._rHold) {
+      this._rHold = { time: 0, failed: false };
       if (this.abilities.discharge.canActivate(this.energy)) this.charge = { time: 0 };
-      else this._fail('discharge');
+    }
+    if (this._rHold) {
+      const h = this._rHold;
+      h.time += dt;
+      const tap = h.time < this.cfg.discharge.minCharge;
+      if (!this.charge && !tap && !h.failed) {
+        h.failed = true;
+        this._fail('discharge');
+      }
+      if (!input.isDown('charged')) {
+        this._rHold = null;
+        if (tap) this._manualReload();
+      }
     }
     if (this.isCharging) {
       this.charge.time += dt;
@@ -537,8 +556,15 @@ export class PowerSystem {
     g.events.emit('power:used', { id: 'descarga', charge: r });
   }
 
+  /** Recarga a mano el cargador del proyectil (si no está lleno). */
+  _manualReload() {
+    const mag = this.magazine;
+    if (mag?.startReload()) this.game.events.emit('power:reloading', { id: 'proyectil', manual: true });
+  }
+
   _cancelCharge() {
     this.charge = null;
+    this._rHold = null;
     this.orb.visible = false;
   }
 

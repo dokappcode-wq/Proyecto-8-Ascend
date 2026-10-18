@@ -126,6 +126,14 @@ try {
   await q(() => window.__ascend.combat.applyDamage([...window.__ascend.combat.targets].find((t) => t.maxHealth), 500, { faction: 'player' }));
   const xp = await q(() => window.__ascend.progression.state('energia').xp);
   check(xp === 5, `Neutralizar un maniquí da experiencia de Energía (${xp} EXP)`);
+  const lvlUp = await q(() => {
+    const a = window.__ascend;
+    const max0 = a.powers.energy.max;
+    a._awardXp('acolyte');
+    a._awardXp('acolyte');
+    return { max0, max: a.powers.energy.max, level: a.progression.state('energia').level };
+  });
+  check(lvlUp.level === 2 && lvlUp.max === lvlUp.max0 + 15, `Subir a nivel ${lvlUp.level} amplía la energía máxima (${lvlUp.max0} → ${lvlUp.max})`);
   await q(() => { window.__ascend.progression.state('energia').points += 1; });
   await page.keyboard.press('Tab');
   await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'marks', null, { timeout: 5000 }).catch(() => {});
@@ -480,6 +488,15 @@ try {
   await page.waitForTimeout(200);
   const after10 = await g(() => ({ ammo: window.__ascend.powers.magazine.ammo, hud: document.getElementById('hud-ammo').textContent }));
   check(after10.ammo === 10 && after10.hud === '10/10', `Tras recargar el cargador vuelve a 10 (${after10.hud})`);
+
+  // R pulsada una vez: recarga a mano (mantenerla sigue siendo la descarga)
+  await g(() => { const m = window.__ascend.powers.magazine; m.consume(); m.consume(); m.consume(); window.__desc = 0; window.__ascend.events.on('power:used', (e) => { if (e.id === 'descarga') window.__desc++; }); });
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(() => window.__ascend.powers.magazine.reloading, null, { timeout: 5000 }).catch(() => {});
+  const manual = await g(() => ({ reloading: window.__ascend.powers.magazine.reloading, desc: window.__desc }));
+  check(manual.reloading && manual.desc === 0, 'Pulsar R una vez recarga el cargador sin lanzar la descarga');
+  await page.waitForFunction(() => window.__ascend.powers.magazine.ammo === window.__ascend.powers.magazine.size && !window.__ascend.powers.magazine.reloading, null, { timeout: 15000 }).catch(() => {});
+  check(await g(() => window.__ascend.powers.magazine.ammo === window.__ascend.powers.magazine.size), 'Tras la recarga manual el cargador está lleno');
 
   // Sin regeneración pasiva; se recarga absorbiendo de fuentes del entorno (mantener E)
   await g(() => { window.__ascend.powers.energy.value = 30; });

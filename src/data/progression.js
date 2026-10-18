@@ -12,6 +12,8 @@
 export const PROGRESSION = Object.freeze({
   energia: {
     xpPerLevel: 100,
+    /** Energía máxima extra por cada nivel por encima del 1. */
+    energyPerLevel: 15,
     xpRewards: { pdc: 40, acolyte: 60, dummy: 5 },
     nodes: [
       { id: 'proyectil', name: 'Proyectil energético', type: 'base', desc: 'Disparo a distancia con cargador.' },

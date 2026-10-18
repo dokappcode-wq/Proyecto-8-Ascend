@@ -8,7 +8,7 @@ import { PROGRESSION } from '../data/progression.js';
 
 const DEFAULT_MODS = Object.freeze({
   magazineBonus: 0, reloadMul: 1, fullCharge: null, waveRadiusAdd: 0, waveDamageAdd: 0,
-  dashCostSub: 0, targetedRangeAdd: 0, drainMul: 1,
+  dashCostSub: 0, targetedRangeAdd: 0, drainMul: 1, energyMaxAdd: 0,
 });
 
 export class Progression {
@@ -87,6 +87,8 @@ export class Progression {
     const m = { ...DEFAULT_MODS };
     const t = this.tree(markId);
     if (!t) return m;
+    // Cada nivel amplía la reserva de energía de la marca
+    m.energyMaxAdd = (this.state(markId).level - 1) * (t.energyPerLevel ?? 0);
     for (const n of t.nodes) {
       if (n.type !== 'upgrade' || !this.isUnlocked(markId, n.id) || !n.effects) continue;
       for (const [k, v] of Object.entries(n.effects)) {

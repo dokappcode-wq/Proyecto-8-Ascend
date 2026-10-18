@@ -63,6 +63,7 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Apuntar | Clic derecho | ✅ |
 | Dash energético | Q | ✅ |
 | Dash dirigido | Clic derecho (apuntar) + mantener Q, soltar para ir | ✅ |
+| Recargar el cargador | R (pulsar una vez) | ✅ |
 | Descarga concentrada | R (mantener para cargar, soltar para lanzar) | ✅ |
 | Onda expansiva | G | ✅ |
 | Caída en rayo | G en el aire (a más de 1.5 m del suelo) | ✅ |
@@ -125,7 +126,7 @@ valla) y los estados `wall`, `hang`, `mantle` y `vault` de
 
 | Habilidad | Coste | Reutilización | Efecto |
 | --- | --- | --- | --- |
-| Proyectil | 2 | 0.2 s | 10 de daño, 60 m/s, alcance 45 m. **Cargador de 10**: al vaciarse recarga sola en 1.3 s (animación de manos cargando energía, aviso «Recargando» en la fila de munición) |
+| Proyectil | 2 | 0.2 s | 10 de daño, 60 m/s, alcance 45 m. **Cargador de 10**: al vaciarse recarga sola en 1.3 s; **R pulsada una vez** recarga a mano en cualquier momento (animación de manos cargando energía, aviso «Recargando» en la fila de munición) |
 | Dash | 10 | 1 s | ~4 m en 0.17 s, anula la caída; 1 por salto en el aire |
 | Dash dirigido | 18 | 1 s (compartido con el dash) | apuntando, mantener Q muestra una silueta del personaje en el destino (máx. 20 m); al soltar se desplaza allí, también hacia arriba (azoteas). Se detiene antes de un obstáculo |
 | Descarga | 20 | 1.5 s | carga 0.35–1.4 s; 25–60 de daño + área de 2.5 m con retroceso |
@@ -228,7 +229,8 @@ Energía son **fundamentales** (vienen con la marca); las mejoras cuestan puntos
 | Sobrecarga | — | — | próximamente (no implementada) |
 
 Experiencia: Agente PDC 40, Acólito 60, maniquí 5 (con la marca activa). Cada
-100 EXP = 1 nivel = 1 punto. Datos en `src/data/progression.js`.
+100 EXP = 1 nivel = 1 punto, y cada nivel suma **+15 de energía máxima** (150 en
+el nivel 1; lo ganado llega lleno). Datos en `src/data/progression.js`.
 
 **Depuración (F2)**: reiniciar la adquisición (quita la marca y su progreso),
 conceder Energía como atajo, +60 EXP y +1 punto.

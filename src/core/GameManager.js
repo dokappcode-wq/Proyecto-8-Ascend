@@ -266,7 +266,8 @@ export class GameManager {
     this.ui.xpGain(amount, mark);
     if (levels > 0) {
       const s = this.progression.state(mark);
-      this.ui.toast(`Nivel ${s.level} de Energía`, `Punto de mejora disponible · Tab`, 3000);
+      this.powers.applyModifiers(this.progression.modifiers(mark));
+      this.ui.toast(`Nivel ${s.level} de Energía`, `Energía máxima ${this.powers.energy.max} · Punto de mejora disponible · Tab`, 3000);
       this.events.emit('progression:level', { mark, level: s.level });
     }
   }

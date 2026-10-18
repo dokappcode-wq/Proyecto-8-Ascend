@@ -272,3 +272,15 @@ test('la carga básica dura más: 150 de energía y costes reducidos', () => {
   // Un cargador completo (10 disparos) gasta 20; caben 7 cargadores
   assert.ok(c.pool.max / (c.projectile.cost * c.projectile.magazineSize) >= 7);
 });
+
+test('recarga manual: solo si al cargador le faltan disparos', async () => {
+  const { Magazine } = await import('../../src/powers/Magazine.js');
+  const m = new Magazine({ size: 10, reloadTime: 1 });
+  assert.equal(m.startReload(), false);
+  m.consume();
+  m.consume();
+  assert.equal(m.startReload(), true);
+  assert.equal(m.canFire, false);
+  m.update(1.01);
+  assert.equal(m.ammo, 10);
+});
