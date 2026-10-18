@@ -224,3 +224,19 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   `mission:completed`, `faction:changed`.
 - **Límites**: `def.bounds` del mapa; `GameManager._checkBounds` muestra el
   aviso. Los muros invisibles (`tag: 'bounds'`) no se pueden escalar.
+
+## Pulido (Etapa 7)
+
+- **Audio**: `AudioSystem.attach(game)` se suscribe a eventos existentes
+  (`player:*`, `power:*`, `enemy:fired`, `projectile:hit`, `mission:*`,
+  `faction:changed`, `map:*`); ningún sistema de juego llama al audio. Cada
+  efecto es una receta (osciladores + ruido filtrado con envolventes) y pasa
+  por ganancia → panorama (`spatial.js`) → bus (efectos/interfaz/ambiente) →
+  general → compresor. Bucles: carga de la descarga y absorción. Ambiente por
+  mapa. `stats` cuenta los sonidos generados (diagnóstico y pruebas).
+- **Fusión de geometría**: `LevelBuilder` marca sus mallas con
+  `userData.levelStatic`; `MapManager.load` llama a `mergeStatic(group)` tras
+  `build`. Las mallas con varios materiales se separan por grupo. Las
+  entidades (dianas, fuentes, Encarnación…) no se fusionan porque cambian.
+- **Barandillas**: `LevelBuilder.bridge({ rails })` añade colisión por tramos
+  de 1 m con `climbable: false` y `cameraBlocking: false`.

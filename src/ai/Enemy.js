@@ -451,6 +451,7 @@ export class Enemy {
       damage: w.damage, color: w.color, kind: w.kind, faction: 'enemy', owner: this, knockback: w.knockback,
     });
     this.magazine.consume();
+    this.sys.events.emit('enemy:fired', { kind: w.kind, pos: origin, enemy: this });
     this._fireCd = w.cadence * (0.85 + Math.random() * 0.3);
     this.model.trigger('cast');
     const c = new THREE.Color(w.color);

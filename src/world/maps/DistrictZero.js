@@ -141,7 +141,7 @@ export default {
 
     // --- Pasarelas entre azoteas ---
     // Los extremos quedan a la altura del pretil (azotea + 0.3) para enlazar sin escalón.
-    const br = (from, to) => B.bridge({ from: { ...from, y: from.y + 0.3 }, to: { ...to, y: to.y + 0.3 }, width: 2.2, mat: M.bridge });
+    const br = (from, to) => B.bridge({ from: { ...from, y: from.y + 0.3 }, to: { ...to, y: to.y + 0.3 }, width: 2.2, mat: M.bridge, rails: M.metal });
     br({ x: -27, y: 12, z: -44 }, { x: -10, y: 18, z: -44 }); // B1 → B2 (z=-44 para no cruzar la escalera de B1)
     br({ x: 38, y: 9, z: -27 }, { x: 38, y: 14, z: -10 }); // B3 → B4
     br({ x: 38, y: 14, z: 10 }, { x: 38, y: 7, z: 28 }); // B4 → B5
@@ -229,6 +229,7 @@ function plaza(B, M, group, ctx) {
   const basin = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.4, 0.7, 24), M.concrete);
   basin.position.set(0, 0.55, 0);
   basin.castShadow = basin.receiveShadow = true;
+  basin.userData.levelStatic = true;
   group.add(basin);
   // Huella aproximada del vaso circular con tres cajas
   B.world.addBox({ x: -4.1, y: 0.2, z: -1.7 }, { x: 4.1, y: 0.9, z: 1.7 });
@@ -236,6 +237,7 @@ function plaza(B, M, group, ctx) {
   B.world.addBox({ x: -3.0, y: 0.2, z: -3.0 }, { x: 3.0, y: 0.9, z: 3.0 });
   const water = new THREE.Mesh(new THREE.CylinderGeometry(3.8, 3.8, 0.1, 24), M.water);
   water.position.set(0, 0.85, 0);
+  water.userData.levelStatic = true;
   group.add(water);
   B.block({ x: 0, z: 0, w: 1.2, d: 1.2, y: 0.9, h: 2.2, mat: M.concrete });
   // Monolito central (se puede subir desde el borde de la fuente)
@@ -253,10 +255,12 @@ function plaza(B, M, group, ctx) {
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 3, 8), M.trunk);
     trunk.position.set(x, 2.2, z);
     trunk.castShadow = true;
+    trunk.userData.levelStatic = true;
     group.add(trunk);
     const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.7 + r() * 0.4, 1), M.leaves);
     crown.position.set(x, 4.2, z);
     crown.castShadow = true;
+    crown.userData.levelStatic = true;
     group.add(crown);
     B.world.addBox({ x: x - 0.25, y: 0.7, z: z - 0.25 }, { x: x + 0.25, y: 3.7, z: z + 0.25 });
   }
@@ -327,6 +331,7 @@ function streetProps(B, M, group, ctx) {
         const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.25, 12), M.metal);
         wheel.rotation[alongX ? 'x' : 'z'] = Math.PI / 2;
         wheel.position.set(x + (alongX ? sx * 1.3 : sx * 0.85), 0.33, z + (alongX ? sz * 0.85 : sz * 1.3));
+        wheel.userData.levelStatic = true;
         group.add(wheel);
       }
     }
@@ -383,21 +388,26 @@ function skyline(group) {
   // Siluetas lejanas de la gran ciudad (solo decorativas, sin colisión).
   const r = rng(9);
   const f = facadeTextures(3);
+  // Un solo material para todas las siluetas: la repetición de la textura se
+  // aplica en las UV de cada caja, así se fusionan en una única malla.
+  const map = f.map.clone();
+  const em = f.emissiveMap.clone();
+  map.needsUpdate = em.needsUpdate = true;
+  map.wrapS = map.wrapT = em.wrapS = em.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(1, 1);
+  em.repeat.set(1, 1);
+  const mat = new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0.7, color: 0x8899aa });
   for (let i = 0; i < 46; i++) {
     const a = (i / 46) * Math.PI * 2 + r() * 0.05;
     const dist = 120 + r() * 120;
     const w = 12 + r() * 20;
     const h = 25 + r() * (i % 7 === 0 ? 120 : 60);
-    const map = f.map.clone();
-    const em = f.emissiveMap.clone();
-    map.needsUpdate = em.needsUpdate = true;
-    map.repeat.set(w / 16, h / 14);
-    em.repeat.copy(map.repeat);
-    const m = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, w),
-      new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0.7, color: 0x8899aa }),
-    );
+    const geo = new THREE.BoxGeometry(w, h, w);
+    const uv = geo.attributes.uv;
+    for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * (w / 16), uv.getY(k) * (h / 14));
+    const m = new THREE.Mesh(geo, mat);
     m.position.set(Math.cos(a) * dist, h / 2, Math.sin(a) * dist);
+    m.userData.levelStatic = true;
     group.add(m);
   }
 }

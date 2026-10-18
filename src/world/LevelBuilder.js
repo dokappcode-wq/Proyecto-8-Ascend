@@ -32,12 +32,13 @@ export class LevelBuilder {
     mesh.position.set(x, y + h / 2, z);
     mesh.castShadow = o.cast ?? true;
     mesh.receiveShadow = o.receive ?? true;
+    mesh.userData.levelStatic = true;
     this.group.add(mesh);
     if (o.collide ?? true) {
       this.world.addBox(
         { x: x - w / 2, y, z: z - d / 2 },
         { x: x + w / 2, y: y + h, z: z + d / 2 },
-        { tag: o.tag, cameraBlocking: o.cameraBlocking ?? true },
+        { tag: o.tag, cameraBlocking: o.cameraBlocking ?? true, climbable: o.climbable ?? true },
       );
     }
     return mesh;
@@ -71,6 +72,7 @@ export class LevelBuilder {
     mesh.position.set(x, 0, z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.userData.levelStatic = true;
     this.group.add(mesh);
     if (collide) {
       const minX = x - w / 2;
@@ -110,6 +112,7 @@ export class LevelBuilder {
       step.position.set(axis === 'x' ? x + along : x, (top + bottom) / 2, axis === 'z' ? z + along : z);
       step.castShadow = true;
       step.receiveShadow = true;
+      step.userData.levelStatic = true;
       group.add(step);
     }
     this.group.add(group);
@@ -187,6 +190,7 @@ export class LevelBuilder {
       m.scale.y = h;
       m.position.set(p.x, base + h / 2, p.z);
       m.castShadow = true;
+      m.userData.levelStatic = true;
       this.group.add(m);
     }
     return { top: height, landings };
@@ -194,9 +198,9 @@ export class LevelBuilder {
 
   /**
    * Pasarela inclinada (losa fina) entre dos puntos alineados con un eje.
-   * @param {object} o { from: {x,y,z}, to: {x,y,z}, width=2, thickness=0.3, mat }
+   * @param {object} o { from: {x,y,z}, to: {x,y,z}, width=2, thickness=0.3, mat, rails (material de las barandillas) }
    */
-  bridge({ from, to, width = 2, thickness = 0.3, mat }) {
+  bridge({ from, to, width = 2, thickness = 0.3, mat, rails = null }) {
     const axis = Math.abs(to.x - from.x) > Math.abs(to.z - from.z) ? 'x' : 'z';
     const run = axis === 'x' ? to.x - from.x : to.z - from.z;
     const rise = to.y - from.y;
@@ -211,6 +215,7 @@ export class LevelBuilder {
     else mesh.rotation.x = -angle * s;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.userData.levelStatic = true;
     this.group.add(mesh);
 
     const lo = from.y < to.y ? from : to;
@@ -230,7 +235,58 @@ export class LevelBuilder {
       y1: loAtMin ? hi.y : lo.y,
       base: lo.y - thickness - 0.1,
     });
+    if (rails) this._bridgeRails({ from, to, axis, width, angle, s, mat: rails });
     return mesh;
+  }
+
+  /**
+   * Barandillas de 1 m a ambos lados de una pasarela: barra superior y
+   * postes (visuales) y colisión por tramos de 1 m que siguen la pendiente.
+   * No se escalan ni bloquean la cámara.
+   */
+  _bridgeRails({ from, to, axis, width, angle, s, mat }) {
+    const H = 1.0;
+    const t = 0.08;
+    const run = axis === 'x' ? to.x - from.x : to.z - from.z;
+    const len = Math.abs(run);
+    const slopeLen = Math.hypot(len, to.y - from.y);
+    const yAt = (u) => from.y + (to.y - from.y) * u; // u: 0..1 de from a to
+    const along = (u) => (axis === 'x' ? from.x + run * u : from.z + run * u);
+    for (const side of [-1, 1]) {
+      const off = side * (width / 2 - t / 2);
+      const cx = axis === 'x' ? (from.x + to.x) / 2 : from.x + off;
+      const cz = axis === 'z' ? (from.z + to.z) / 2 : from.z + off;
+      // Barra superior inclinada
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(axis === 'x' ? slopeLen : t, 0.07, axis === 'x' ? t : slopeLen), mat);
+      bar.position.set(cx, (from.y + to.y) / 2 + H, cz);
+      if (axis === 'x') bar.rotation.z = angle * s;
+      else bar.rotation.x = -angle * s;
+      bar.castShadow = true;
+      bar.userData.levelStatic = true;
+      this.group.add(bar);
+      // Postes cada ~2 m
+      const posts = Math.max(2, Math.round(len / 2) + 1);
+      for (let i = 0; i < posts; i++) {
+        const u = i / (posts - 1);
+        const p = new THREE.Mesh(new THREE.BoxGeometry(t, H, t), mat);
+        p.position.set(axis === 'x' ? along(u) : cx, yAt(u) + H / 2, axis === 'z' ? along(u) : cz);
+        p.userData.levelStatic = true;
+        this.group.add(p);
+      }
+      // Colisión por tramos
+      const n = Math.max(1, Math.ceil(len));
+      for (let i = 0; i < n; i++) {
+        const u0 = i / n;
+        const u1 = (i + 1) / n;
+        const a0 = along(u0);
+        const a1 = along(u1);
+        const y0 = Math.min(yAt(u0), yAt(u1));
+        const y1 = Math.max(yAt(u0), yAt(u1));
+        const min = axis === 'x' ? { x: Math.min(a0, a1), y: y0 - 0.3, z: cz - t / 2 } : { x: cx - t / 2, y: y0 - 0.3, z: Math.min(a0, a1) };
+        const max = axis === 'x' ? { x: Math.max(a0, a1), y: y1 + H, z: cz + t / 2 } : { x: cx + t / 2, y: y1 + H, z: Math.max(a0, a1) };
+        this.world.addBox(min, max, { tag: 'rail', cameraBlocking: false, climbable: false });
+      }
+    }
   }
 
   /** Cartel con texto. `facing` es el ángulo Y hacia el que mira el texto. */

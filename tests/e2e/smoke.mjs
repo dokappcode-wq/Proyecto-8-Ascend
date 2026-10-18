@@ -422,6 +422,18 @@ try {
   await page.waitForFunction(() => document.getElementById('hud-bounds').classList.contains('show'), null, { timeout: 5000 }).catch(() => {});
   check(await q(() => document.getElementById('hud-bounds').classList.contains('show')), 'Aviso al acercarse al límite del barrio');
   await q(() => window.__ascend.player.spawnAt({ x: 0, y: 0.3, z: 11, yaw: Math.PI }));
+  // Etapa 7: barandillas en las pasarelas (pasarela B3 → B4, eje z en x = 38)
+  const rail = await q(() => {
+    const a = window.__ascend;
+    const m = a.player.motor;
+    const y = a.world.groundHeight(38, -18, 0.3, 50);
+    m.teleport({ x: 38, y: y + 0.1, z: -18 });
+    for (let i = 0; i < 180; i++) m.update(1 / 60, { moveX: 1, moveZ: 0, sprint: true });
+    const r = { x: m.position.x, y: m.position.y, y0: y, rails: a.world.boxes.filter((b) => b.tag === 'rail').length };
+    a.player.spawnAt({ x: 0, y: 0.3, z: 11, yaw: Math.PI });
+    return r;
+  });
+  check(rail.rails > 0 && rail.x < 39.2 && Math.abs(rail.y - rail.y0) < 0.3, `Las barandillas de las pasarelas impiden caerse de lado (x=${rail.x.toFixed(2)}, ${rail.rails} tramos)`);
 
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__ascend.state === 'paused');
@@ -503,6 +515,40 @@ try {
   const dropped = await q(() => ({ s: window.__ascend.player.motor.climbState, y: window.__ascend.player.motor.position.y, crouch: window.__ascend.player.motor.crouched }));
   check(dropped.s === null && dropped.y < 0.5 && !dropped.crouch, `C suelta la cornisa y cae al suelo sin agacharse (y=${dropped.y.toFixed(2)})`);
   if (process.env.E2E_STOP === 'parkour') throw new Error('E2E_STOP=parkour');
+
+  // ---------------- Pulido (Etapa 7): sonido y rendimiento ----------------
+  console.log('\n[pulido]');
+  const au = await q(() => ({ running: window.__ascend.audio.running, stats: { ...window.__ascend.audio.stats } }));
+  check(au.running, 'El audio (Web Audio) está activo tras la primera interacción');
+  check(au.stats['amb:field'] > 0 && au.stats['amb:city'] > 0, `Ambiente propio de cada mapa (campo ${au.stats['amb:field']}, ciudad ${au.stats['amb:city']})`);
+  // Pasos: 2 s de juego andando (pasos fijos, independiente de los FPS del render por software)
+  await q(() => window.__ascend.player.spawnAt({ x: 0, y: 0.3, z: 18, yaw: Math.PI }));
+  await page.keyboard.down('KeyW');
+  const steps = await q(() => {
+    const a = window.__ascend;
+    const n0 = a.audio.stats.step ?? 0;
+    let ev = 0;
+    const off = a.events.on('player:step', () => ev++);
+    for (let i = 0; i < 120; i++) a.player.update(1 / 60);
+    off?.();
+    return { ev, sounds: (a.audio.stats.step ?? 0) - n0 };
+  });
+  await page.keyboard.up('KeyW');
+  check(steps.ev >= 4 && steps.sounds === steps.ev && au.stats.jump > 0 && au.stats.land > 0, `Pasos sincronizados con la animación (${steps.ev} en 2 s, ${steps.sounds} sonidos), saltos y aterrizajes suenan`);
+  check(au.stats.zap > 0 && au.stats.impact > 0 && au.stats.grab > 0, `Disparo, impacto y agarre suenan (${au.stats.zap}/${au.stats.impact}/${au.stats.grab})`);
+  check(au.stats.missionStart > 0 && au.stats.missionComplete > 0 && au.stats.radio > 0, 'Sonidos de misión y aviso de radio de la PDC');
+  const perf = await q(() => {
+    const a = window.__ascend;
+    const r = a.renderer;
+    r.info.autoReset = false;
+    r.info.reset();
+    r.render(a.scene, a.camera);
+    const calls = r.info.render.calls;
+    r.info.autoReset = true;
+    return { merge: a.mapManager.lastMerge, calls };
+  });
+  check(perf.merge.after * 4 < perf.merge.before, `Geometría estática fusionada (${perf.merge.before} → ${perf.merge.after} mallas)`);
+  check(perf.calls < 400, `Llamadas de dibujo en el Campo de Pruebas: ${perf.calls}`);
 
   // ---------------- Poderes de Energía (Etapa 2) ----------------
   console.log('\n[poderes]');
@@ -619,6 +665,7 @@ try {
     src: window.__ascend.drain.sources.find((s) => Math.abs(s.position.x - 6.5) < 0.1 && Math.abs(s.position.z - 18) < 0.1).reserve.value,
   }));
   check(drained.e > 70 && drained.src < src0 && !drained.active, `Absorber de un armario recarga la energía y vacía su reserva (${drained.e.toFixed(0)}, reserva ${src0.toFixed(0)} → ${drained.src.toFixed(0)})`);
+  check(await g(() => window.__ascend.audio.stats.drain > 0), 'La absorción de energía tiene sonido propio');
 
   // Descarga concentrada: mantener R y soltar
   await g(() => window.__ascend.mapManager.resetEntities());
@@ -1022,6 +1069,8 @@ try {
   await page.waitForFunction(() => window.__ascend.state === 'paused');
   await page.click('#screen-pause [data-action="settings"]');
   await page.locator('#set-fov').fill('82');
+  await page.locator('#set-vol').fill('0.3');
+  await page.locator('#set-scale').fill('0.8');
   await page.click('#set-invert');
   await page.click('#screen-settings [data-action="settings-back"]');
   check(await page.isVisible('#screen-pause.active'), 'Ajustes vuelve a la pausa');
@@ -1029,6 +1078,7 @@ try {
   await page.waitForFunction(() => window.__ascend);
   const saved = await page.evaluate(() => window.__ascend.save.settings);
   check(saved.fov === 82 && saved.invertY === true, `Ajustes guardados tras recargar (FOV ${saved.fov}, invertir Y ${saved.invertY})`);
+  check(saved.volumeMaster === 0.3 && saved.renderScale === 0.8, `Volumen y resolución de render guardados (${saved.volumeMaster}, ${saved.renderScale})`);
 
   check(errors.length === 0, `Sin errores en consola${errors.length ? `: ${errors.join(' | ')}` : ''}`);
 } finally {

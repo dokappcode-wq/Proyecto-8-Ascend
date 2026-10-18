@@ -24,6 +24,7 @@ import { PowerAcquisitionSystem } from '../systems/PowerAcquisitionSystem.js';
 import { EnergyDrainSystem } from '../systems/EnergyDrainSystem.js';
 import { FactionSystem } from '../systems/FactionSystem.js';
 import { MissionSystem } from '../systems/MissionSystem.js';
+import { AudioSystem } from '../audio/AudioSystem.js';
 import { Progression } from '../powers/Progression.js';
 import { PROGRESSION } from '../data/progression.js';
 
@@ -45,12 +46,12 @@ export class GameManager {
 
     // --- Render ---
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * (this.save.settings.renderScale ?? 1));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = this.save.settings.shadows;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05080d);
@@ -95,10 +96,13 @@ export class GameManager {
     this.drain = new EnergyDrainSystem(this);
     this.factions = new FactionSystem(this);
     this.missions = new MissionSystem(this);
+    this.audio = new AudioSystem(this.save.settings);
+    this.audio.attach(this);
     this.progression = new Progression(this.save.data.profile);
     this.powers.applyModifiers(this.progression.modifiers('energia'));
 
-    this._clock = new THREE.Clock();
+    this._clock = new THREE.Timer();
+    this._clock.connect(document);
     this._fps = 60;
     this._pausedAt = 0;
 
@@ -143,9 +147,10 @@ export class GameManager {
         setTimeout(() => this.ui.toast('Sin poderes todavía', 'Ve a la Zona E para copiar la marca de la Energía', 4000), 3000);
       }
       this.state = 'playing';
+      this.audio.setPaused(false);
       this.save.data.lastMap = id;
       this.save.save();
-      this._clock.getDelta();
+      this._clock.update();
     });
     this.ui.toast(def.name, def.description);
     this.input.requestPointerLock();
@@ -183,15 +188,17 @@ export class GameManager {
     this._pausedAt = performance.now();
     this.input.clear();
     this.input.exitPointerLock();
+    this.audio.setPaused(true);
     this.ui.show(screen);
   }
 
   resume() {
     if (this.state !== 'paused') return;
     this.state = 'playing';
+    this.audio.setPaused(false);
     this.ui.hideAll();
     this.input.clear();
-    this._clock.getDelta();
+    this._clock.update();
     this.input.requestPointerLock();
   }
 
@@ -239,6 +246,17 @@ export class GameManager {
     });
     this.events.on('player:damaged', (d) => this.ui.playerDamaged(d, this.camera, this.player.motor.position));
     this.events.on('player:died', () => this.ui.showDeath(true));
+    // Polvo al aterrizar fuerte, saltar una valla o subir a una cornisa
+    const dust = (count, speed) => {
+      const p = this.player.motor.position;
+      this.vfx.particles.burst({ x: p.x, y: p.y + 0.1, z: p.z }, { count, speed, color: new THREE.Color(0x9a948a), size: 0.16, life: 0.55, drag: 4 });
+    };
+    this.events.on('player:landed', (e) => {
+      if (e.speed > 9) dust(Math.min(26, 6 + e.speed), 2 + e.speed * 0.12);
+    });
+    this.events.on('player:parkour', (e) => {
+      if (e.kind === 'vault' || e.kind === 'mantle') dust(6, 1.5);
+    });
     this.events.on('enemy:neutralized', (e) => {
       this.ui.toast(`${e.enemy.type.name} neutralizado`, '', 1400);
       this._awardXp(e.type);
@@ -440,6 +458,9 @@ export class GameManager {
 
   _applySettings(s) {
     this.cameraController.settings = s;
+    this.audio.settings = s;
+    this.audio.applyVolumes();
+    if (this._renderScale !== s.renderScale) this._resize();
     if (this.renderer.shadowMap.enabled !== s.shadows) {
       this.renderer.shadowMap.enabled = s.shadows;
       const sun = this.mapManager.current?.sun;
@@ -451,6 +472,9 @@ export class GameManager {
   }
 
   _resize() {
+    // Resolución de render (Ajustes): escala sobre la densidad de la pantalla
+    this._renderScale = this.save.settings.renderScale ?? 1;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * this._renderScale);
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.renderer.setSize(w, h, false);
@@ -462,6 +486,7 @@ export class GameManager {
   }
 
   _frame() {
+    this._clock.update();
     const dt = Math.min(this._clock.getDelta(), 0.1);
     if (dt > 0) this._fps += (1 / dt - this._fps) * 0.05;
 
@@ -486,6 +511,7 @@ export class GameManager {
       if (sun) followSun(sun, this.player.position);
       this._updateHud(dt);
       this._checkBounds();
+      this.audio.update(this);
     }
 
     if (this.state === 'playing' || this.state === 'paused') {

@@ -254,6 +254,13 @@ export class PlayerController {
     });
     this._syncModel();
 
+    // Pasos: uno por cada medio ciclo de la animación de andar
+    const stepPhase = Math.floor(this.model._phase / Math.PI);
+    if (stepPhase !== this._stepPhase) {
+      this._stepPhase = stepPhase;
+      if (this.motor.grounded && hs > 1.2 && !this.motor.isClimbing) this.events.emit('player:step', { speed: hs });
+    }
+
     cam.update(dt, this.motor.position, sprint && hs > 6);
     this.sprinting = sprint;
   }

@@ -22,6 +22,10 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   reacción de hostilidad de la PDC (reputación), misión «Operación: Distrito
   Cero» (activación, marcadores, detección, objetivos y mensaje final) y
   aviso en los límites del mapa.
+- **Etapa 7 — Pulido** ✅: sonido sintetizado (efectos 3D, ambiente por mapa,
+  volúmenes), rendimiento (geometría estática fusionada, resolución de render),
+  barandillas en las pasarelas, polvo al aterrizar, prueba de estrés del motor
+  y limpieza de avisos.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -88,6 +92,52 @@ reservan combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña); **C** pasa a
 ser agacharse. El documento de diseño
 no asignaba tecla a la onda expansiva; se ha elegido **G** (reasignable). Los
 controles se definen como acciones en `src/core/Input.js`.
+
+## Etapa 7 — Pulido
+
+**Sonido** (`src/audio/`): todo se sintetiza en tiempo real con Web Audio, sin
+archivos. Se activa con el primer clic o tecla (política de los navegadores).
+
+| Grupo | Sonidos |
+| --- | --- |
+| Movimiento | pasos (sincronizados con la animación), salto, aterrizaje según la velocidad, esquiva, agarre, subida a cornisas, salto de vallas |
+| Poderes | proyectil, impacto, dash, descarga (con zumbido que sube mientras se carga), onda, caída en rayo, recarga, «sin energía», absorción de una fuente (continuo) |
+| Combate | golpe normal y eléctrico, disparos de la PDC, orbes del Acólito, impactos, daño recibido, neutralización |
+| Misión y facciones | aceptar misión, detección, misión completada, aviso de radio al volverse hostil la PDC, marca adquirida |
+| Ambiente | ciudad (rumor de tráfico y zumbido eléctrico) en el Distrito; viento en el Campo de Pruebas |
+| Interfaz | clic en los botones de los menús |
+
+Los efectos en el mundo se atenúan con la distancia (inaudibles a más de
+60 m) y se panoramizan según la orientación de la cámara. En pausa el
+ambiente se silencia. **Ajustes**: volumen general, efectos y ambiente.
+
+**Rendimiento**:
+- Al cargar un mapa, toda la geometría estática se fusiona en una malla por
+  material (`src/world/mergeStatic.js`): Distrito Cero pasa de ~800 a ~300
+  llamadas de dibujo (el resto son personajes animados y objetos interactivos)
+  y el Campo de Pruebas de ~440 a ~300. En la prueba con render por software,
+  el Distrito pasó de 0.5 a 2.3 FPS (×4.6); en una GPU real el margen es mucho
+  mayor.
+- Las 46 siluetas del horizonte comparten un material.
+- **Ajustes → Resolución de render** (50–100 %) para equipos modestos.
+- La lógica del juego cuesta ~1 ms por frame (medido).
+
+**Colisiones y errores**:
+- Barandillas de 1 m en las 7 pasarelas del Distrito: ya no se cae uno de lado
+  (saltando sí se pueden superar). No se escalan ni bloquean la cámara.
+- Prueba de estrés del motor (`tests/unit/fuzz.test.js`): 36 000 pasos con
+  entradas aleatorias (movimiento, salto, esquiva, dash, desplazamiento
+  dirigido, picado, agacharse, escalada, frames lentos) en 12 mundos
+  aleatorios, comprobando que la posición es finita, que no se atraviesa
+  ninguna caja y que no se sale de los límites. Se ejecutó también con 200
+  mundos (600 000 pasos) sin fallos.
+- Eliminados los avisos de Three.js en consola (`THREE.Clock` → `THREE.Timer`,
+  sombras PCF).
+- «Reiniciar escenario» (F2) ya no borra las fuentes de energía ni las
+  interacciones.
+
+**Efectos y animación**: polvo al aterrizar fuerte, al saltar vallas y al
+subir a cornisas; pasos sincronizados con el ciclo de la animación.
 
 ## Etapa 6 — Distrito Cero
 
@@ -382,7 +432,7 @@ límites físicos. **Todas las azoteas son accesibles** sin escalada:
 escaleras de incendios (B1, B5, B6), pasarelas entre azoteas y cadenas de
 contenedores y cajas (A1, A2).
 
-## Qué se ha probado realmente (Etapas 1 a 6)
+## Qué se ha probado realmente (Etapas 1 a 7)
 
 - `npm test` — 60 tests unitarios: físicas (gravedad, velocidades, salto, muros,
   túnel a alta velocidad, escalones, rampas, techos, *coyote time*,
@@ -439,23 +489,27 @@ contenedores y cajas (A1, A2).
     detección se avisa; neutralizar la patrulla completa su objetivo pero la
     misión sigue hasta el Acólito; mensaje final, guardado y ✓ en el menú;
     aviso de límite; en el Campo la PDC es hostil desde el principio.
+  - Pulido: el audio está activo; hay ambiente de ciudad y de campo; suenan
+    pasos, saltos, aterrizajes, disparos, impactos, agarres, misión, radio y
+    absorción; la geometría estática se fusiona y el Campo queda por debajo de
+    400 llamadas de dibujo; las barandillas impiden caerse de una pasarela;
+    volumen y resolución de render se guardan.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.
 
 **No probado**: rendimiento en GPU real (las pruebas usan SwiftShader; el bloom
-añade coste, se puede desactivar en Ajustes) ni la sensación de control con
-ratón físico. Conviene una sesión de juego manual.
+añade coste, se puede desactivar en Ajustes), la sensación de control con
+ratón físico ni cómo suena con altavoces reales (las pruebas comprueban que
+cada sonido se genera, no su calidad). Conviene una sesión de juego manual.
 
 ## Limitaciones conocidas
 
 - Modelos, animaciones y texturas son provisionales y procedurales.
-- Sin sonido todavía (Etapa 7).
-- Las pasarelas no tienen barandilla: se puede caer de ellas.
+- El sonido es sintético (no hay grabaciones ni música).
 - No hay límite de pendiente: cualquier rampa es transitable.
 - La cámara puede quedar dentro de la parte inferior de una pasarela si se
   mira desde muy abajo.
-- Sin sonido en los poderes (Etapa 7).
 - Navegación enemiga sencilla (sin malla de navegación): van en línea recta,
   saltan obstáculos bajos y rodean al atascarse; en zonas muy cerradas pueden
   quedarse bloqueados. Los enemigos no escalan ni usan las escaleras de

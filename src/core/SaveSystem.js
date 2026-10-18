@@ -20,6 +20,11 @@ export function createDefaultSave() {
       shadows: true,
       bloom: true,
       showFps: false,
+      // Etapa 7: sonido y resolución de render
+      volumeMaster: 0.8,
+      volumeSfx: 1,
+      volumeAmbience: 0.5,
+      renderScale: 1,
     },
     bindings: null, // null = controles por defecto (ver core/Input.js)
     // Etapa del prototipo que escribió el guardado (para migraciones).

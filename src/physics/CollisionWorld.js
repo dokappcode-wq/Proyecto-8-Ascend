@@ -46,6 +46,8 @@ export class CollisionWorld {
       cameraBlocking: opts.cameraBlocking ?? true,
       // Entidad propietaria (diana, objeto físico, enemigo…) para atribuir impactos.
       owner: opts.owner ?? null,
+      // false: no se puede escalar (barandillas, límites…)
+      climbable: opts.climbable ?? true,
       enabled: true,
     };
     this.boxes.push(box);

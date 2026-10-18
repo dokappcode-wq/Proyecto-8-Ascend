@@ -16,11 +16,12 @@ const CONTROL_ROWS = [
   ['Saltar', ['jump'], true],
   ['Sprint', ['sprint'], true],
   ['Esquivar', ['dodge'], true],
-  ['Agacharse / cubrirse junto a un muro', ['crouch'], true],
+  ['Agacharse / cubrirse junto a un muro · Soltarse al escalar', ['crouch'], true],
+  ['Escalar: saltar hacia un muro o cornisa', ['jump'], true],
   ['Proyectil energético', ['attack'], true],
   ['Apuntar', ['aim'], true],
   ['Dash energético (apuntando + mantener: dash dirigido)', ['special'], true],
-  ['Descarga concentrada (mantener)', ['charged'], true],
+  ['Recargar (pulsar) · Descarga concentrada (mantener)', ['charged'], true],
   ['Onda expansiva (en el aire: caída en rayo)', ['wave'], true],
   ['Pausa', null, true, 'Esc'],
   ['Menú de depuración', ['debugMenu'], true],
@@ -703,6 +704,10 @@ export class UIManager {
     sh.addEventListener('change', () => apply({ shadows: sh.checked }));
     bloom.addEventListener('change', () => apply({ bloom: bloom.checked }));
     fps.addEventListener('change', () => apply({ showFps: fps.checked }));
+    for (const [id, key] of [['set-scale', 'renderScale'], ['set-vol', 'volumeMaster'], ['set-sfx', 'volumeSfx'], ['set-amb', 'volumeAmbience']]) {
+      const el = this.$(id);
+      el.addEventListener('input', () => apply({ [key]: Number(el.value) }));
+    }
     this._syncSettingsForm();
   }
 
@@ -716,6 +721,11 @@ export class UIManager {
     this.$('set-shadows').checked = !!s.shadows;
     this.$('set-bloom').checked = !!s.bloom;
     this.$('set-fps').checked = !!s.showFps;
+    const pct = (v) => `${Math.round(v * 100)}%`;
+    for (const [id, out, key] of [['set-scale', 'out-scale', 'renderScale'], ['set-vol', 'out-vol', 'volumeMaster'], ['set-sfx', 'out-sfx', 'volumeSfx'], ['set-amb', 'out-amb', 'volumeAmbience']]) {
+      this.$(id).value = s[key];
+      this.$(out).textContent = pct(s[key]);
+    }
   }
 
   _renderControls() {

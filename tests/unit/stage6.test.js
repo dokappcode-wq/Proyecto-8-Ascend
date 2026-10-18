@@ -76,3 +76,17 @@ test('misión: los datos coinciden con los objetivos (3 agentes y 1 Acólito)', 
     assert.equal(def.spawns.filter((s) => s.tag === o.tag).length, o.count, o.id);
   }
 });
+
+test('sonido 3D: volumen por distancia y panorámica según la cámara', async () => {
+  const { spatialize, SPATIAL } = await import('../../src/audio/spatial.js');
+  const L = { x: 0, y: 0, z: 0, yaw: 0 }; // mirando hacia -Z: la derecha es +X
+  assert.equal(spatialize(L, { x: 0, y: 0, z: -2 }).gain, 1);
+  const near = spatialize(L, { x: 0, y: 0, z: -10 }).gain;
+  const far = spatialize(L, { x: 0, y: 0, z: -40 }).gain;
+  assert.ok(near > far && far > 0);
+  assert.equal(spatialize(L, { x: 0, y: 0, z: -SPATIAL.maxDistance - 1 }).gain, 0);
+  assert.ok(spatialize(L, { x: 10, y: 0, z: 0 }).pan > 0.8, 'a la derecha');
+  assert.ok(spatialize(L, { x: -10, y: 0, z: 0 }).pan < -0.8, 'a la izquierda');
+  // Girando la cámara 180°, el lado se invierte
+  assert.ok(spatialize({ ...L, yaw: Math.PI }, { x: 10, y: 0, z: 0 }).pan < -0.8);
+});

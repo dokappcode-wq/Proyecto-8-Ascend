@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LevelBuilder } from './LevelBuilder.js';
+import { mergeStatic } from './mergeStatic.js';
 
 /**
  * MapManager — registro, carga y descarga de mapas.
@@ -47,6 +48,8 @@ export class MapManager {
       },
     };
     const result = def.build(ctx);
+    // Rendimiento: la geometría estática se fusiona por material
+    this.lastMerge = mergeStatic(group);
     this.current = { def, group, entities, spawn: result.spawn, sun: result.sun ?? null };
     this.events.emit('map:loaded', { id, name: def.name });
     return this.current;
