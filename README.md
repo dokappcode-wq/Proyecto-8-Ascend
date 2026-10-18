@@ -18,6 +18,10 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
 - **Etapa 5 — Parkour** ✅: saltar vallas corriendo, subir a bordes sin
   saltar, agarre de cornisas (colgarse, desplazarse y trepar), escalada de
   muros y fachadas, salto hacia atrás desde la pared y cámara de escalada.
+- **Etapa 6 — Distrito Cero** ✅: patrullas PDC y Acólitos en el barrio,
+  reacción de hostilidad de la PDC (reputación), misión «Operación: Distrito
+  Cero» (activación, marcadores, detección, objetivos y mensaje final) y
+  aviso en los límites del mapa.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -84,6 +88,59 @@ reservan combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña); **C** pasa a
 ser agacharse. El documento de diseño
 no asignaba tecla a la onda expansiva; se ha elegido **G** (reasignable). Los
 controles se definen como acciones en `src/core/Input.js`.
+
+## Etapa 6 — Distrito Cero
+
+**Población del barrio**: una patrulla PDC de dos agentes recorre la calle
+norte y un Acólito de Energía vigila la azotea de B3. Al activar la misión
+aparecen además la patrulla PDC objetivo (tres agentes, calle sur) y el
+Acólito hostil (calle entre B3 y B4).
+
+**Hostilidad de la PDC** (reputación básica):
+
+| Nivel | Hostilidad | Qué hace la PDC |
+| --- | --- | --- |
+| Tranquila | 0–24 | Patrulla; aunque te vea, no te ataca |
+| Vigilante | 25–59 | Se detiene a observarte («?» azul sobre el agente), sin disparar |
+| Hostil | 60–100 | Te ataca al verte; al volverse hostil, todos los agentes en 70 m acuden a tu posición (aviso por radio) |
+
+- Sube al **usar poderes a la vista** de un agente (+22, como mucho una vez
+  por segundo), al **dañar** a un agente (+70) y al **neutralizarlo** (+100).
+- Baja 4 puntos por segundo tras 12 s sin que ningún agente te vea; al volver
+  a «Tranquila» los agentes pierden tu rastro.
+- El HUD muestra el nivel («PDC · Tranquila/Vigilante/Hostil») bajo el panel
+  de la misión. Los **Acólitos son siempre hostiles**.
+- En el **Campo de Pruebas** la PDC de la Zona D es un simulacro: hostil desde
+  el principio.
+- Las facciones Encarnaciones, Acólitos y Ciudadanos ya existen en los datos
+  (`src/factions/Reputation.js`), pero en el prototipo solo reacciona la PDC,
+  como indica el documento de diseño.
+
+**Misión «Operación: Distrito Cero»** (`src/data/missions.js`):
+
+1. **Activación**: teléfono público de la plaza (marcador dorado). E acepta la
+   misión y muestra el aviso.
+2. **Marcadores de ubicación**: un rombo con distancia sobre cada grupo
+   objetivo y un haz de luz vertical; fuera de pantalla se fijan al borde con
+   una flecha.
+3. **Detección**: el primer enemigo de la misión que te detecta lanza
+   «¡Te han detectado!» y el panel lo indica.
+4. **Combate y recuento**: «Neutraliza la patrulla PDC 0/3» y «Neutraliza al
+   Acólito hostil 0/1», en cualquier orden.
+5. **Finalización**: pantalla «Operación completada» con tiempo, mejor tiempo,
+   objetivos, daño recibido, si te detectaron y +100 EXP; opciones *Seguir
+   explorando*, *Repetir la misión* y *Volver al menú*. Se guarda en el
+   perfil y el menú principal la marca con ✓ y el mejor tiempo.
+
+Si te neutralizan durante la misión, reapareces en la plaza y la misión
+continúa (los enemigos pierden tu rastro). Depuración (F2): reiniciar la
+misión, volver hostil o calmar a la PDC, e ir al teléfono o a la patrulla.
+
+**Límites**: barreras de hormigón y valla con muros invisibles (no escalables).
+A menos de 5 m del borde aparece «Límite de Distrito Cero».
+
+Código: `src/factions/Reputation.js` y `src/missions/Mission.js` (lógica pura,
+con pruebas), `src/systems/FactionSystem.js` y `src/systems/MissionSystem.js`.
 
 ## Etapa 5 — Parkour
 
@@ -325,7 +382,7 @@ límites físicos. **Todas las azoteas son accesibles** sin escalada:
 escaleras de incendios (B1, B5, B6), pasarelas entre azoteas y cadenas de
 contenedores y cajas (A1, A2).
 
-## Qué se ha probado realmente (Etapas 1 a 4)
+## Qué se ha probado realmente (Etapas 1 a 6)
 
 - `npm test` — 60 tests unitarios: físicas (gravedad, velocidades, salto, muros,
   túnel a alta velocidad, escalones, rampas, techos, *coyote time*,
@@ -374,6 +431,14 @@ contenedores y cajas (A1, A2).
     cornisas y la fachada de B6 en el Distrito Cero; con el teclado, W +
     Espacio engancha al muro de 5 m y sube a la cima; colgado de una cornisa,
     A/D desplaza, no se usan poderes y C suelta.
+  - Distrito Cero: el barrio tiene su patrulla y su Acólito; la PDC empieza
+    tranquila y no ataca aunque te vea; usar poderes delante la vuelve
+    vigilante (observa sin disparar); atacar a un agente la vuelve hostil y
+    atacan; el teléfono activa la misión y aparecen 3 agentes y 1 Acólito;
+    el HUD muestra objetivos, recuento y marcadores con distancia; la
+    detección se avisa; neutralizar la patrulla completa su objetivo pero la
+    misión sigue hasta el Acólito; mensaje final, guardado y ✓ en el menú;
+    aviso de límite; en el Campo la PDC es hostil desde el principio.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.
@@ -393,8 +458,10 @@ ratón físico. Conviene una sesión de juego manual.
 - Sin sonido en los poderes (Etapa 7).
 - Navegación enemiga sencilla (sin malla de navegación): van en línea recta,
   saltan obstáculos bajos y rodean al atascarse; en zonas muy cerradas pueden
-  quedarse bloqueados. El Distrito Cero aún no tiene enemigos fijos (las
-  patrullas y la misión son la Etapa 6); se pueden generar desde F2.
+  quedarse bloqueados. Los enemigos no escalan ni usan las escaleras de
+  incendios.
+- La reputación de la PDC no se guarda entre sesiones (se reinicia al cargar
+  el mapa); solo reacciona la PDC.
 - La rotación de los objetos físicos es solo visual (su colisión es una caja
   alineada); la Sobrecarga y el árbol de mejoras llegan con la progresión.
 - *Salir* no puede cerrar una pestaña del navegador; muestra una pantalla de despedida.

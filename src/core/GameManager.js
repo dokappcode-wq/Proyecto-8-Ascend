@@ -22,6 +22,8 @@ import { PlayerCombat } from '../systems/PlayerCombat.js';
 import { InteractionSystem } from '../systems/InteractionSystem.js';
 import { PowerAcquisitionSystem } from '../systems/PowerAcquisitionSystem.js';
 import { EnergyDrainSystem } from '../systems/EnergyDrainSystem.js';
+import { FactionSystem } from '../systems/FactionSystem.js';
+import { MissionSystem } from '../systems/MissionSystem.js';
 import { Progression } from '../powers/Progression.js';
 import { PROGRESSION } from '../data/progression.js';
 
@@ -91,6 +93,8 @@ export class GameManager {
     this.interactions = new InteractionSystem(this);
     this.acquisition = new PowerAcquisitionSystem(this);
     this.drain = new EnergyDrainSystem(this);
+    this.factions = new FactionSystem(this);
+    this.missions = new MissionSystem(this);
     this.progression = new Progression(this.save.data.profile);
     this.powers.applyModifiers(this.progression.modifiers('energia'));
 
@@ -288,7 +292,7 @@ export class GameManager {
 
   _debugState() {
     const d = this.save.data.debug;
-    return { grantEnergy: d.grantEnergy, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
+    return { mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
   }
 
   _onUiAction(action, data) {
@@ -377,10 +381,34 @@ export class GameManager {
         this.ui.toast('Habilidades reiniciadas', '', 1200);
         break;
       case 'dbg-scenario':
-        this._clearTransient();
+        // Sin borrar interacciones ni fuentes de energía (son del mapa)
+        this.enemies.clear();
+        this.projectiles.clear();
+        this.vfx.clear();
+        this.ui.clearFloaters();
+        this.missions.reset();
+        this.factions.reputation.reset(this.mapManager.current?.def.factions ?? {});
         this.mapManager.resetEntities();
         this.ui.toast('Escenario reiniciado', '', 1200);
         break;
+      case 'dbg-mission-reset':
+        this.missions.reset();
+        this.ui.toast('Misión reiniciada', 'Vuelve al teléfono público para empezarla', 1600);
+        break;
+      case 'dbg-pdc-hostile': {
+        const r = this.factions.reputation;
+        if (r.isHostile('pdc')) r.reset(this.mapManager.current?.def.factions ?? {});
+        else this.factions._apply(r.report('pdc:killed'));
+        break;
+      }
+      case 'mission-continue':
+        this.resume();
+        return;
+      case 'mission-retry':
+        this.missions.reset();
+        this.missions.start();
+        this.resume();
+        return;
       case 'dbg-teleport': {
         const wp = (this.mapManager.current?.def.waypoints ?? []).find((w) => w.id === data.wp);
         if (wp) this.player.spawnAt(wp);
@@ -447,6 +475,8 @@ export class GameManager {
       this.acquisition.update(dt);
       this.drain.update(dt);
       this.enemies.update(dt);
+      this.factions.update(dt);
+      this.missions.update(dt);
       this.projectiles.update(dt);
       this.mapManager.update(dt);
       for (const s of this.systems) s.update?.(dt, this);
@@ -455,6 +485,7 @@ export class GameManager {
       const sun = this.mapManager.current?.sun;
       if (sun) followSun(sun, this.player.position);
       this._updateHud(dt);
+      this._checkBounds();
     }
 
     if (this.state === 'playing' || this.state === 'paused') {
@@ -464,6 +495,15 @@ export class GameManager {
       this.renderer.clear();
     }
     this.input.endFrame();
+  }
+
+  /** Aviso al acercarse al límite del mapa (los muros invisibles impiden salir). */
+  _checkBounds() {
+    const b = this.mapManager.current?.def.bounds;
+    const p = this.player.motor.position;
+    const margin = 5;
+    const near = !!b && (p.x < b.minX + margin || p.x > b.maxX - margin || p.z < b.minZ + margin || p.z > b.maxZ - margin);
+    this.ui.setBoundsWarning(near ? `Límite de ${this.mapManager.current.def.name}` : null);
   }
 
   _updateHud(dt) {
@@ -480,6 +520,7 @@ export class GameManager {
       health: { value: this.playerCombat.health.value, max: this.playerCombat.health.max, god: this.playerCombat.health.godMode, invuln: this.playerCombat.health.invulnerable > 0 },
       meleeCooldown: this.playerCombat._meleeCd / 0.55,
       stance: this.player.stance,
+      faction: this.factions.enabled ? { name: 'PDC', level: this.factions.pdcLevel, hostility: this.factions.reputation.hostility.pdc } : null,
       meleeElemental: this.playerCombat.canElemental(),
       sprinting: this.player.sprinting && m.horizontalSpeed > 6,
       pointerLocked: this.input.pointerLocked,

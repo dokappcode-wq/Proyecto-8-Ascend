@@ -37,6 +37,11 @@ export default {
   id: 'distrito',
   name: 'Distrito Cero',
   description: 'El corazón de la ciudad. Calles, callejones y azoteas.',
+  /** Reputación: la PDC empieza tranquila y reacciona a lo que haga el jugador. */
+  factions: { pdc: 0 },
+  reputation: true,
+  /** Zona jugable (aviso al acercarse al límite). */
+  bounds: { minX: -HALF, maxX: HALF, minZ: -HALF, maxZ: HALF },
 
   /** Puntos de teletransporte del menú de depuración. */
   waypoints: [
@@ -44,6 +49,8 @@ export default {
     { id: 'B5', name: 'Escalera de B5', x: 26.2, y: 0.2, z: 46, yaw: Math.PI },
     { id: 'B8', name: 'Azotea de B8 (torre)', x: -36, y: 24.4, z: -6, yaw: 0 },
     { id: 'callejon', name: 'Callejón de A2', x: 12.2, y: 0.2, z: -48, yaw: Math.PI },
+    { id: 'telefono', name: 'Teléfono público (misión)', x: -4.6, y: 0.3, z: 10, yaw: -Math.PI / 2 },
+    { id: 'patrulla', name: 'Calle sur (patrulla de la misión)', x: 0, y: 0.3, z: -14, yaw: Math.PI },
   ],
 
   build(ctx) {
@@ -154,6 +161,9 @@ export default {
     streetProps(B, M, group, ctx);
     energySources(ctx, byId);
 
+    // --- Patrullas y Acólitos del barrio (además de los de la misión) ---
+    ambientEnemies(ctx, byId);
+
     // --- Límites del escenario ---
     boundaries(B, M);
     skyline(group);
@@ -193,6 +203,24 @@ function roadMarkings(B, M) {
       });
     }
   }
+}
+
+/**
+ * Población del barrio: una patrulla PDC de dos agentes recorre la calle
+ * norte (tranquila hasta que el jugador la provoque) y un Acólito vigila la
+ * azotea de B3 (hostil siempre). Se regeneran al reiniciar el escenario.
+ */
+function ambientEnemies(ctx, byId) {
+  const north = [{ x: 18, z: 21 }, { x: -18, z: 21 }];
+  const b3 = byId.B3;
+  const spawn = () => {
+    ctx.enemies.clear('distrito');
+    ctx.enemies.spawn('pdc', { x: 14, y: 0.2, z: 21, yaw: -Math.PI / 2, tag: 'distrito', patrol: north });
+    ctx.enemies.spawn('pdc', { x: 16.5, y: 0.2, z: 21, yaw: -Math.PI / 2, tag: 'distrito', patrol: north });
+    ctx.enemies.spawn('acolyte', { x: b3.x - 4, y: b3.h + 0.1, z: b3.z - 2, yaw: Math.PI / 2, tag: 'distrito', patrol: [{ x: b3.x - 5, z: b3.z - 2 }, { x: b3.x + 5, z: b3.z - 2 }] });
+  };
+  spawn();
+  ctx.addEntity({ reset: spawn });
 }
 
 function plaza(B, M, group, ctx) {

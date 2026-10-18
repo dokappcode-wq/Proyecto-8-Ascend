@@ -7,6 +7,8 @@ export const ENEMY_TYPES = Object.freeze({
     id: 'pdc',
     name: 'Agente PDC',
     variant: 'pdc',
+    /** Facción para la reputación: la PDC solo ataca si es hostil. */
+    faction: 'pdc',
     health: 80,
     walkSpeed: 2.2,
     runSpeed: 4.6,
@@ -25,6 +27,7 @@ export const ENEMY_TYPES = Object.freeze({
     id: 'acolyte',
     name: 'Acólito de Energía',
     variant: 'acolyte',
+    faction: 'acolitos',
     glow: '#b45cff',
     health: 110,
     walkSpeed: 2.4,

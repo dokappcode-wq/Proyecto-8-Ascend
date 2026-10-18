@@ -323,12 +323,114 @@ try {
   // Etapa 5: escalando la fachada sur de B6 desde la acera
   await route('Distrito · fachada de B6 escalando', { x: 9, y: 0.2, z: 30.5 }, [{ x: 9, z: 34.5, jump: true }], 10);
 
+  // ---------------- Distrito Cero: reputación y misión (Etapa 6) ----------------
+  console.log('\n[distrito · etapa 6]');
+  await q(() => { const a = window.__ascend; a.save.data.debug.invulnerable = false; a.playerCombat.restore(); });
+  const s6D0 = await q(() => {
+    const a = window.__ascend;
+    return {
+      enemies: a.enemies.list.filter((e) => e.tag === 'distrito').map((e) => e.type.id).sort().join(','),
+      pdc: a.factions.pdcLevel.id, mission: a.missions.mission?.state,
+      panel: document.getElementById('hud-mission').textContent, faction: document.getElementById('hud-faction').textContent,
+    };
+  });
+  check(s6D0.enemies === 'acolyte,pdc,pdc', `El barrio tiene una patrulla PDC y un Acólito (${s6D0.enemies})`);
+  check(s6D0.pdc === 'calm' && /Tranquila/.test(s6D0.faction), `La PDC empieza tranquila (${s6D0.pdc})`);
+  check(s6D0.mission === 'inactive' && /teléfono público/i.test(s6D0.panel), 'La misión espera a activarse en el teléfono público');
+  // Delante de un agente: le ve pero no ataca
+  const placeInFront = () => q(() => {
+    const a = window.__ascend;
+    const e = a.enemies.list.find((x) => x.tag === 'distrito' && x.type.id === 'pdc' && x.alive);
+    e.patrol = [{ x: e.position.x, z: e.position.z }];
+    const f = { x: Math.sin(e.facing), z: Math.cos(e.facing) };
+    a.player.spawnAt({ x: e.position.x + f.x * 7, y: e.position.y + 0.1, z: e.position.z + f.z * 7, yaw: e.facing });
+    window.__watchE = e;
+  });
+  await placeInFront();
+  await page.waitForFunction(() => window.__watchE.seesPlayer, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  const s6Calm = await q(() => ({ sees: window.__watchE.seesPlayer, st: window.__watchE.brain.state, hp: window.__ascend.playerCombat.health.value }));
+  check(s6Calm.sees && s6Calm.st === 'patrol' && s6Calm.hp === 100, `Tranquila: el agente le ve y no ataca (${s6Calm.st}, salud ${s6Calm.hp})`);
+  // Usar poderes delante de la PDC: vigilante (le observa sin disparar)
+  await page.mouse.down();
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  // (una detección por segundo como mucho)
+  await page.waitForFunction(() => window.__ascend.factions._powerSeenCd === 0, null, { timeout: 8000 }).catch(() => {});
+  await page.mouse.down();
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  await page.waitForTimeout(1200);
+  const s6Watch = await q(() => ({ lvl: window.__ascend.factions.pdcLevel.id, w: window.__watchE.watching, st: window.__watchE.brain.state, hp: window.__ascend.playerCombat.health.value }));
+  await page.screenshot({ path: path.join(out, 'district-01-watchful.png') });
+  check(s6Watch.lvl === 'watchful' && s6Watch.w && s6Watch.st === 'patrol' && s6Watch.hp === 100, `Usar poderes a la vista: la PDC pasa a vigilante y observa sin disparar (${s6Watch.lvl}, ${s6Watch.st})`);
+  // Atacar a un agente: hostil, todos los agentes reaccionan
+  await q(() => window.__ascend.combat.applyDamage(window.__watchE, 10, { faction: 'player' }));
+  await page.waitForFunction(() => window.__ascend.enemies.list.filter((e) => e.type.faction === 'pdc').every((e) => e.brain.state !== 'patrol'), null, { timeout: 8000 }).catch(() => {});
+  const s6Hostile = await q(() => ({ lvl: window.__ascend.factions.pdcLevel.id, st: window.__ascend.enemies.list.filter((e) => e.type.faction === 'pdc').map((e) => e.brain.state).join(','), hud: document.getElementById('hud-faction').textContent }));
+  check(s6Hostile.lvl === 'hostile' && !/patrol/.test(s6Hostile.st) && /Hostil/.test(s6Hostile.hud), `Atacar a un agente vuelve hostil a la PDC y los agentes reaccionan (${s6Hostile.st})`);
+  await page.waitForFunction(() => window.__watchE.brain.state === 'attack', null, { timeout: 8000 }).catch(() => {});
+  check(await q(() => window.__watchE.brain.state === 'attack'), 'La PDC hostil ataca al jugador');
+  // Calma de nuevo (depuración) para la misión
+  await q(() => { const a = window.__ascend; a.factions.reputation.reset({ pdc: 0 }); for (const e of a.enemies.list) e.forgetTarget(); a.playerCombat.restore(); });
+
+  // Misión: activación en el teléfono público
+  await q(() => window.__ascend.player.spawnAt({ x: -4.6, y: 0.3, z: 10, yaw: -Math.PI / 2 }));
+  await page.waitForFunction(() => /aceptar Operación/i.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  check(/aceptar Operación/i.test(await q(() => document.getElementById('hud-prompt').textContent)), 'Junto al teléfono aparece «E: aceptar Operación: Distrito Cero»');
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.missions.mission.state === 'active', null, { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const s6Act = await q(() => {
+    const a = window.__ascend;
+    return {
+      st: a.missions.mission.state,
+      pdc: a.enemies.list.filter((e) => e.tag === 'mision-pdc').length, aco: a.enemies.list.filter((e) => e.tag === 'mision-acolito').length,
+      panel: document.getElementById('hud-mission').textContent.replace(/\s+/g, ' '),
+      markers: [...document.querySelectorAll('#hud-markers .marker')].filter((m) => m.style.display !== 'none').map((m) => m.textContent).join(' | '),
+    };
+  });
+  await page.screenshot({ path: path.join(out, 'district-02-mission.png') });
+  check(s6Act.st === 'active' && s6Act.pdc === 3 && s6Act.aco === 1, `E activa la misión: aparecen la patrulla (3) y el Acólito (1)`);
+  check(/0\/3/.test(s6Act.panel) && /0\/1/.test(s6Act.panel), `El HUD muestra los objetivos con su recuento (${s6Act.panel.trim()})`);
+  check(/Patrulla · \d+ m/.test(s6Act.markers) && /Acólito · \d+ m/.test(s6Act.markers), `Marcadores de ubicación con distancia (${s6Act.markers})`);
+  // Detección y combate
+  await q(() => {
+    const a = window.__ascend;
+    const e = a.enemies.list.find((x) => x.tag === 'mision-pdc');
+    a.player.spawnAt({ x: e.position.x, y: 0.3, z: e.position.z + 9, yaw: Math.PI });
+    a.combat.applyDamage(e, 10, { faction: 'player' });
+  });
+  await page.waitForFunction(() => window.__ascend.missions.mission.detected, null, { timeout: 8000 }).catch(() => {});
+  check(await q(() => window.__ascend.missions.mission.detected && /Detectado/i.test(document.getElementById('hud-mission').textContent)), 'Los enemigos de la misión detectan al jugador (aviso y estado en el HUD)');
+  await q(() => { const a = window.__ascend; for (const e of a.enemies.list.filter((x) => x.tag === 'mision-pdc')) a.combat.applyDamage(e, 999, { faction: 'player' }); });
+  await page.waitForTimeout(400);
+  check(/3\/3/.test(await q(() => document.getElementById('hud-mission').textContent)), 'Neutralizar la patrulla completa su objetivo (3/3)');
+  check(await q(() => window.__ascend.missions.mission.state === 'active'), 'La misión sigue hasta neutralizar también al Acólito');
+  await q(() => { const a = window.__ascend; const e = a.enemies.list.find((x) => x.tag === 'mision-acolito'); a.combat.applyDamage(e, 999, { faction: 'player' }); });
+  await page.waitForFunction(() => window.__ascend.ui.currentScreen === 'mission', null, { timeout: 10000 }).catch(() => {});
+  const s6Done = await q(() => ({ st: window.__ascend.missions.mission.state, screen: window.__ascend.ui.currentScreen, stats: document.getElementById('mission-stats').textContent, rec: window.__ascend.save.data.profile.missions['op-distrito-cero'] }));
+  await page.screenshot({ path: path.join(out, 'district-03-complete.png') });
+  check(s6Done.st === 'completed' && s6Done.screen === 'mission' && /3\/3/.test(s6Done.stats) && /1\/1/.test(s6Done.stats), 'Mensaje de finalización con tiempo y objetivos');
+  check(s6Done.rec?.completed === true && s6Done.rec.runs >= 1, 'La misión completada se guarda');
+  await q(() => { window.__ascend.save.data.debug.invulnerable = true; });
+  await page.click('#screen-mission [data-action="mission-continue"]');
+  await page.waitForFunction(() => window.__ascend.state === 'playing', null, { timeout: 5000 }).catch(() => {});
+  check(await q(() => window.__ascend.state === 'playing'), '«Seguir explorando» vuelve al juego');
+  // Límite del mapa
+  await q(() => window.__ascend.player.spawnAt({ x: 59, y: 0.3, z: 0, yaw: -Math.PI / 2 }));
+  await page.waitForFunction(() => document.getElementById('hud-bounds').classList.contains('show'), null, { timeout: 5000 }).catch(() => {});
+  check(await q(() => document.getElementById('hud-bounds').classList.contains('show')), 'Aviso al acercarse al límite del barrio');
+  await q(() => window.__ascend.player.spawnAt({ x: 0, y: 0.3, z: 11, yaw: Math.PI }));
+
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => window.__ascend.state === 'paused');
   await page.click('#screen-pause [data-action="menu"]');
   await page.waitForFunction(() => window.__ascend.state === 'menu');
+  check(/✓/.test(await q(() => document.getElementById('menu-mission-done').textContent)), 'El menú marca la Operación: Distrito Cero como completada');
   await page.click('[data-map="campo"]');
   await page.waitForFunction(() => window.__ascend.state === 'playing');
+  check(await q(() => window.__ascend.factions.pdcLevel.id === 'hostile'), 'En el Campo de Pruebas (simulacro) la PDC es hostil desde el principio');
   await route('Campo · rampa 15°', { x: -20, y: 0.2, z: 2 }, [{ x: -20, z: -16 }], 2.68);
   await route('Campo · rampa 30°', { x: -26, y: 0.2, z: 2 }, [{ x: -26, z: -12 }], 3.46);
   await route('Campo · escalera 0.3 m', { x: -32, y: 0.2, z: 2 }, [{ x: -32, z: -10 }], 3);

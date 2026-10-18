@@ -245,3 +245,36 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 .hud-stance.cover { color: #5fd38a; }
 .hud-stance.peek { color: #f2c45a; }
 @media (max-width: 760px) { .hud-vitals { width: 46vw; } .ammo-icon { width: 8px; height: 16px; } }
+
+/* ---------- Etapa 6: misión, marcadores, reputación ---------- */
+.hud-right { position: absolute; top: 44px; right: 22px; width: min(300px, 40vw); display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.hud-mission { width: 100%; box-sizing: border-box; background: rgba(6,10,16,.55); border-left: 2px solid var(--destino); padding: 8px 12px 10px; display: none; }
+.hud-mission.show { display: block; }
+.hud-mission .m-name { font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: var(--destino); display: flex; justify-content: space-between; gap: 8px; }
+.hud-mission .m-time { color: var(--muted); letter-spacing: .08em; font-family: ui-monospace, monospace; font-size: 12px; }
+.hud-mission ul { list-style: none; margin: 6px 0 0; padding: 0; font-family: var(--body); font-size: 13px; }
+.hud-mission li { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; color: #dfe8f3; }
+.hud-mission li.done { color: #5fd38a; text-decoration: line-through; text-decoration-color: rgba(95,211,138,.5); }
+.hud-mission li .count { font-family: ui-monospace, monospace; color: var(--muted); }
+.hud-mission .m-status { margin-top: 6px; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: #ff7a52; }
+.hud-faction { width: 160px; display: none; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: #c9d6e6; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
+.hud-faction.show { display: block; }
+.hud-faction .fac-bar { height: 4px; margin-top: 4px; background: rgba(0,0,0,.5); }
+.hud-faction .fac-fill { height: 100%; width: 0; background: #8ea2ba; transition: width .3s, background .3s; }
+.hud-faction.watchful { color: #f2c45a; } .hud-faction.watchful .fac-fill { background: #f2c45a; }
+.hud-faction.hostile { color: #ff6a3a; } .hud-faction.hostile .fac-fill { background: #ff6a3a; }
+.hud-markers { position: absolute; inset: 0; pointer-events: none; }
+.marker { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; color: var(--destino); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 1px 4px rgba(0,0,0,.9); white-space: nowrap; }
+.marker .gem { width: 14px; height: 14px; transform: rotate(45deg); border: 2px solid currentColor; background: rgba(242,196,90,.25); margin-bottom: 4px; box-shadow: 0 0 10px rgba(242,196,90,.6); }
+.marker.target { color: #ff8a5a; } .marker.target .gem { background: rgba(255,138,90,.25); box-shadow: 0 0 10px rgba(255,138,90,.6); }
+.marker.edge .gem { border-radius: 2px; }
+.marker .arrow { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 11px solid currentColor; margin-bottom: 3px; display: none; }
+.marker.edge .arrow { display: block; } .marker.edge .gem { display: none; }
+.hud-bounds { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); font-size: 16px; letter-spacing: .3em; text-transform: uppercase; color: #ff9a6a; text-shadow: 0 1px 8px rgba(0,0,0,.9); opacity: 0; transition: opacity .4s; }
+.hud-bounds.show { opacity: 1; }
+.mission-panel { text-align: center; min-width: min(460px, 90vw); }
+.mission-kicker { color: var(--destino); letter-spacing: .4em; text-transform: uppercase; font-size: 13px; margin: 0 0 4px; }
+.mission-stats { display: grid; grid-template-columns: auto auto; gap: 6px 18px; justify-content: center; text-align: left; font-family: var(--body); font-size: 14px; margin: 14px 0 18px; }
+.mission-stats dt { color: var(--muted); }
+.mission-stats dd { margin: 0; }
+.mission-done { font-style: normal; color: #5fd38a; margin-left: 6px; }

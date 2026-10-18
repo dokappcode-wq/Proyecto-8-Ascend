@@ -29,6 +29,8 @@ export function createDefaultSave() {
       // Marcas que posee el protagonista. La del Destino es innata.
       marks: ['destino'],
       skillProgress: {},
+      // Misiones completadas: { [id]: { completed, bestTime, runs } }
+      missions: {},
     },
     // Herramientas de depuración del prototipo (menú F2).
     debug: {

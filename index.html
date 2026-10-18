@@ -25,7 +25,7 @@
           </button>
           <button class="menu-btn" data-action="play" data-map="distrito">
             <span class="btn-title">Distrito Cero</span>
-            <span class="btn-sub">El corazón de la ciudad</span>
+            <span class="btn-sub">El corazón de la ciudad · Operación: Distrito Cero<em class="mission-done" id="menu-mission-done"></em></span>
           </button>
           <button class="menu-btn" data-action="settings">
             <span class="btn-title">Ajustes</span>
@@ -34,7 +34,7 @@
             <span class="btn-title">Salir</span>
           </button>
         </nav>
-        <p class="build-tag">Prototipo · Etapa 2 — Energía</p>
+        <p class="build-tag">Prototipo · Etapa 6 — Distrito Cero</p>
       </div>
     </section>
 
@@ -69,6 +69,13 @@
         </div>
       </div>
       <div class="hud-abilities" id="hud-abilities"></div>
+      <!-- Etapa 6: misión, marcadores, reputación y límites -->
+      <div class="hud-markers" id="hud-markers"></div>
+      <div class="hud-right">
+        <div class="hud-mission" id="hud-mission"></div>
+        <div class="hud-faction" id="hud-faction"><span class="fac-name"></span><div class="fac-bar"><div class="fac-fill"></div></div></div>
+      </div>
+      <div class="hud-bounds" id="hud-bounds"></div>
       <div class="hud-hint" id="hud-hint"></div>
       <div class="hud-click" id="hud-click">Haz clic para controlar la cámara</div>
       <div id="hud-floaters"></div>
@@ -134,6 +141,20 @@
       <div class="panel wide">
         <h2>Depuración</h2>
         <div id="debug-body"></div>
+      </div>
+    </section>
+
+    <!-- Misión completada -->
+    <section id="screen-mission" class="screen overlay" aria-label="Misión completada">
+      <div class="panel mission-panel">
+        <p class="mission-kicker">Operación completada</p>
+        <h2 id="mission-title"></h2>
+        <dl class="mission-stats" id="mission-stats"></dl>
+        <nav class="menu-list compact">
+          <button class="menu-btn" data-action="mission-continue"><span class="btn-title">Seguir explorando</span></button>
+          <button class="menu-btn" data-action="mission-retry"><span class="btn-title">Repetir la misión</span></button>
+          <button class="menu-btn" data-action="menu"><span class="btn-title">Volver al menú</span></button>
+        </nav>
       </div>
     </section>
 

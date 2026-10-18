@@ -37,6 +37,10 @@ export class Enemy {
     this._fireCd = 0.5;
     this._seeTimer = 0;
     this._canSee = false;
+    /** Ve al jugador (con independencia de que su facción sea hostil). */
+    this.seesPlayer = false;
+    /** Le observa sin atacar (facción vigilante). */
+    this.watching = false;
     this._heard = null;
     this._damagedFrom = null;
     this._heavy = false;
@@ -128,6 +132,11 @@ export class Enemy {
     const p = this.motor.position;
     const d = Math.hypot(pos.x - p.x, pos.z - p.z);
     if (d <= Math.min(radius, this.type.hearRange)) this._heard = { x: pos.x, y: pos.y, z: pos.z };
+  }
+
+  /** Aviso por radio: acude a `pos` aunque no lo haya oído. */
+  alertTo(pos) {
+    if (this.alive) this._heard = { x: pos.x, y: pos.y, z: pos.z };
   }
 
   /** El jugador reaparece: los enemigos pierden el rastro y vuelven a patrullar. */
@@ -242,8 +251,14 @@ export class Enemy {
     this._seeTimer -= dt;
     if (this._seeTimer <= 0) {
       this._seeTimer = 0.15;
-      this._canSee = this._computeCanSee(player);
+      this.seesPlayer = this._computeCanSee(player);
     }
+    // Solo ataca si su facción es hostil; vigilante: se detiene a observar
+    const attitude = sys.attitude(this.type.faction ?? 'enemy');
+    const hostile = attitude === 'hostile';
+    this._canSee = hostile && this.seesPlayer;
+    this.watching = !hostile && attitude === 'watchful' && this.seesPlayer;
+    if (!hostile) this._heard = this._damagedFrom = null;
 
     const p = this.motor.position;
     const tp = player?.position;
@@ -259,6 +274,10 @@ export class Enemy {
       dead: false,
       atGoal,
     });
+    if (this.watching && intent.move === 'patrol') {
+      intent.move = 'hold';
+      intent.face = tp ? { x: tp.x, z: tp.z } : null;
+    }
     this.intent = intent;
     this._heard = this._damagedFrom = null;
     this._heavy = false;
@@ -455,9 +474,9 @@ export class Enemy {
     this.root.rotation.y = this.facing;
     this.bar.position.set(p.x, p.y + 2.25, p.z);
     const st = this.brain.state;
-    const show = st !== 'patrol' || this.health.value < this.health.max;
+    const show = st !== 'patrol' || this.watching || this.health.value < this.health.max;
     this.bar.visible = show && this.alive;
-    const key = `${Math.round(this.health.value)}|${st}|${this.brain.searching}`;
+    const key = `${Math.round(this.health.value)}|${st}|${this.brain.searching}|${this.watching}`;
     if (show && key !== this._barState) {
       this._barState = key;
       this._drawBar();
@@ -468,11 +487,11 @@ export class Enemy {
     const g = this.barCanvas.getContext('2d');
     g.clearRect(0, 0, 128, 40);
     const st = this.brain.state;
-    const icon = st === 'alert' ? '!' : st === 'chase' ? (this.brain.searching ? '?' : '!') : st === 'recover' ? '✱' : '';
+    const icon = st === 'alert' ? '!' : st === 'chase' ? (this.brain.searching ? '?' : '!') : st === 'recover' ? '✱' : this.watching ? '?' : '';
     if (icon) {
       g.font = '700 22px Rajdhani, Arial, sans-serif';
       g.textAlign = 'center';
-      g.fillStyle = st === 'alert' || (st === 'chase' && !this.brain.searching) ? '#ff6a3a' : '#f2c45a';
+      g.fillStyle = st === 'alert' || (st === 'chase' && !this.brain.searching) ? '#ff6a3a' : this.watching ? '#9fd0ff' : '#f2c45a';
       g.fillText(icon, 64, 18);
     }
     g.fillStyle = 'rgba(0,0,0,0.7)';

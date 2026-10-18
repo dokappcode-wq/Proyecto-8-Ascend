@@ -15,6 +15,11 @@ export class EnemySystem {
     this.vfx = vfx;
     this.events = events;
     this.player = null; // actor del jugador (PlayerCombat)
+    /**
+     * Reacción de una facción ante el jugador: 'hostile' | 'watchful' | 'calm'.
+     * Por defecto todas hostiles; FactionSystem la sustituye.
+     */
+    this.attitude = () => 'hostile';
     this.list = [];
     this.corpseTime = 6;
     this.group = new THREE.Group();
@@ -64,6 +69,11 @@ export class EnemySystem {
 
   get alive() {
     return this.list.filter((e) => e.alive);
+  }
+
+  /** ¿Algún enemigo vivo de la facción ve ahora al jugador? */
+  seenBy(faction) {
+    return this.list.some((e) => e.alive && e.type.faction === faction && e.seesPlayer);
   }
 
   update(dt) {

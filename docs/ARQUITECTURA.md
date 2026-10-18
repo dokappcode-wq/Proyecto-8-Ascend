@@ -59,6 +59,9 @@ src/
 │   ├── LightPool.js            Luces puntuales reutilizables (sin recompilar shaders)
 │   └── glowTexture.js          Halos
 ├── world/entities/             Dianas, maniquíes, objetos físicos, fuentes de energía y Encarnación de prueba
+├── factions/Reputation.js      Hostilidad por facción y reglas (sin Three.js)
+├── missions/Mission.js         Estado de una misión y sus objetivos (sin Three.js)
+├── data/missions.js            Misión de prueba del Distrito Cero
 ├── data/marks.js               Definiciones de marcas (datos configurables)
 ├── data/progression.js         Árboles de habilidades por marca
 └── ui/
@@ -103,8 +106,8 @@ src/
 | EnemyAI / PDCEnemy / AcolyteEnemy | ✅ Etapa 3 | `ai/EnemyBrain.js`, `ai/Enemy.js`, `ai/enemyTypes.js`, `systems/EnemySystem.js` |
 | PowerAcquisitionSystem | ✅ Etapa 4 | `systems/PowerAcquisitionSystem.js`, `powers/acquisition.js` |
 | PowerProgressionSystem | ✅ Etapa 4 | `powers/Progression.js`, `data/progression.js`; `PowerSystem.applyModifiers` |
-| FactionReputationSystem | Etapa 6 (hostilidad PDC) | Escuchará `combat:damage` por `EventBus` |
-| MissionSystem | Etapa 6 | Sistema registrado + HUD de objetivo |
+| FactionReputationSystem | ✅ Etapa 6 (hostilidad PDC) | `factions/Reputation.js`, `systems/FactionSystem.js` |
+| MissionSystem | ✅ Etapa 6 | `missions/Mission.js`, `data/missions.js`, `systems/MissionSystem.js` |
 
 Los sistemas pendientes **no existen todavía en el código** (salvo los datos y
 puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
@@ -200,3 +203,24 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   `landingImmune`, sin daño por caída.
 - `player:parkour` (`{ kind }`) se emite al engancharse, colgarse, subir,
   saltar una valla, dar un impulso o saltar desde la pared.
+
+## Distrito Cero (Etapa 6)
+
+- **Reputación**: `Reputation` guarda la hostilidad (0–100) por facción y
+  aplica reglas por acción (`REPUTATION_RULES`). `FactionSystem` escucha
+  `combat:damage` y `power:used`, comprueba si algún agente ve al jugador
+  (`EnemySystem.seenBy`) y expone `enemies.attitude(faction)` →
+  `'hostile' | 'watchful' | 'calm'`. Cada `Enemy` calcula siempre si ve al
+  jugador (`seesPlayer`), pero solo se lo pasa a su `EnemyBrain` si su
+  facción es hostil; vigilante → se detiene y le mira. Así el cerebro de la IA
+  no cambia. Cada mapa fija la hostilidad base en su definición (`factions`).
+- **Misiones**: `Mission` (inactiva → activa → completada) cuenta enemigos
+  neutralizados por etiqueta (`enemy:neutralized` incluye `tag`).
+  `MissionSystem` crea el teléfono (malla + colisión en el grupo del mapa, se
+  libera con él), registra la interacción, genera los enemigos al activar,
+  detecta la primera alerta, actualiza HUD y marcadores (proyección a
+  pantalla en `UIManager.updateMarkers`) y guarda el resultado en
+  `profile.missions`. Eventos: `mission:started`, `mission:detected`,
+  `mission:completed`, `faction:changed`.
+- **Límites**: `def.bounds` del mapa; `GameManager._checkBounds` muestra el
+  aviso. Los muros invisibles (`tag: 'bounds'`) no se pueden escalar.

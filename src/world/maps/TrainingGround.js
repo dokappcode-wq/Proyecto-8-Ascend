@@ -21,6 +21,9 @@ export default {
   id: 'campo',
   name: 'Campo de Pruebas',
   description: 'Zona de entrenamiento y experimentación.',
+  /** Simulacro: la PDC de entrenamiento siempre es hostil. */
+  factions: { pdc: 100 },
+  bounds: { minX: -HALF, maxX: HALF, minZ: -HALF, maxZ: HALF },
 
   /** Puntos de teletransporte del menú de depuración. */
   waypoints: [

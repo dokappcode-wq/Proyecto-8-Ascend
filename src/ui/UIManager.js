@@ -63,6 +63,7 @@ export class UIManager {
       debug: this.$('screen-debug'),
       marks: this.$('screen-marks'),
       quit: this.$('screen-quit'),
+      mission: this.$('screen-mission'),
     };
     this.hud = {
       root: this.$('hud'),
@@ -97,7 +98,14 @@ export class UIManager {
       death: this.$('hud-death'),
       xp: this.$('hud-xp'),
       stance: this.$('hud-stance'),
+      mission: this.$('hud-mission'),
+      markers: this.$('hud-markers'),
+      faction: this.$('hud-faction'),
+      bounds: this.$('hud-bounds'),
     };
+    this._missionKey = '';
+    this._markerEls = [];
+    this._factionKey = '';
     this._xpTimer = null;
     this._vigTimer = null;
     this._dirTimer = null;
@@ -127,6 +135,7 @@ export class UIManager {
   }
 
   show(name) {
+    if (name === 'menu') this._renderMenuMissions();
     for (const [k, el] of Object.entries(this.screens)) el.classList.toggle('active', k === name);
     this.currentScreen = name;
     const firstBtn = name && this.screens[name]?.querySelector('.menu-btn');
@@ -436,7 +445,8 @@ export class UIManager {
     this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Espacio</b> hacia un muro: escalar (<b>C</b> soltarse) · <b>Ctrl / Alt</b> esquivar · <b>C</b> agacharse / cubrirse · <b>F</b> golpe · <b>E</b> interactuar${power} · <b>Esc</b> pausa · <b>Tab</b> marcas · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
   }
 
-  updateHud({ dt, camera, dodgeCooldown, dodgeCooldownMax, dodging, sprinting, pointerLocked, fps, debugText, power, health, meleeCooldown, stance, meleeElemental }) {
+  updateHud({ dt, camera, dodgeCooldown, dodgeCooldownMax, dodging, sprinting, pointerLocked, fps, debugText, power, health, meleeCooldown, stance, meleeElemental, faction }) {
+    this._updateFaction(faction);
     const sl = this._slots;
     if (stance !== undefined && stance !== this._stance) {
       this._stance = stance;
@@ -544,8 +554,14 @@ export class UIManager {
         ${btn('dbg-points', '+1 punto de mejora')}
       </div>
       <p class="note">Marca de Energía adquirida: ${state.acquired ? 'sí' : 'no'}. La forma normal de obtenerla es la estación de la Zona E (contacto + voluntad).</p></section>
+      ${state.mission ? `<section><h3>Misión: ${escapeHtml(state.mission.name)} (${{ inactive: 'sin empezar', active: 'en curso', completed: 'completada' }[state.mission.state]})</h3><div class="dbg-row">
+        ${btn('dbg-mission-reset', 'Reiniciar misión')}
+      </div></section>` : ''}
+      ${state.pdc ? `<section><h3>Reputación — PDC: ${escapeHtml(state.pdc)}</h3><div class="dbg-row">
+        ${btn('dbg-pdc-hostile', state.pdc === 'Hostil' ? 'Calmar a la PDC' : 'Volver hostil a la PDC')}
+      </div></section>` : ''}
       <section><h3>Escenario</h3><div class="dbg-row">
-        ${btn('dbg-scenario', 'Reiniciar dianas y objetos')}
+        ${btn('dbg-scenario', 'Reiniciar escenario (dianas, objetos, enemigos)')}
         ${btn('restart', 'Reiniciar mapa')}
       </div></section>
       ${wps ? `<section><h3>Ir a</h3><div class="dbg-row">${wps}</div></section>` : ''}
@@ -553,6 +569,118 @@ export class UIManager {
         ${btn('menu', 'Volver al menú')}
         ${btn('resume', 'Cerrar (F2)')}
       </nav>`;
+  }
+
+  // ---------------------------------------------------------------- Etapa 6: misión
+  /** Panel de objetivos (null lo oculta). */
+  setMission(m) {
+    const el = this.hud.mission;
+    if (!m) {
+      el.classList.remove('show');
+      this._missionKey = '';
+      return;
+    }
+    const key = JSON.stringify([m.name, m.state, m.detected, m.objectives]);
+    if (key !== this._missionKey) {
+      this._missionKey = key;
+      const status = m.state === 'completed' ? 'Completada' : m.state === 'active' && m.detected ? 'Detectado' : '';
+      el.innerHTML = `<div class="m-name"><span>${escapeHtml(m.name)}</span><span class="m-time"></span></div>
+        <ul>${m.objectives.map((o) => `<li class="${o.count && o.done >= o.count ? 'done' : ''}"><span>${escapeHtml(o.label)}</span>${o.count ? `<span class="count">${o.done}/${o.count}</span>` : ''}</li>`).join('')}</ul>
+        ${status ? `<div class="m-status">${status}</div>` : ''}`;
+      el.classList.add('show');
+    }
+    const t = el.querySelector('.m-time');
+    const txt = m.state === 'inactive' ? '' : formatTime(m.time);
+    if (t && t.textContent !== txt) t.textContent = txt;
+  }
+
+  /**
+   * Marcadores de ubicación: proyecta cada punto en pantalla; si queda fuera
+   * (o detrás de la cámara) se fija al borde con una flecha hacia él.
+   */
+  updateMarkers(list, camera, from) {
+    const root = this.hud.markers;
+    while (this._markerEls.length < list.length) {
+      const el = document.createElement('div');
+      el.className = 'marker';
+      el.innerHTML = '<div class="arrow"></div><div class="gem"></div><span class="label"></span>';
+      root.appendChild(el);
+      this._markerEls.push(el);
+    }
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    this._markerEls.forEach((el, i) => {
+      const m = list[i];
+      el.style.display = m ? '' : 'none';
+      if (!m) return;
+      const v = this._v.set(m.x, m.y, m.z).project(camera);
+      const behind = v.z > 1;
+      let x = (v.x * 0.5 + 0.5) * W;
+      let y = (-v.y * 0.5 + 0.5) * H;
+      // Márgenes: la etiqueta no se corta y no tapa el HUD inferior
+      const padX = 80;
+      const top = 60;
+      const bottom = H - 130;
+      if (behind) {
+        x = W - x;
+        y = bottom;
+      }
+      const edge = behind || x < padX || x > W - padX || y < top || y > bottom;
+      x = Math.min(W - padX, Math.max(padX, x));
+      y = Math.min(bottom, Math.max(top, y));
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.className = `marker ${m.kind ?? ''}${edge ? ' edge' : ''}`;
+      if (edge) {
+        const ang = Math.atan2(y - H / 2, x - W / 2) + Math.PI / 2;
+        el.querySelector('.arrow').style.transform = `rotate(${ang}rad)`;
+      }
+      const d = from ? Math.round(Math.hypot(m.x - from.x, m.y - 2.6 - from.y, m.z - from.z)) : null;
+      el.querySelector('.label').textContent = `${m.label}${d !== null ? ` · ${d} m` : ''}`;
+    });
+  }
+
+  renderMissionComplete(st) {
+    this.$('mission-title').textContent = st.name;
+    const rows = [
+      ['Tiempo', `${formatTime(st.time)}${st.newBest ? ' · ¡mejor marca!' : ''}`],
+      ['Mejor tiempo', st.best !== null ? formatTime(st.best) : '—'],
+      ...st.objectives.map((o) => {
+        const i = o.lastIndexOf(':');
+        return [o.slice(0, i), o.slice(i + 1).trim()];
+      }),
+      ['Daño recibido', `${st.damage}`],
+      ['Detectado', st.detected ? 'Sí' : 'No (sigilo)'],
+      ...(st.xp ? [['Experiencia', `+${st.xp} EXP`]] : []),
+    ];
+    this.$('mission-stats').innerHTML = rows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
+  }
+
+  _renderMenuMissions() {
+    const rec = this.save.data.profile.missions?.['op-distrito-cero'];
+    const el = this.$('menu-mission-done');
+    if (el) el.textContent = rec?.completed ? `✓ ${formatTime(rec.bestTime ?? 0)}` : '';
+  }
+
+  _updateFaction(f) {
+    const el = this.hud.faction;
+    if (!f) {
+      if (this._factionKey) el.classList.remove('show');
+      this._factionKey = '';
+      return;
+    }
+    const key = `${f.level.id}|${Math.round(f.hostility)}`;
+    if (key === this._factionKey) return;
+    this._factionKey = key;
+    el.className = `hud-faction show ${f.level.id}`;
+    el.querySelector('.fac-name').textContent = `${f.name} · ${f.level.name}`;
+    el.querySelector('.fac-fill').style.width = `${Math.round(f.hostility)}%`;
+  }
+
+  setBoundsWarning(text) {
+    const el = this.hud.bounds;
+    if (text) el.textContent = text;
+    el.classList.toggle('show', !!text);
   }
 
   // ---------------------------------------------------------------- Ajustes
@@ -606,6 +734,12 @@ export class UIManager {
 
 function wait(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function formatTime(sec) {
+  const s = Math.max(0, sec);
+  const m = Math.floor(s / 60);
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 }
 
 function escapeHtml(s) {
