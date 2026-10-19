@@ -1071,12 +1071,12 @@ try {
   const gAcq = await g(() => {
     const a = window.__ascend;
     return {
-      marks: a.save.data.profile.marks.join(','), active: a.marks.activeFamily, vis: a.marks.visuals.has('gravedad'),
+      marks: a.marks.ownedCopies.join(','), copied: a.save.data.profile.marks.includes('gravedad'), active: a.marks.activeFamily, vis: a.marks.visuals.has('gravedad'),
       slots: [...document.querySelectorAll('#hud-abilities .ability')].filter((e) => e.style.display !== 'none').map((e) => e.querySelector('.name').textContent).join(','),
     };
   });
   await page.screenshot({ path: path.join(out, 'gravity-01-acquired.png') });
-  check(/energia/.test(gAcq.marks) && /gravedad/.test(gAcq.marks) && gAcq.active === 'gravedad' && gAcq.vis, `Gravedad copiada: dos marcas y la nueva queda activa (${gAcq.marks})`);
+  check(gAcq.marks === 'energia,gravedad' && gAcq.copied && gAcq.active === 'gravedad' && gAcq.vis, `Gravedad copiada: dos marcas y la nueva queda activa (${gAcq.marks})`);
   check(/Disparo/.test(gAcq.slots) && /Rocas/.test(gAcq.slots) && /Atraer/.test(gAcq.slots) && /Empujar/.test(gAcq.slots) && /Granada/.test(gAcq.slots), `El HUD muestra las habilidades de Gravedad (${gAcq.slots})`);
   await page.keyboard.press('KeyV');
   await page.waitForFunction(() => window.__ascend.marks.activeFamily === 'energia', null, { timeout: 5000 }).catch(() => {});
