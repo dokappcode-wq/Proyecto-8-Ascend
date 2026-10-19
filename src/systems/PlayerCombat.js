@@ -246,11 +246,14 @@ export class PlayerCombat {
     const energy = this._meleeElemental;
     // Hilo: la cuerda gruesa como cadena, en barrido amplio
     const chain = energy && g.marks.activeFamily === 'hilo' ? g.thread.chainCfg : null;
-    const damage = chain ? chain.damage : energy ? c.elementalDamage : c.damage;
+    // Arma de la marca activa (Alas: espada de plumas): más ataque físico y alcance
+    const weapon = g.activePowers.available ? g.activePowers.meleeWeapon ?? null : null;
+    const damage = Math.round((chain ? chain.damage : energy ? c.elementalDamage : c.damage) * (weapon?.damageMul ?? 1));
     const knockback = chain ? chain.knockback : energy ? c.elementalKnockback : c.knockback;
-    const range = chain ? chain.range : c.range;
+    const range = (chain ? chain.range : c.range) + (weapon?.rangeAdd ?? 0);
     const arc = chain ? chain.arc : c.arc;
     if (chain) this._chainVfx(f, chain.range);
+    weapon?.onSwing?.(f, range);
     let hits = 0;
     for (const t of [...g.combat.targets]) {
       if (t === this || !t.alive) continue;
@@ -264,7 +267,7 @@ export class PlayerCombat {
       const cos = (dx * f.x + dz * f.z) / l;
       if (cos < Math.cos(THREE.MathUtils.degToRad(arc))) continue;
       const dir = { x: (dx / l) * 0.85, y: 0.35, z: (dz / l) * 0.85 };
-      g.combat.applyDamage(t, damage, { point: tc, dir, knockback, kind: energy ? `melee-${g.marks.activeFamily}` : 'melee', faction: 'player', source: this });
+      g.combat.applyDamage(t, damage, { point: tc, dir, knockback, kind: weapon ? `melee-${weapon.kind}` : energy ? `melee-${g.marks.activeFamily}` : 'melee', faction: 'player', source: this });
       hits++;
       if (energy && !chain) {
         g.player.updateModelMatrices();

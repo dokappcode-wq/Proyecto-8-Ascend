@@ -27,7 +27,7 @@ export class MarkSystem {
   owns(id) {
     if (this.save.data.profile.marks.includes(id)) return true;
     const d = this.save.data.debug ?? {};
-    return (id === 'energia' && !!d.grantEnergy) || (id === 'gravedad' && !!d.grantGravity) || (id === 'hilo' && !!d.grantThread);
+    return (id === 'energia' && !!d.grantEnergy) || (id === 'gravedad' && !!d.grantGravity) || (id === 'hilo' && !!d.grantThread) || (id === 'temperatura' && !!d.grantTemperature) || (id === 'alas' && !!d.grantWings);
   }
 
   /** Marcas copiadas que posee, en orden. */
@@ -110,6 +110,8 @@ export class MarkSystem {
     if (id === 'energia') this.save.data.debug.grantEnergy = value;
     else if (id === 'gravedad') this.save.data.debug.grantGravity = value;
     else if (id === 'hilo') this.save.data.debug.grantThread = value;
+    else if (id === 'temperatura') this.save.data.debug.grantTemperature = value;
+    else if (id === 'alas') this.save.data.debug.grantWings = value;
     else return;
     this.save.save();
     this.refresh();

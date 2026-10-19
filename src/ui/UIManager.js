@@ -43,6 +43,13 @@ const ELEMENT_AMMO_ICONS = {
   hilo: '<svg class="ammo-icon fist" viewBox="0 0 20 24" aria-hidden="true"><path d="M4 9h11a3 3 0 0 1 3 3v5a5 5 0 0 1-5 5H8a4 4 0 0 1-4-4z" fill="currentColor"/><path d="M5 9V5a2 2 0 0 1 4 0v4M9 9V4a2 2 0 0 1 4 0v5M13 9V5a2 2 0 0 1 4 0v5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 0v3" stroke="currentColor" stroke-width="1"/></svg>',
   // Gravedad: núcleo con órbita y flecha hacia abajo
   gravedad: '<svg class="ammo-icon grav" viewBox="0 0 16 24" aria-hidden="true"><ellipse cx="8" cy="9" rx="7" ry="3" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(-18 8 9)"/><circle cx="8" cy="9" r="2.6" fill="currentColor"/><path d="M8 14v8M5 19l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  // Alas: una pluma (cada icono son 10 plumas)
+  alas: '<svg class="ammo-icon feather" viewBox="0 0 12 24" aria-hidden="true"><path d="M6 23V7" stroke="currentColor" stroke-width="1.2"/><path d="M6 1c4 3 5 8 4 13-1 3-3 5-4 6-1-1-3-3-4-6C1 9 2 4 6 1z" fill="currentColor" opacity=".85"/></svg>',
+  // Temperatura: alterna un cristal de hielo y una llama (como los disparos)
+  temperatura: [
+    '<svg class="ammo-icon ice" viewBox="0 0 16 24" aria-hidden="true"><path d="M8 2v20M2 7l12 10M14 7 2 17M8 2 6 5M8 2l2 3M8 22l-2-3M8 22l2-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+    '<svg class="ammo-icon flame" viewBox="0 0 14 24" aria-hidden="true"><path d="M7 1c1 4 6 7 6 13a6 6 0 0 1-12 0c0-3 2-5 3-7 0 2 1 4 2 4 0-4 1-7 1-10z" fill="currentColor"/></svg>',
+  ],
 };
 
 /** Nombres de las casillas de poder según la marca activa. */
@@ -50,6 +57,8 @@ const FAMILY_SLOT_NAMES = {
   energia: { projectile: 'Proyectil', dash: 'Dash', discharge: 'Descarga', wave: 'Onda' },
   gravedad: { projectile: 'Disparo', dash: 'Rocas', discharge: 'Atraer', wave: 'Empujar', grenade: 'Granada' },
   hilo: { projectile: 'Hilos', dash: 'Balanceo', discharge: 'Atar', wave: 'Lanzar', grenade: 'Atraer' },
+  temperatura: { projectile: 'Hielo/Fuego', dash: 'Patinar', discharge: 'Muro', wave: 'Estela', grenade: 'Tormenta' },
+  alas: { projectile: 'Plumas', dash: 'Vuelo', discharge: 'Espada', wave: 'Lluvia', grenade: 'Escudo' },
 };
 
 /** Casillas de habilidades del HUD. `power` = requiere la marca activa. */
@@ -244,14 +253,18 @@ export class UIManager {
    */
   _renderAmmoIcons(mag) {
     const el = this._element ?? 'energia';
-    const lit = mag.reloading ? Math.floor(mag.size * mag.progress) : mag.ammo;
-    const key = `${el}|${mag.size}|${lit}|${mag.reloading}`;
+    // Con mucha munición (Alas: 100 plumas) cada símbolo representa `iconStep` balas
+    const step = mag.iconStep ?? 1;
+    const count = Math.ceil(mag.size / step);
+    const lit = Math.ceil((mag.reloading ? Math.floor(mag.size * mag.progress) : mag.ammo) / step);
+    const key = `${el}|${count}|${lit}|${mag.reloading}`;
     if (key === this._ammoKey) return;
     this._ammoKey = key;
     const root = this.hud.ammoIcons;
-    if (root.childElementCount !== mag.size || root.dataset.el !== el) {
+    if (root.childElementCount !== count || root.dataset.el !== el) {
       root.dataset.el = el;
-      root.innerHTML = Array.from({ length: mag.size }, () => ELEMENT_AMMO_ICONS[el] ?? ELEMENT_AMMO_ICONS.energia).join('');
+      const icon = ELEMENT_AMMO_ICONS[el] ?? ELEMENT_AMMO_ICONS.energia;
+      root.innerHTML = Array.from({ length: count }, (_, i) => (Array.isArray(icon) ? icon[i % icon.length] : icon)).join('');
     }
     [...root.children].forEach((icon, i) => {
       icon.classList.toggle('spent', i >= lit);
@@ -466,7 +479,11 @@ export class UIManager {
 
   _renderHint() {
     let power = '';
-    if (this._powerAvailable && this._element === 'hilo') {
+    if (this._powerAvailable && this._element === 'alas') {
+      power = ' · Las plumas se regeneran solas (<b>E</b> junto a palomares o cojines: más rápido) · <b>Clic izq.</b> plumas (1 por disparo) · <b>Q</b> volar (más plumas, más rápido; <b>Espacio</b> sube, <b>C</b> baja) · <b>R</b> espada de plumas (mantén: más grande) · <b>G</b> lluvia de plumas · <b>X</b> escudo de plumas · <b>V</b> cambiar de marca';
+    } else if (this._powerAvailable && this._element === 'temperatura') {
+      power = ' · <b>E</b> (mantener) junto a arcones congeladores o bidones con fuego: absorber temperatura · <b>Clic izq.</b> hielo y fuego (alternos) · <b>Q</b> patinar (contra una pared: patinas por ella) · <b>Shift</b> patinando: fuego atrás y camino de hielo por el aire · <b>R</b> muro de hielo · <b>G</b> estela de fuego · <b>X</b> fuego frío · <b>V</b> cambiar de marca';
+    } else if (this._powerAvailable && this._element === 'hilo') {
       power = ' · <b>E</b> (mantener) junto a tendederos o rollos de tela: absorber hilo · <b>Clic izq.</b> hilos (el puño debe volver) · <b>Q</b> (mantener) balancearse · <b>R</b> atar · <b>G</b> lanzar · <b>X</b> atraerse · <b>F</b> cadena · <b>Espacio</b> mantener: salto alto · <b>V</b> cambiar de marca';
     } else if (this._powerAvailable && this._element === 'gravedad') {
       power = ' · <b>E</b> (mantener) junto a escombros o bloques de hormigón: absorber gravedad · <b>Clic izq.</b> disparo (hace flotar) · <b>Q</b> elevar roca (en el aire, otra: hasta 3) · <b>R</b> atraer · <b>G</b> empujar · <b>X</b> granada · <b>Espacio</b> mantener: más alto, hasta 3 saltos, cayendo: planear · <b>V</b> cambiar de marca';
@@ -584,6 +601,10 @@ export class UIManager {
         ${btn('dbg-reset-gravity', 'Reiniciar adquisición de Gravedad')}
         ${toggle('dbg-mark-thread', 'Conceder Hilo (atajo)', state.grantThread)}
         ${btn('dbg-reset-thread', 'Reiniciar adquisición de Hilo')}
+        ${toggle('dbg-mark-temperature', 'Conceder Temperatura (atajo)', state.grantTemperature)}
+        ${btn('dbg-reset-temperature', 'Reiniciar adquisición de Temperatura')}
+        ${toggle('dbg-mark-wings', 'Conceder Alas (atajo)', state.grantWings)}
+        ${btn('dbg-reset-wings', 'Reiniciar adquisición de Alas')}
         ${toggle('dbg-maxmarks', 'Marcas al máximo', state.maxMarks)}
         ${btn('dbg-xp', '+60 EXP')}
         ${btn('dbg-points', '+1 punto de mejora')}

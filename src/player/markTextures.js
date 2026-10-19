@@ -54,6 +54,31 @@ export function markSymbolTexture(symbol, color) {
     g.lineTo(m + 10, m - 4);
     g.lineTo(m - 8, size - 30);
     g.stroke();
+  } else if (symbol === 'temperatura') {
+    // Dos medias lunas enfrentadas (frío y calor) con un copo y una llama
+    const grad = g.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, color === '#ffffff' ? '#ffffff' : '#2ee6d6');
+    grad.addColorStop(1, color === '#ffffff' ? '#ffffff' : '#ff8a2a');
+    g.strokeStyle = grad;
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(m, m, 42, Math.PI * 0.55, Math.PI * 1.45);
+    g.stroke();
+    g.beginPath();
+    g.arc(m, m, 42, -Math.PI * 0.45, Math.PI * 0.45);
+    g.stroke();
+    for (let k = 0; k < 3; k++) {
+      const a0 = (k / 3) * Math.PI;
+      g.beginPath();
+      g.moveTo(m - 22 + Math.cos(a0) * 12, m + Math.sin(a0) * 12);
+      g.lineTo(m - 22 - Math.cos(a0) * 12, m - Math.sin(a0) * 12);
+      g.stroke();
+    }
+    g.beginPath();
+    g.moveTo(m + 22, m - 18);
+    g.quadraticCurveTo(m + 34, m + 2, m + 22, m + 16);
+    g.quadraticCurveTo(m + 10, m + 2, m + 22, m - 18);
+    g.fill();
   } else if (symbol === 'hilo') {
     // Un hilo que se enrolla en tres lazos alrededor de un nudo central
     for (let k = 0; k < 3; k++) {
@@ -87,6 +112,19 @@ export function markSymbolTexture(symbol, color) {
     g.lineTo(m, size - 14);
     g.lineTo(m + 12, size - 28);
     g.stroke();
+  } else if (symbol === 'alas') {
+    // Dos alas abiertas: tres plumas largas a cada lado de un punto central
+    for (const sx of [-1, 1]) {
+      for (let k = 0; k < 3; k++) {
+        g.beginPath();
+        g.moveTo(m + sx * 8, m + 4);
+        g.quadraticCurveTo(m + sx * (26 + k * 8), m - 34 + k * 14, m + sx * (52 - k * 4), m - 18 + k * 18);
+        g.stroke();
+      }
+    }
+    g.beginPath();
+    g.arc(m, m + 6, 8, 0, Math.PI * 2);
+    g.fill();
   } else {
     g.beginPath();
     g.arc(m, m, 40, 0, Math.PI * 2);

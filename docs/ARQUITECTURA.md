@@ -275,3 +275,61 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   sueltan el hilo.
 - `powers/targeting.js` (`enemyAtCrosshair`) lo comparten Gravedad e Hilo.
 - `Enemy.bind` (aturdido + anillos de hilo) y daño por caída de los enemigos.
+
+## Temperatura
+
+- `TemperaturePowerSystem` sigue la interfaz común. El disparo alterna la mano
+  (`handWorldPosition(out, 'R' | 'L')`): hielo a la derecha, fuego a la izquierda.
+- **Patinaje** (`CharacterMotor.skate`): en el suelo cambia la aceleración y la
+  frenada por las del patinaje (casi sin fricción) y deja pasar de la velocidad
+  punta lo que ya se lleva. Si al integrar el cuerpo choca de frente con una
+  pared escalable a más de `wallMinSpeed`, `_tryWallRide` convierte la
+  velocidad que iba contra la pared en subida y conserva la tangencial; en
+  `_updateWallRide` la gravedad está reducida y el cuerpo se pega a la pared:
+  sube, frena y cae (la U). Termina en el suelo, sin pared o por tiempo. El
+  parkour no se activa patinando.
+- **Carrera de hielo** (`CharacterMotor.iceRun`): velocidad fija en la
+  dirección de la cámara (inclinación limitada), sin gravedad. El sistema crea
+  placas de hielo (cajas reales) bajo los pies; cada una se activa cuando el
+  cuerpo ya no la atraviesa (durante la carrera, solo cuando ha quedado atrás)
+  y al terminar se deja una bajo los pies para quedarse de pie.
+- **Muro de hielo**: varios colisionadores cuadrados a lo largo de una línea
+  (las cajas son AABB, así que un muro girado se aproxima con tramos) y una
+  sola malla girada; no se coloca un tramo donde hay alguien.
+- **Estela y tormenta**: daño por tics de 0.5 s a los objetivos dentro de la
+  raya (distancia a la polilínea) o del cilindro bajo la nube.
+- **Quemadura** (`powers/temperature/BurnStatus.js`, puro): `Enemy.burn` la
+  enciende desde la pasiva en `GameManager` (golpes `melee*`); el enemigo la
+  avanza en su `update` y se apaga al morir.
+- **LOD de entidades**: `MapManager.cull(ojo)` oculta las entidades con
+  `lodRoot` más lejos de `lodDistance` (las Encarnaciones, 60 m): cada una
+  son ~25 piezas con sombra y el Campo superaba las 400 llamadas de dibujo.
+  Las fuentes sin luz propia también (70 m; las que tienen luz no, porque
+  cambiar el número de luces recompila los materiales) y sus piezas pequeñas
+  no proyectan sombra. Tras cargar un mapa el LOD espera 3 fotogramas para que
+  todo se dibuje una vez y sus materiales se compilen durante la carga.
+- **Punto de mira**: `PowerSystem.aimPoint` se detiene en el primer actor que
+  no es del jugador (antes solo en el escenario): los disparos desde una mano
+  alejada de la cámara (la izquierda de la Temperatura) convergían detrás del
+  enemigo y lo rozaban.
+
+## Alas
+
+- `WingsPowerSystem`: las plumas son la `EnergyPool` (con regeneración, la
+  única familia que la tiene) y su «cargador» es una vista de ella con
+  `iconStep: 10` para que el HUD dibuje 10 símbolos y no 100.
+- **Vuelo** (`CharacterMotor.fly`): sin gravedad, la velocidad tiende a la
+  dirección pedida por la velocidad punta (`flightSpeed`, según las plumas).
+  `PlayerController` pasa `flyY` (inclinación de la cámara + Espacio/C) y usa
+  la pose de planeo. El sistema rehace `motor.fly` cada fotograma, así que un
+  teletransporte no corta el vuelo.
+- **Espada**: `meleeWeapon` es un gancho genérico de `PlayerCombat`
+  (multiplicador de daño, alcance extra, tipo de golpe y efecto del barrido)
+  que cualquier familia puede exponer.
+- **Escudo**: colisionador `shield`; `ProjectileSystem` incluye el
+  colisionador en `projectile:hit` y el sistema descuenta los ataques. Al
+  romperse se desactiva en el acto (otra bala del mismo paso pasa).
+- **Lluvia**: cada pluma es una instancia con trayectoria balística que llega a
+  su punto de la zona en un tiempo fijo; al caer daña a quien está cerca.
+- `WingsVisual`: un InstancedMesh por ala (`count` = plumas que quedan) y otro
+  para la espada; plegadas en reposo, abiertas y batiendo al volar.

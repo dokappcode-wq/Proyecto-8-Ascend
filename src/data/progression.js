@@ -63,4 +63,38 @@ export const PROGRESSION = Object.freeze({
       { id: 'telarana', name: 'Telaraña', type: 'future', cost: 3, requires: ['cadena', 'nudo'], desc: 'Atrapa a varios enemigos a la vez. Llegará en una versión posterior.' },
     ],
   },
+  temperatura: {
+    xpPerLevel: 100,
+    energyPerLevel: 15,
+    xpRewards: { pdc: 40, acolyte: 60, dummy: 5 },
+    nodes: [
+      { id: 'hielo-fuego', name: 'Hielo y fuego', type: 'base', desc: '10 disparos alternando hielo (derecha) y fuego (izquierda).' },
+      { id: 'patinar', name: 'Patinar', type: 'base', desc: 'Q: suelo sin fricción; en las paredes patinas cayendo en U. Shift: fuego atrás y camino de hielo en el aire.' },
+      { id: 'muro', name: 'Muro de hielo', type: 'base', desc: 'Un muro de hielo delante para cubrirte.' },
+      { id: 'estela', name: 'Estela de fuego', type: 'base', desc: 'Una raya de fuego delante que quema a los enemigos.' },
+      { id: 'tormenta', name: 'Fuego frío', type: 'base', desc: 'Una nube sobre ti descarga una tormenta que daña a los enemigos.' },
+      { id: 'cargador-termico', name: 'Cargador térmico', type: 'upgrade', cost: 1, requires: ['hielo-fuego'], desc: '+4 disparos por cargador.', effects: { magazineBonus: 4 } },
+      { id: 'muro-grueso', name: 'Muro grueso', type: 'upgrade', cost: 1, requires: ['muro'], desc: 'El muro es más ancho y dura 5 s más.', effects: { wallWidthAdd: 2, wallLifeAdd: 5 } },
+      { id: 'brasas', name: 'Brasas', type: 'upgrade', cost: 1, requires: ['estela'], desc: 'La estela quema un 50 % más y dura 2 s más.', effects: { trailDpsMul: 1.5, trailLifeAdd: 2 } },
+      { id: 'ventisca', name: 'Ventisca', type: 'upgrade', cost: 2, requires: ['tormenta', 'patinar'], desc: 'La tormenta es más grande y dura 3 s más.', effects: { stormRadiusAdd: 2, stormLifeAdd: 3 } },
+      { id: 'cero-absoluto', name: 'Cero absoluto', type: 'future', cost: 3, requires: ['ventisca', 'muro-grueso'], desc: 'Congela por completo a los enemigos. Llegará en una versión posterior.' },
+    ],
+  },
+  alas: {
+    xpPerLevel: 100,
+    energyPerLevel: 15, // cada nivel, 15 plumas más
+    xpRewards: { pdc: 40, acolyte: 60, dummy: 5 },
+    nodes: [
+      { id: 'plumas', name: 'Plumas', type: 'base', desc: 'Disparas tus plumas: cada disparo gasta una y se regeneran con el tiempo.' },
+      { id: 'vuelo', name: 'Vuelo', type: 'base', desc: 'Q: modo vuelo. Cuantas más plumas tengas, más rápido vuelas.' },
+      { id: 'espada', name: 'Espada de plumas', type: 'base', desc: 'Espada de 20 plumas: +20 % de ataque físico. Mantén R para hacerla más grande.' },
+      { id: 'lluvia', name: 'Lluvia de plumas', type: 'base', desc: '50 plumas caen del cielo sobre la zona que señalas.' },
+      { id: 'escudo', name: 'Escudo de plumas', type: 'base', desc: 'Un muro de 10 plumas delante que aguanta un ataque.' },
+      { id: 'muda', name: 'Muda rápida', type: 'upgrade', cost: 1, requires: ['plumas'], desc: 'Las plumas se regeneran un 50 % más rápido.', effects: { featherRegenMul: 1.5 } },
+      { id: 'alas-fuertes', name: 'Alas fuertes', type: 'upgrade', cost: 1, requires: ['vuelo'], desc: '+5 m/s de velocidad de vuelo.', effects: { flySpeedAdd: 5 } },
+      { id: 'filo', name: 'Filo de pluma', type: 'upgrade', cost: 1, requires: ['espada'], desc: 'La espada da un 10 % más de ataque en cada tamaño.', effects: { swordBonusAdd: 0.1 } },
+      { id: 'escudo-doble', name: 'Escudo doble', type: 'upgrade', cost: 2, requires: ['escudo', 'lluvia'], desc: 'El escudo aguanta un ataque más.', effects: { shieldHitsAdd: 1 } },
+      { id: 'vendaval', name: 'Vendaval', type: 'future', cost: 3, requires: ['escudo-doble', 'alas-fuertes'], desc: 'Un aletazo que derriba a todos a tu alrededor. Llegará en una versión posterior.' },
+    ],
+  },
 });

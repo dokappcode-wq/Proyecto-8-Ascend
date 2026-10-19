@@ -200,6 +200,8 @@ export class AudioSystem {
         proyectil: 'zap', dash: 'dash', 'dash-dirigido': 'dash', descarga: 'discharge', onda: 'wave', rayo: 'dash',
         disparo: 'gshot', rocas: 'stone', atraer: 'pull', empujar: 'push', granada: 'throw',
         hilos: 'whip', balanceo: 'thwip', atar: 'bind', lanzar: 'launch', 'atraer-hilo': 'thwip',
+        hielo: 'ice', fuego: 'fire', patinar: 'skate', muro: 'iceWall', estela: 'flame', tormenta: 'thunder',
+        plumas: 'feather', vuelo: 'flap', espada: 'swordForm', lluvia: 'flutter', escudo: 'flutter',
       };
       if (map[e.id]) this.play(map[e.id], { pos: me() });
     });
@@ -211,6 +213,11 @@ export class AudioSystem {
     ev.on('player:glide-start', () => this.loop('glide'));
     ev.on('player:glide-end', () => this.stopLoop('glide'));
     ev.on('passive:gravity', () => this.play('stasis', { bus: 'ui' }));
+    ev.on('passive:temperature', (e) => this.play('sizzle', { pos: at(e.target?.position), volume: 0.7 }));
+    ev.on('temperature:bolt', (e) => this.play('crack', { pos: e.point, throttle: 0.1 }));
+    ev.on('temperature:ice-run', () => this.play('flame', { pos: me(), volume: 0.8 }));
+    ev.on('wings:shield-broken', () => this.play('flutter', { pos: me(), volume: 1 }));
+    ev.on('wings:shield-hit', () => this.play('hit', { pos: me() }));
     ev.on('passive:energy', (e) => this.play('punchZap', { pos: at(e.target?.position), volume: 0.7 }));
     ev.on('mark:switched', () => this.play('switch', { bus: 'ui' }));
     ev.on('power:failed', () => this.play('fail', { bus: 'ui', throttle: 0.25 }));
@@ -247,6 +254,16 @@ export class AudioSystem {
     const pw = game.powers;
     if (pw.isCharging) this.loop('charge', pw.chargeRatio);
     else this.stopLoop('charge');
+    // Temperatura: roce del patinaje y propulsión de fuego
+    const tp = game.temperature;
+    const m = game.player.motor;
+    if (tp?.skating && (m.grounded || m.isWallRiding) && m.horizontalSpeed > 1.5) this.loop('skate', Math.min(1, m.horizontalSpeed / 15));
+    else this.stopLoop('skate');
+    if (tp?.iceRunning) this.loop('jet');
+    else this.stopLoop('jet');
+    // Alas: aleteo mientras vuela
+    if (game.wings?.flying && !m.grounded) this.loop('wingbeat', Math.min(1, Math.hypot(m.velocity.x, m.velocity.y, m.velocity.z) / 20));
+    else this.stopLoop('wingbeat');
   }
 }
 
@@ -414,6 +431,36 @@ const SFX = {
     noise(a, o, t, 0.25, { type: 'bandpass', freq: 500, freq2: 1800, q: 1.2, peak: 0.3 });
     tone(a, o, t + 0.12, 0.12, { freq: 160, freq2: 60, peak: 0.4 });
   },
+  // Temperatura
+  ice: (a, o, t) => {
+    tone(a, o, t, 0.16, { type: 'triangle', freq: 2400, freq2: 1500, peak: 0.08 });
+    noise(a, o, t, 0.06, { type: 'highpass', freq: 5000, peak: 0.2, attack: 0.001 });
+  },
+  fire: (a, o, t) => noise(a, o, t, 0.2, { type: 'lowpass', freq: 1400, freq2: 500, peak: 0.3, attack: 0.01 }),
+  skate: (a, o, t) => noise(a, o, t, 0.25, { type: 'bandpass', freq: 5000, freq2: 2500, q: 2, peak: 0.16 }),
+  iceWall: (a, o, t) => {
+    for (let i = 0; i < 4; i++) noise(a, o, t + i * 0.04, 0.08, { type: 'highpass', freq: 3500 - i * 500, peak: 0.22 });
+    tone(a, o, t, 0.3, { freq: 140, freq2: 70, peak: 0.3 });
+  },
+  flame: (a, o, t) => noise(a, o, t, 0.6, { type: 'lowpass', freq: 400, freq2: 1600, peak: 0.35, attack: 0.05 }),
+  thunder: (a, o, t) => {
+    noise(a, o, t, 1.2, { type: 'lowpass', freq: 300, freq2: 90, peak: 0.45, attack: 0.08, buffer: 'brown' });
+    noise(a, o, t + 0.05, 0.1, { type: 'highpass', freq: 2500, peak: 0.25 });
+  },
+  crack: (a, o, t) => noise(a, o, t, 0.12, { type: 'highpass', freq: 1800, peak: 0.3, attack: 0.001 }),
+  // Alas
+  feather: (a, o, t) => noise(a, o, t, 0.08, { type: 'bandpass', freq: 3200, freq2: 1800, q: 2, peak: 0.14 }),
+  flap: (a, o, t) => {
+    for (let i = 0; i < 2; i++) noise(a, o, t + i * 0.14, 0.12, { type: 'lowpass', freq: 900, freq2: 300, peak: 0.35 });
+  },
+  swordForm: (a, o, t) => {
+    noise(a, o, t, 0.3, { type: 'bandpass', freq: 2400, freq2: 4000, q: 2, peak: 0.16 });
+    tone(a, o, t + 0.05, 0.25, { type: 'triangle', freq: 660, freq2: 990, peak: 0.07 });
+  },
+  flutter: (a, o, t) => {
+    for (let i = 0; i < 5; i++) noise(a, o, t + i * 0.05, 0.06, { type: 'bandpass', freq: 1400 + i * 300, q: 1.5, peak: 0.16 });
+  },
+  sizzle: (a, o, t) => noise(a, o, t, 0.35, { type: 'highpass', freq: 4500, peak: 0.14, attack: 0.02 }),
   switch: (a, o, t) => {
     tone(a, o, t, 0.08, { type: 'triangle', freq: 440, peak: 0.1 });
     tone(a, o, t + 0.08, 0.12, { type: 'triangle', freq: 660, peak: 0.1 });
@@ -504,6 +551,67 @@ LOOPS.glide = (a, out) => {
   f.Q.value = 0.6;
   const g = ctx.createGain();
   g.gain.value = 0.08;
+  n.connect(f).connect(g).connect(out);
+  n.start();
+  return { sources: [n] };
+};
+
+/** Patinaje: roce agudo del hielo; más fuerte cuanto más rápido. */
+LOOPS.skate = (a, out) => {
+  const ctx = a.ctx;
+  const n = ctx.createBufferSource();
+  n.buffer = a.white;
+  n.loop = true;
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 3800;
+  f.Q.value = 1.4;
+  const g = ctx.createGain();
+  g.gain.value = 0.02;
+  n.connect(f).connect(g).connect(out);
+  n.start();
+  return {
+    sources: [n],
+    set: (v) => g.gain.setTargetAtTime(0.02 + v * 0.05, ctx.currentTime, 0.08),
+  };
+};
+
+/** Vuelo: batir de alas (ruido grave modulado). */
+LOOPS.wingbeat = (a, out) => {
+  const ctx = a.ctx;
+  const n = ctx.createBufferSource();
+  n.buffer = a.white;
+  n.loop = true;
+  const f = ctx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 500;
+  const g = ctx.createGain();
+  g.gain.value = 0.05;
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 2.2;
+  const lg = ctx.createGain();
+  lg.gain.value = 0.05;
+  lfo.connect(lg).connect(g.gain);
+  n.connect(f).connect(g).connect(out);
+  n.start();
+  lfo.start();
+  return {
+    sources: [n, lfo],
+    set: (v) => f.frequency.setTargetAtTime(400 + v * 700, ctx.currentTime, 0.1),
+  };
+};
+
+/** Carrera de hielo: rugido de la llama de propulsión. */
+LOOPS.jet = (a, out) => {
+  const ctx = a.ctx;
+  const n = ctx.createBufferSource();
+  n.buffer = a.white;
+  n.loop = true;
+  const f = ctx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 900;
+  const g = ctx.createGain();
+  g.gain.value = 0.12;
   n.connect(f).connect(g).connect(out);
   n.start();
   return { sources: [n] };

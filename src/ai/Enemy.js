@@ -4,11 +4,13 @@ import { CharacterModel } from '../player/CharacterModel.js';
 import { Health } from '../combat/Health.js';
 import { Magazine } from '../powers/Magazine.js';
 import { EnemyBrain, STATE_NAMES } from './EnemyBrain.js';
+import { BurnStatus } from '../powers/temperature/BurnStatus.js';
 
 const DT_STEP = 1 / 60;
 const tmp = new THREE.Vector3();
 const FLOAT_COLOR = new THREE.Color('#c58bff');
 const STUN_COLOR = new THREE.Color('#9fd0ff');
+const BURN_COLOR = new THREE.Color('#ff8a2a');
 
 /**
  * Enemy — actor enemigo: cuerpo físico (CharacterMotor), modelo animado,
@@ -187,6 +189,28 @@ export class Enemy {
     this.sys.events.emit('enemy:bound', { enemy: this, time: t });
   }
 
+  /** Quemado (pasiva de Temperatura): 1 de daño por tic hasta `total`. No se acumula. */
+  burn(cfg) {
+    if (!this.alive) return false;
+    this._burn ??= new BurnStatus(cfg);
+    return this._burn.ignite();
+  }
+
+  get burning() {
+    return !!this._burn?.active;
+  }
+
+  _updateBurn(dt) {
+    const b = this._burn;
+    if (!b?.active) return;
+    const dmg = b.update(dt);
+    if (dmg > 0) this.sys.combat.applyDamage(this, dmg, { kind: 'burn', faction: 'player' });
+    if (Math.random() < dt * 14) {
+      const c = this.center;
+      this.sys.vfx.particles.emit({ x: c.x + (Math.random() - 0.5) * 0.5, y: c.y + (Math.random() - 0.3) * 1.2, z: c.z + (Math.random() - 0.5) * 0.5, vx: 0, vy: 1.6, vz: 0, color: BURN_COLOR, size: 0.12, life: 0.45, drag: 1 });
+    }
+  }
+
   get bound() {
     return (this._bound ?? 0) > 0;
   }
@@ -309,6 +333,7 @@ export class Enemy {
     }
     this._stun = 0;
     this._bound = 0;
+    this._burn?.clear();
     if (this._bindMesh) this._bindMesh.visible = false;
     this.brain.update(0, { dead: true }); // estado: neutralizado
     this.sys.events.emit('enemy:neutralized', { enemy: this, type: this.type.id, tag: this.tag });
@@ -404,6 +429,8 @@ export class Enemy {
       this._updateDead(dt);
       return;
     }
+    this._updateBurn(dt);
+    if (!this.alive) return;
     if (this.magazine.update(dt)) this.model.setReload(null);
     this._fireCd = Math.max(0, this._fireCd - dt);
     if (this._float || this._stun > 0) {

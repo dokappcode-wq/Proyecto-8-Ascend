@@ -82,13 +82,28 @@ export class CharacterMotor {
     this.gliding = false;
     /** Balanceo con hilo: { x, y, z (anclaje), len, pump, maxSpeed } */
     this._swing = null;
+    /**
+     * Temperatura: patinaje (null = andar normal). { maxSpeed, accel, decel,
+     * wallMinSpeed, wallGravity, wallLift, wallTime }
+     */
+    this.skate = null;
+    /** Patinando por una pared: { nx, nz, t } */
+    this._wallRide = null;
+    /** Carrera de hielo por el aire (Shift patinando): { x, y, z (dirección), speed } */
+    this.iceRun = null;
+    /** Alas: modo vuelo { speed, response } (velocidad punta y rapidez de respuesta). */
+    this.fly = null;
 
     /**
      * Eventos del último paso (para animación / efectos).
      * `landingImmune`: el aterrizaje no debe causar daño por caída (picado).
      * `diveLanded`: { fallHeight } al terminar un picado.
      */
-    this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null, airJump: false };
+    this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null, airJump: false, wallRide: false };
+  }
+
+  get isWallRiding() {
+    return this._wallRide !== null;
   }
 
   // ------------------------------------------------------------------ Balanceo (Hilo)
@@ -174,6 +189,95 @@ export class CharacterMotor {
       v.y *= s.maxSpeed / sp;
       v.z *= s.maxSpeed / sp;
     }
+  }
+
+  // ------------------------------------------------------------------ Temperatura
+  /**
+   * Patinando contra una pared: en vez de chocar, se sube por ella con la
+   * velocidad que se llevaba y se baja por la falta de fricción (una U).
+   */
+  _tryWallRide(pre, speed) {
+    const c = this.cfg;
+    const p = this.position;
+    const ux = pre.x / speed;
+    const uz = pre.z / speed;
+    const w = probeWall(this.world, p, ux, uz, p.y + 1.0, c.radius + 0.3);
+    if (!w || !isClimbable(w.collider)) return;
+    const into = -(pre.x * w.nx + pre.z * w.nz);
+    if (into < speed * 0.25) return; // apenas roza la pared
+    const v = this.velocity;
+    // Conserva la velocidad a lo largo de la pared; la que iba contra ella se convierte en subida
+    v.x = pre.x + w.nx * into;
+    v.z = pre.z + w.nz * into;
+    v.y = Math.max(v.y, into * this.skate.wallLift + 2);
+    this._wallRide = { nx: w.nx, nz: w.nz, t: 0 };
+    this.grounded = false;
+    this.events.wallRide = true;
+  }
+
+  _updateWallRide(dt, input) {
+    const c = this.cfg;
+    const sk = this.skate;
+    const wr = this._wallRide;
+    const v = this.velocity;
+    wr.t += dt;
+    if (input.jump) {
+      // Salto desde la pared
+      v.x += wr.nx * 7;
+      v.z += wr.nz * 7;
+      v.y = Math.max(v.y, 8);
+      this._wallRide = null;
+      this.events.jumped = true;
+      return this._integrate(dt);
+    }
+    v.y = Math.max(v.y - c.gravity * (sk?.wallGravity ?? 0.5) * dt, -c.maxFallSpeed);
+    // Pegado a la pared
+    v.x -= wr.nx * 1.5 * dt * 10;
+    v.z -= wr.nz * 1.5 * dt * 10;
+    this._integrate(dt);
+    const wall = this._wallAt(this.position, wr, this.position.y + 1.0) || this._wallAt(this.position, wr, this.position.y + 0.4);
+    if (this.grounded || !wall || !sk || wr.t > sk.wallTime) this._wallRide = null;
+  }
+
+  /** Carrera de hielo: avanza en la dirección indicada, sin gravedad (el hielo se crea bajo los pies). */
+  _updateIceRun(dt) {
+    const r = this.iceRun;
+    const v = this.velocity;
+    v.x = r.x * r.speed;
+    v.y = r.y * r.speed;
+    v.z = r.z * r.speed;
+    this._swing = null;
+    this._wallRide = null;
+    this._integrate(dt);
+    // En el suelo y bajando, no se hunde
+    if (this.grounded && v.y < 0) v.y = 0;
+  }
+
+  // ------------------------------------------------------------------ Alas
+  /**
+   * Vuelo: sin gravedad; la velocidad tiende a la dirección pedida (WASD en el
+   * plano de la cámara inclinada + subir/bajar en `flyY`) por la velocidad punta.
+   */
+  _updateFly(dt, input) {
+    const f = this.fly;
+    const v = this.velocity;
+    let mx = input.moveX ?? 0;
+    let my = input.flyY ?? 0;
+    let mz = input.moveZ ?? 0;
+    const l = Math.hypot(mx, my, mz);
+    if (l > 1) {
+      mx /= l;
+      my /= l;
+      mz /= l;
+    }
+    const k = 1 - Math.exp(-dt * (f.response ?? 4));
+    v.x += (mx * f.speed - v.x) * k;
+    v.y += (my * f.speed - v.y) * k;
+    v.z += (mz * f.speed - v.z) * k;
+    this._swing = null;
+    this._wallRide = null;
+    this._integrate(dt);
+    if (this.grounded && v.y < 0) v.y = 0;
   }
 
   /** 'wall' | 'hang' | 'mantle' | 'vault' | null */
@@ -313,6 +417,9 @@ export class CharacterMotor {
     this._climb = null;
     this._mantle = null;
     this._swing = null;
+    this._wallRide = null;
+    this.iceRun = null;
+    this.fly = null;
     this._noGrab = 0;
     this._dodgeCooldown = 0;
     this._coyote = 0;
@@ -335,6 +442,7 @@ export class CharacterMotor {
     ev.landingSpeed = 0;
     ev.diveLanded = ev.travelEnded = ev.parkour = null;
     ev.airJump = false;
+    ev.wallRide = false;
     this.gliding = false;
     if (dt <= 0) return;
     dt = Math.min(dt, 0.1);
@@ -342,6 +450,9 @@ export class CharacterMotor {
 
     if (this._mantle) return this._updateMantle(dt);
     if (this._climb) return this._updateClimb(dt, input);
+    if (this.iceRun && !this._dive && !this._travel) return this._updateIceRun(dt);
+    if (this.fly && !this._dive && !this._travel && !this._burst) return this._updateFly(dt, input);
+    if (this._wallRide) return this._updateWallRide(dt, input);
 
     if (this._dive) return this._updateDive(dt);
     if (this._travel) return this._updateTravel(dt);
@@ -394,11 +505,17 @@ export class CharacterMotor {
     } else {
       const J = this.jumpAbilities;
       const glide = !!J && J.glide !== false && this._glideNow(input);
-      const maxSpeed = glide ? Math.max(J.glideSpeed, this.horizontalSpeed) : (input.sprint ? c.sprintSpeed : c.walkSpeed) * (input.speedScale ?? 1);
+      let maxSpeed = glide ? Math.max(J.glideSpeed, this.horizontalSpeed) : (input.sprint ? c.sprintSpeed : c.walkSpeed) * (input.speedScale ?? 1);
+      const hasInput = mLen > 0.01;
+      let accel = this.grounded ? (hasInput ? c.groundAccel : c.groundDecel) : c.airAccel;
+      // Patinando: casi sin fricción (cuesta frenar y girar) y más velocidad punta
+      const sk = this.skate;
+      if (sk && this.grounded) {
+        maxSpeed = Math.max(sk.maxSpeed, Math.min(this.horizontalSpeed, sk.maxSpeed * 1.5));
+        accel = hasInput ? sk.accel : sk.decel;
+      }
       const tx = mx * maxSpeed;
       const tz = mz * maxSpeed;
-      const hasInput = mLen > 0.01;
-      const accel = this.grounded ? (hasInput ? c.groundAccel : c.groundDecel) : c.airAccel;
       // En el aire no se frena por debajo de la velocidad actual si no hay input.
       if (this.grounded || hasInput) {
         const dx = tx - v.x;
@@ -455,14 +572,16 @@ export class CharacterMotor {
 
     // Velocidad antes de chocar (para decidir si salta un obstáculo por encima)
     const approachSpeed = this.horizontalSpeed;
+    const pre = { x: v.x, z: v.z };
     this._integrate(dt);
+    if (this.skate && !this._swing && !this._burst && approachSpeed >= this.skate.wallMinSpeed) this._tryWallRide(pre, approachSpeed);
     if (this._swing) {
       this._applyRope();
       // Al tocar el suelo se suelta el hilo
       if (this.grounded) this._swing = null;
     }
 
-    if (c.parkour && !input.noParkour && !this.isBusy && !this.crouched && !this._swing) this._tryParkour(mx, mz, mLen, approachSpeed);
+    if (c.parkour && !input.noParkour && !this.isBusy && !this.crouched && !this._swing && !this.skate && !this._wallRide) this._tryParkour(mx, mz, mLen, approachSpeed);
   }
 
   /** ¿Planea ahora? (Gravedad: salto mantenido mientras cae) */

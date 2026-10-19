@@ -15,6 +15,10 @@ const PALETTES = {
   gravedad: { skin: 0xc79478, jacket: 0x4f4558, hoodie: 0x2f2f35, pants: 0x4a4036, boots: 0x2e2622, hair: 0x9a9590 },
   // Hilo: chaqueta clara de punto, pantalón beis
   hilo: { skin: 0xb98266, jacket: 0xd9d4c8, hoodie: 0x6b6f7a, pants: 0x8f826b, boots: 0x3a3330, hair: 0x1f1a17 },
+  // Temperatura: anorak de invierno sobre camiseta naranja
+  temperatura: { skin: 0xd2a07e, jacket: 0x2d6f73, hoodie: 0xc8642a, pants: 0x3c4148, boots: 0x2a2624, hair: 0x6e3b22 },
+  // Alas: cazadora rosa palo y sudadera blanca
+  alas: { skin: 0x8d5a3f, jacket: 0xd68aa6, hoodie: 0xf2eef0, pants: 0x4a4a58, boots: 0x2c2628, hair: 0xe8d8b0 },
 };
 
 export class Incarnation {
@@ -35,6 +39,9 @@ export class Incarnation {
     this.model.root.position.set(x, y, z);
     this.model.root.rotation.y = yaw;
     ctx.group.add(this.model.root);
+    // Lejos de la cámara se oculta (MapManager.cull)
+    this.lodRoot = this.model.root;
+    this.lodDistance = 60;
     this.mark = new MarkVisual(this.model, this.def);
     this.mark.setWristVisibility(0.18); // casi oculta
 
@@ -66,6 +73,7 @@ export class Incarnation {
     // En reposo no muestra su poder; durante la conexión se le escapa un poco
     this.mark.setWristVisibility(0.18 + this.reach * 0.4 + this.channel * 0.42);
     this.mark.setIntensity(this.channel * 0.7);
+    if (!this.model.root.visible) return;
     this.model.animate(dt, {
       speed: 0, grounded: true, sprinting: false, dodging: false, verticalSpeed: 0,
       aimWeight: this.reach, aimPitch: -0.35,

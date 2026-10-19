@@ -32,6 +32,13 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   marca con V; pasiva de la Energía (5 % de detener).
 - **Marca del Hilo** ✅: tercera marca (blanca): balanceo con hilo, puño de
   hilo, golpe de cadena, atar, lanzar, atraerse y salto alto.
+- **Marca de la Temperatura** ✅: cuarta marca (degradado turquesa → naranja):
+  patinaje sin fricción (también por paredes, en U), carrera de hielo por el
+  aire con Shift, disparos alternos de hielo y fuego, muro de hielo, estela de
+  fuego, tormenta de fuego frío y quemadura en los golpes.
+- **Marca de las Alas** ✅: quinta marca (rosa): 100 plumas que son munición y
+  carga y se regeneran; vuelo (más rápido cuantas más plumas), espada de
+  plumas que crece, lluvia de plumas y escudo de plumas.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -180,6 +187,64 @@ Código: `src/systems/ThreadPowerSystem.js`, `src/powers/thread/`, balanceo en
 corrección limitada para no atravesar muros finos) y selección del enemigo de
 la mira compartida en `src/powers/targeting.js`.
 
+## Marca de la Temperatura
+
+**Cómo conseguirla**: cuarta Encarnación de la Zona E (anorak verde azulado,
+entre un arcón congelador y un bidón con fuego). V recorre las cuatro marcas.
+
+**Recarga**: **arcones congeladores** y **bidones con fuego** (inicio, zonas
+del Campo; callejones, tiendas y una azotea del Distrito).
+
+| Tecla | Habilidad | Coste | Efecto |
+| --- | --- | --- | --- |
+| Clic izq. | Hielo y fuego | 2 | **10 balas**; alterna un disparo de **hielo con la mano derecha** y uno de **fuego con la izquierda**, los dos con el mismo daño (10). Al vaciarse recarga sola (1.3 s) |
+| Q (alterna) | Patinar | 4 + 3/s | **Suelo sin fricción**: aceleras hasta 13 m/s (más cuesta abajo o con impulso), cuesta frenar y girar. Si patinas **contra una pared**, subes por ella con la velocidad que llevabas y caes trazando una **U** (sin fricción no te sostienes); Espacio salta desde la pared |
+| Shift (patinando) | Carrera de hielo | 14/s | **Fuego hacia atrás** que te empuja (17 m/s) y una **plataforma de hielo bajo los pies** hacia donde apuntas (hasta ±35°): «andas por el aire». Al soltar quedas de pie sobre el hielo; las placas se funden a los 7 s |
+| R | Muro de hielo | 18 | Un muro de 4.8 × 2.6 m delante que **para balas y cuerpos** durante 10 s y luego se derrite |
+| G | Estela de fuego | 18 | Una raya de fuego de 11 m delante (sigue el suelo) que quema a quien la pisa (9/s, 5 s) |
+| X / clic central | Fuego frío | 30 | Una **nube encima de ti** descarga una tormenta (6.5 m de radio, 8 s): lluvia helada, rayos turquesa y naranja y 7/s de daño a los de debajo |
+
+**Pasiva — Quemadura**: tus **golpes físicos queman**: 1 de daño cada medio
+segundo hasta 10. No se acumula: golpear a un enemigo que ya arde no reinicia
+ni suma la quemadura.
+
+**Mejoras**: Cargador térmico (+4 balas), Muro grueso (+2 m, +5 s), Brasas
+(estela +50 % y +2 s), Ventisca (tormenta +2 m, +3 s) y Cero absoluto
+(próximamente).
+
+Código: `src/systems/TemperaturePowerSystem.js`, `src/powers/temperature/`
+(configuración y `BurnStatus`), patinaje, pared en U y carrera de hielo en
+`src/physics/CharacterMotor.js` (`skate`, `_wallRide`, `iceRun`).
+
+## Marca de las Alas
+
+**Cómo conseguirla**: quinta Encarnación de la Zona E (cazadora rosa palo,
+junto a un palomar). V recorre las cinco marcas.
+
+**Plumas**: las Alas te dan **100 plumas** (15 más por nivel) que son a la vez
+la **munición** y la carga de las habilidades. Se ven en tus alas: cuantas
+menos te quedan, más despeinadas. **Se regeneran solas** (5 por segundo tras
+1.5 s sin gastar) y más rápido absorbiendo de **palomares** y **montones de
+cojines**. En el HUD, cada símbolo de pluma son 10.
+
+| Tecla | Habilidad | Plumas | Efecto |
+| --- | --- | --- | --- |
+| Clic izq. | Plumas | 1 por disparo | Disparas tus plumas (6 de daño, cadencia alta); sin plumas no puedes disparar |
+| Q (alterna) | Vuelo | 0 | **Modo vuelo**: W/S siguen hacia donde miras (también arriba y abajo), **Espacio** sube y **C** baja. La velocidad depende de las plumas: de 6 m/s sin plumas a 20 m/s con todas |
+| R (mantener: más grande) | Espada de plumas | 20 (+10 por tamaño) | Una espada de 20 plumas en la mano: **+20 % de ataque físico** y más alcance durante 30 s. Mantén R (o vuelve a pulsarla) para hacerla más grande: cada tamaño cuesta 10 plumas más y da +10 % (hasta 50 plumas y +50 %) |
+| G | Lluvia de plumas | 50 | Sobre la zona que señalas (4.5 m de radio): **desde el aire** las plumas caen desde tu posición; **desde el suelo** suben y luego caen. Cada pluma que cae cerca de un enemigo le hace 4 de daño |
+| X / clic central | Escudo de plumas | 10 | Un muro de plumas delante que **aguanta un ataque** (la primera bala que lo toca) y se deshace |
+
+**Pasiva**: ninguna (la marca no la define).
+
+**Mejoras**: Muda rápida (+50 % de regeneración), Alas fuertes (+5 m/s de
+vuelo), Filo de pluma (+10 % con la espada), Escudo doble (aguanta un ataque
+más) y Vendaval (próximamente).
+
+Código: `src/systems/WingsPowerSystem.js`, `src/powers/wings/`, alas y espada
+en `src/player/WingsVisual.js` (InstancedMesh: una llamada de dibujo por ala)
+y vuelo en `src/physics/CharacterMotor.js` (`fly`).
+
 ## Etapa 7 — Pulido
 
 **Sonido** (`src/audio/`): todo se sintetiza en tiempo real con Web Audio, sin
@@ -214,7 +279,8 @@ ambiente se silencia. **Ajustes**: volumen general, efectos y ambiente.
   (saltando sí se pueden superar). No se escalan ni bloquean la cámara.
 - Prueba de estrés del motor (`tests/unit/fuzz.test.js`): 36 000 pasos con
   entradas aleatorias (movimiento, salto, esquiva, dash, desplazamiento
-  dirigido, picado, agacharse, escalada, frames lentos) en 12 mundos
+  dirigido, picado, agacharse, escalada, balanceo, patinaje, carrera de
+  hielo, vuelo, frames lentos) en 12 mundos
   aleatorios, comprobando que la posición es finita, que no se atraviesa
   ninguna caja y que no se sale de los límites. Se ejecutó también con 200
   mundos (600 000 pasos) sin fallos.
@@ -593,6 +659,21 @@ contenedores y cajas (A1, A2).
     hasta una pared; la cadena alcanza a dos enemigos; lanzar sube al enemigo
     ≈5 m; mantener Q balancea y soltar suelta; el salto alto llega a ≈4.5 m;
     los rollos de tela recargan el Hilo.
+  - Temperatura: se copia y quedan cuatro marcas; V las recorre; el HUD
+    muestra 10 balas alternando hielo y fuego; los disparos alternan mano y
+    hacen el mismo daño; el golpe quema 10 en total aunque se repita; la
+    estela y la tormenta dañan; el muro corta la línea de tiro; patinando
+    contra el muro de 8 m se sube y se cae en U; Shift patinando sube por el
+    aire sobre placas de hielo y al soltar se queda de pie encima; el arcón
+    congelador recarga la Temperatura.
+  - Alas: se copian y quedan cinco marcas; V las recorre; el HUD muestra
+    100/100 con 10 símbolos y las alas se ven en la espalda; 30 disparos
+    gastan 30 plumas, aciertan y las alas muestran menos plumas; las plumas
+    se regeneran; la espada cuesta 20, sube el golpe un 20 % y manteniendo R
+    crece hasta 50 plumas con más daño; la lluvia gasta 50 y daña desde el
+    suelo y desde el aire; el vuelo sube mirando arriba y con 10 plumas va a
+    menos del 60 % de la velocidad; el escudo cuesta 10, para la primera bala
+    y deja pasar la segunda; los cojines recuperan plumas.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.

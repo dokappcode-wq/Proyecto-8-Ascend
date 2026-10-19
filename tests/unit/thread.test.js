@@ -97,7 +97,7 @@ test('Hilo (pasiva): mantener el salto da un salto alto, sin planeo ni saltos ex
 });
 
 test('Hilo: datos de la marca y árbol de mejoras', () => {
-  assert.deepEqual(COPY_ORDER, ['energia', 'gravedad', 'hilo']);
+  assert.deepEqual(COPY_ORDER.slice(0, 3), ['energia', 'gravedad', 'hilo']);
   assert.equal(MARKS.hilo.color.toLowerCase(), '#f2f4f8');
   assert.ok(MARKS.hilo.passive);
   assert.equal(PROGRESSION.hilo.nodes.filter((n) => n.type === 'base').length, 5);

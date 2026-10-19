@@ -1325,6 +1325,354 @@ try {
   check(hDrain.e > 50 && hDrain.active === 'hilo', `Absorber de unos rollos de tela recarga el Hilo y lo activa (${hDrain.e.toFixed(0)})`);
   await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = false; a.marks.setActive('energia'); a.save.save(); });
 
+  // ---------------- Marca de la Temperatura ----------------
+  console.log('\n[temperatura]');
+  await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = true; a.enemies.clear(); a.thread.clear(); a.playerCombat.restore(); });
+  await g(() => window.__ascend.player.spawnAt({ x: 11, y: 0.4, z: -68.4, yaw: Math.PI }));
+  await page.waitForFunction(() => /Temperatura/.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'contact', null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.save.data.profile.marks.includes('temperatura'), null, { timeout: 25000 }).catch(() => {});
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'idle', null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  await page.waitForTimeout(300);
+  const tAcq = await g(() => ({
+    owned: window.__ascend.marks.ownedCopies.join(','), active: window.__ascend.marks.activeFamily,
+    slots: [...document.querySelectorAll('#hud-abilities .ability')].filter((e) => e.style.display !== 'none').map((e) => e.querySelector('.name').textContent).join(','),
+    icons: [...document.querySelectorAll('#hud-ammo-icons .ammo-icon')].map((e) => (e.classList.contains('ice') ? 'i' : e.classList.contains('flame') ? 'f' : '?')).join(''),
+  }));
+  check(tAcq.owned === 'energia,gravedad,hilo,temperatura' && tAcq.active === 'temperatura', `Temperatura copiada: cuatro marcas y la Temperatura queda activa (${tAcq.owned})`);
+  check(/Hielo\/Fuego/.test(tAcq.slots) && /Patinar/.test(tAcq.slots) && /Muro/.test(tAcq.slots) && /Estela/.test(tAcq.slots) && /Tormenta/.test(tAcq.slots), `El HUD muestra las habilidades de la Temperatura (${tAcq.slots})`);
+  check(tAcq.icons === 'ifififififif'.slice(0, 10), `10 balas en el HUD, alternando hielo y fuego (${tAcq.icons})`);
+  const tCyc = [];
+  for (let k = 0; k < 4; k++) {
+    await page.keyboard.press('KeyV');
+    await page.waitForTimeout(250);
+    tCyc.push(await g(() => window.__ascend.marks.activeFamily));
+  }
+  check(tCyc.join(',') === 'energia,gravedad,hilo,temperatura', `V recorre las cuatro marcas (${tCyc.join(' → ')})`);
+
+  // Disparo: alterna hielo (derecha) y fuego (izquierda), mismo daño
+  await g(() => {
+    const a = window.__ascend;
+    a.temperature.resetAbilities();
+    a.temperature.energy.refill();
+    a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI });
+    window.__te = a.enemies.spawn('pdc', { x: -24, y: 0.2, z: 22, yaw: 0, tag: 't', patrol: [{ x: -24, z: 22 }] });
+    window.__te.bind(60);
+    window.__te.health.max = window.__te.health.value = 500; // aguanta todas las pruebas
+    window.__tShots = [];
+    window.__tDmg = {};
+    a.events.on('power:used', (e) => { if (e.id === 'hielo' || e.id === 'fuego') window.__tShots.push(`${e.id}:${e.hand}`); });
+    a.events.on('combat:damage', (d) => { if (d.target === window.__te) window.__tDmg[d.kind] = (window.__tDmg[d.kind] ?? 0) + d.amount; });
+  });
+  await page.waitForTimeout(300);
+  await g(() => window.__aimAt(window.__te.center));
+  for (let k = 0; k < 2; k++) {
+    await g(() => { const a = window.__ascend; a.temperature.abilities.projectile.reset(); a.temperature._fire(); });
+  }
+  await page.waitForFunction(() => (window.__tDmg.hielo ?? 0) > 0 && (window.__tDmg.fuego ?? 0) > 0, null, { timeout: 10000 }).catch(() => {});
+  const tShot = await g(() => ({ shots: window.__tShots.join(','), dmg: { ...window.__tDmg }, ammo: window.__ascend.temperature.magazine.ammo }));
+  check(tShot.shots === 'hielo:R,fuego:L' && tShot.ammo === 8, `Los disparos alternan hielo con la derecha y fuego con la izquierda (${tShot.shots}, quedan ${tShot.ammo})`);
+  check(tShot.dmg.hielo > 0 && tShot.dmg.hielo === tShot.dmg.fuego, `Hielo y fuego hacen el mismo daño (${tShot.dmg.hielo} y ${tShot.dmg.fuego})`);
+  // Pasiva: el golpe físico quema (1 por tic hasta 10, sin acumularse)
+  await g(() => {
+    const a = window.__ascend;
+    const e = window.__te;
+    a.player.spawnAt({ x: -24, y: 0.3, z: 23.4, yaw: Math.PI });
+    a.player.facing = Math.PI;
+    a.playerCombat._meleeCd = 0;
+    window.__burnStart = a._time;
+  });
+  await page.keyboard.press('KeyF');
+  await page.waitForFunction(() => window.__te.burning, null, { timeout: 8000 }).catch(() => {});
+  const burning = await g(() => window.__te.burning);
+  await g(() => { const a = window.__ascend; a.playerCombat._meleeCd = 0; });
+  await page.keyboard.press('KeyF');
+  await page.waitForFunction(() => (window.__tDmg.burn ?? 0) >= 10 && !window.__te.burning, null, { timeout: 40000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  const tBurn = await g(() => window.__tDmg.burn ?? 0);
+  check(burning && tBurn === 10, `Pasiva: el golpe físico quema 10 de daño en total aunque se golpee otra vez (${tBurn})`);
+  // Estela de fuego: daña a quien está sobre la raya
+  await g(() => { const a = window.__ascend; const e = window.__te.position; a.player.spawnAt({ x: e.x, y: 0.3, z: e.z + 8, yaw: Math.PI }); });
+  await page.waitForTimeout(200);
+  await g(() => window.__aimAt({ x: window.__te.position.x, y: 0.6, z: window.__te.position.z - 4 }));
+  await page.keyboard.press('KeyG');
+  await page.waitForFunction(() => (window.__tDmg.estela ?? 0) > 0, null, { timeout: 15000 }).catch(() => {});
+  await page.screenshot({ path: path.join(out, 'temp-01-trail.png') });
+  const tTrail = await g(() => ({ d: window.__tDmg.estela ?? 0, n: window.__ascend.temperature.trails.length }));
+  check(tTrail.n === 1 && tTrail.d > 0, `G deja una estela de fuego que quema al enemigo (${tTrail.d} de daño)`);
+  // Fuego frío: nube encima que descarga una tormenta
+  // (los golpes lo han desplazado: el jugador se coloca a 3 m de donde está)
+  await g(() => { const a = window.__ascend; const e = window.__te.position; a.player.spawnAt({ x: e.x, y: 0.3, z: e.z + 3, yaw: Math.PI }); });
+  await page.keyboard.press('KeyX');
+  await page.waitForFunction(() => (window.__tDmg.tormenta ?? 0) > 0, null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await g(() => window.__aimAt({ x: window.__te.position.x, y: 4, z: window.__te.position.z - 4 }));
+  await page.screenshot({ path: path.join(out, 'temp-02-storm.png') });
+  const tStorm = await g(() => { const s = window.__ascend.temperature.storms[0]; return { d: window.__tDmg.tormenta ?? 0, y: s ? s.cloudY - s.center.y : 0 }; });
+  check(tStorm.d > 0 && tStorm.y > 4, `X crea una nube ${tStorm.y.toFixed(1)} m por encima que daña con su tormenta (${tStorm.d})`);
+  // Muro de hielo: bloquea la línea de tiro
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI }); });
+  await page.waitForTimeout(200);
+  await g(() => window.__aimAt({ x: -24, y: 1.2, z: 20 }));
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(() => window.__ascend.temperature.walls.length > 0, null, { timeout: 8000 }).catch(() => {});
+  const tWall = await g(() => {
+    const a = window.__ascend;
+    const p = a.player.motor.position;
+    const hit = a.world.raycastHit({ x: p.x, y: p.y + 1.2, z: p.z }, { x: 0, y: 0, z: -1 }, 10);
+    return { n: a.temperature.walls[0]?.colliders.length ?? 0, tag: hit?.collider?.tag, t: hit?.t ?? null };
+  });
+  await page.screenshot({ path: path.join(out, 'temp-03-wall.png') });
+  check(tWall.n >= 6 && tWall.tag === 'ice' && tWall.t < 4, `R levanta un muro de hielo delante que corta la línea de tiro (${tWall.n} tramos, a ${tWall.t?.toFixed(1)} m)`);
+  // Patinar (Q): casi sin fricción; contra el muro de 8 m de la Zona B se sube por ella y se cae en U
+  await g(() => { const a = window.__ascend; a.temperature.clear(); a.temperature.energy.refill(); a.player.spawnAt({ x: 43, y: 0.3, z: 2, yaw: 0 }); a.cameraController.yaw = Math.atan2(0.45, -0.9); a.cameraController.pitch = 0; });
+  await page.waitForTimeout(200);
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => window.__ascend.temperature.skating, null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyW');
+  const tSkate = await g(() => {
+    const a = window.__ascend;
+    const m = a.player.motor;
+    const e0 = a.temperature.energy.value;
+    let rode = false;
+    let peak = 0;
+    let after = false;
+    for (let i = 0; i < 300; i++) {
+      a.player.update(1 / 60);
+      a.temperature.update(1 / 60);
+      a.input.endFrame();
+      if (m.events.wallRide) rode = true;
+      if (rode) peak = Math.max(peak, m.position.y);
+      if (rode && peak > 1 && m.grounded) { after = true; break; }
+    }
+    return { skate: !!m.skate, rode, peak, after, spent: e0 - a.temperature.energy.value };
+  });
+  await page.keyboard.up('KeyW');
+  check(tSkate.skate && tSkate.spent > 0, `Q activa el patinaje y gasta carga mientras dura (${tSkate.spent.toFixed(1)})`);
+  check(tSkate.rode && tSkate.peak > 1.5 && tSkate.after, `Patinando contra una pared se sube por ella y se vuelve a caer en U (altura ${tSkate.peak.toFixed(2)} m)`);
+  // Shift patinando: fuego atrás y camino de hielo por el aire
+  await g(() => { const a = window.__ascend; a.player.spawnAt({ x: -24, y: 0.3, z: 34, yaw: Math.PI }); a.cameraController.yaw = 0; a.cameraController.pitch = 0.3; });
+  await page.keyboard.down('ShiftLeft');
+  const tRun = await g(() => {
+    const a = window.__ascend;
+    const m = a.player.motor;
+    const y0 = m.position.y;
+    let top = 0;
+    for (let i = 0; i < 60; i++) {
+      a.player.update(1 / 60);
+      a.temperature.update(1 / 60);
+      a.input.endFrame();
+      top = Math.max(top, m.position.y);
+    }
+    return { run: !!m.iceRun, rise: top - y0, tiles: a.temperature.tiles.length };
+  });
+  await page.screenshot({ path: path.join(out, 'temp-04-icerun.png') });
+  await page.keyboard.up('ShiftLeft');
+  const tLand = await g(() => {
+    const a = window.__ascend;
+    const m = a.player.motor;
+    for (let i = 0; i < 60; i++) {
+      a.player.update(1 / 60);
+      a.temperature.update(1 / 60);
+      a.input.endFrame();
+    }
+    return { run: !!m.iceRun, y: m.position.y, grounded: m.grounded };
+  });
+  check(tRun.run && tRun.rise > 2 && tRun.tiles >= 3, `Shift patinando: avanza por el aire sobre un camino de hielo (sube ${tRun.rise.toFixed(1)} m, ${tRun.tiles} placas)`);
+  check(!tLand.run && tLand.grounded && tLand.y > 2, `Al soltar Shift se queda de pie sobre el hielo (y=${tLand.y.toFixed(2)})`);
+  await page.keyboard.press('KeyQ');
+  check(!(await g(() => window.__ascend.temperature.skating || !!window.__ascend.player.motor.skate)), 'Q de nuevo deja de patinar');
+  // Fuente de la Temperatura: arcón congelador junto al inicio
+  await g(() => { const a = window.__ascend; a.temperature.clear(); a.temperature.energy.value = 20; a.marks.setActive('energia'); a.player.spawnAt({ x: 7, y: 0.3, z: 23.4, yaw: 0 }); });
+  await page.waitForFunction(() => /absorber temperatura/i.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  const tPrompt = await g(() => document.getElementById('hud-prompt').textContent);
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.temperature.energy.value > 50, null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  const tDrain = await g(() => ({ e: window.__ascend.temperature.energy.value, active: window.__ascend.marks.activeFamily }));
+  check(/absorber temperatura/i.test(tPrompt) && tDrain.e > 50 && tDrain.active === 'temperatura', `Absorber de un arcón congelador recarga la Temperatura y la activa (${tDrain.e.toFixed(0)})`);
+  await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = false; a.marks.setActive('energia'); a.save.save(); });
+
+  // ---------------- Marca de las Alas ----------------
+  console.log('\n[alas]');
+  await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = true; a.enemies.clear(); a.temperature.clear(); a.playerCombat.restore(); });
+  await g(() => window.__ascend.player.spawnAt({ x: 19, y: 0.4, z: -68.4, yaw: Math.PI }));
+  await page.waitForFunction(() => /Alas/.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'contact', null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.save.data.profile.marks.includes('alas'), null, { timeout: 25000 }).catch(() => {});
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'idle', null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  await page.waitForTimeout(300);
+  const wAcq = await g(() => ({
+    owned: window.__ascend.marks.ownedCopies.join(','), active: window.__ascend.marks.activeFamily,
+    slots: [...document.querySelectorAll('#hud-abilities .ability')].filter((e) => e.style.display !== 'none').map((e) => e.querySelector('.name').textContent).join(','),
+    icons: document.querySelectorAll('#hud-ammo-icons .ammo-icon.feather').length,
+    ammo: document.getElementById('hud-ammo').textContent,
+    wings: window.__ascend.wings.visual.root.visible,
+  }));
+  check(wAcq.owned === 'energia,gravedad,hilo,temperatura,alas' && wAcq.active === 'alas', `Alas copiadas: cinco marcas y las Alas quedan activas (${wAcq.owned})`);
+  check(/Plumas/.test(wAcq.slots) && /Vuelo/.test(wAcq.slots) && /Espada/.test(wAcq.slots) && /Lluvia/.test(wAcq.slots) && /Escudo/.test(wAcq.slots), `El HUD muestra las habilidades de las Alas (${wAcq.slots})`);
+  check(wAcq.icons === 10 && /^100\/100$/.test(wAcq.ammo) && wAcq.wings, `100 plumas (${wAcq.ammo}, ${wAcq.icons} símbolos de 10) y alas visibles en la espalda`);
+  const wCyc = [];
+  for (let k = 0; k < 5; k++) {
+    await page.keyboard.press('KeyV');
+    await page.waitForTimeout(250);
+    wCyc.push(await g(() => window.__ascend.marks.activeFamily));
+  }
+  check(wCyc.join(',') === 'energia,gravedad,hilo,temperatura,alas', `V recorre las cinco marcas (${wCyc.join(' → ')})`);
+
+  // Disparo de plumas: cada disparo gasta una pluma; las alas pierden plumas a la vista
+  await g(() => {
+    const a = window.__ascend;
+    a.wings.resetAbilities();
+    a.wings.energy.refill();
+    a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI });
+    window.__we = a.enemies.spawn('pdc', { x: -24, y: 0.2, z: 22, yaw: 0, tag: 'w', patrol: [{ x: -24, z: 22 }] });
+    window.__we.bind(90);
+    window.__we.health.max = window.__we.health.value = 900;
+    window.__wDmg = {};
+    window.__wEv = [];
+    a.events.on('combat:damage', (d) => { if (d.target === window.__we) window.__wDmg[d.kind] = (window.__wDmg[d.kind] ?? 0) + d.amount; });
+    a.events.on('power:used', (e) => { if (e.id === 'lluvia') window.__wEv.push(e.air ? 'aire' : 'suelo'); });
+    a.events.on('wings:shield-broken', () => window.__wEv.push('escudo-roto'));
+  });
+  await page.waitForTimeout(300);
+  await g(() => window.__aimAt(window.__we.center));
+  const wShot = await g(() => {
+    const a = window.__ascend;
+    const before = a.wings.visual.wings[0].mesh.count;
+    for (let k = 0; k < 30; k++) { a.wings.abilities.projectile.reset(); a.wings._fire(); }
+    a.wings.update(1 / 60);
+    return { left: a.wings.feathers, before, after: a.wings.visual.wings[0].mesh.count };
+  });
+  await page.waitForFunction(() => (window.__wDmg.pluma ?? 0) >= 60, null, { timeout: 15000 }).catch(() => {});
+  const wPl = await g(() => window.__wDmg.pluma ?? 0);
+  check(wShot.left === 70 && wPl >= 60, `30 disparos gastan 30 plumas (quedan ${wShot.left}) y aciertan (${wPl} de daño)`);
+  check(wShot.after < wShot.before, `Las alas muestran menos plumas al gastarlas (${wShot.before} → ${wShot.after} por ala)`);
+  await page.waitForFunction(() => window.__ascend.wings.feathers > 72, null, { timeout: 20000 }).catch(() => {});
+  check((await g(() => window.__ascend.wings.feathers)) > 72, 'Las plumas se regeneran solas');
+  // Espada de plumas: +20 % de ataque físico; mantener R la agranda
+  const meleeOnce = async () => {
+    await g(() => {
+      const a = window.__ascend;
+      const e = window.__we.position;
+      a.player.spawnAt({ x: e.x, y: 0.3, z: e.z + 1.4, yaw: Math.PI });
+      a.player.facing = Math.PI;
+      a.playerCombat._meleeCd = 0;
+      a.wings.energy.refill();
+      window.__meleeDmg = 0;
+      window.__meleeKind = null;
+      window.__offMelee = a.events.on('combat:damage', (d) => { if (d.target === window.__we && /^melee/.test(d.kind)) { window.__meleeDmg += d.amount; window.__meleeKind = d.kind; } });
+    });
+    await page.keyboard.press('KeyF');
+    await page.waitForFunction(() => window.__meleeDmg > 0, null, { timeout: 8000 }).catch(() => {});
+    return g(() => { window.__offMelee?.(); return { d: window.__meleeDmg, kind: window.__meleeKind }; });
+  };
+  const wPlain = await meleeOnce();
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(() => window.__ascend.wings.sword, null, { timeout: 5000 }).catch(() => {});
+  const wSw0 = await g(() => ({ lv: window.__ascend.wings.sword?.level, f: window.__ascend.wings.feathers }));
+  const wSword = await meleeOnce();
+  check(wSw0.lv === 0 && wSw0.f <= 80, `R crea la espada de plumas con 20 plumas (quedan ${wSw0.f})`);
+  check(wSword.kind === 'melee-espada' && wSword.d === Math.round(wPlain.d * 1.2), `La espada sube el ataque físico un 20 % (${wPlain.d} → ${wSword.d})`);
+  await g(() => window.__ascend.wings.energy.refill());
+  await page.keyboard.down('KeyR');
+  await page.waitForFunction(() => window.__ascend.wings.sword?.level === 3, null, { timeout: 20000 }).catch(() => {});
+  await page.keyboard.up('KeyR');
+  const wBig = await g(() => ({ lv: window.__ascend.wings.sword?.level, n: window.__ascend.wings.visual.sword?.count }));
+  await page.screenshot({ path: path.join(out, 'wings-01-sword.png') });
+  const wSword3 = await meleeOnce();
+  check(wBig.lv === 3 && wBig.n === 50, `Manteniendo R la espada crece hasta 50 plumas (tamaño ${wBig.lv})`);
+  check(wSword3.d > wSword.d, `La espada grande hace más daño (${wSword.d} → ${wSword3.d})`);
+  // Lluvia de plumas desde el suelo: suben y caen sobre la zona señalada
+  await g(() => { const a = window.__ascend; a.wings.energy.refill(); a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI }); window.__wDmg.lluvia = 0; });
+  await page.waitForTimeout(300);
+  await g(() => window.__aimAt({ x: window.__we.position.x, y: 0.2, z: window.__we.position.z }));
+  await page.keyboard.press('KeyG');
+  await page.waitForFunction(() => window.__ascend.wings.rains.length > 0, null, { timeout: 5000 }).catch(() => {});
+  const wRainF = await g(() => window.__ascend.wings.feathers);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(out, 'wings-02-rain.png') });
+  await page.waitForFunction(() => (window.__wDmg.lluvia ?? 0) > 0 && window.__ascend.wings.rains.length === 0, null, { timeout: 15000 }).catch(() => {});
+  const wRain = await g(() => window.__wDmg.lluvia ?? 0);
+  check(wRain > 0 && wRainF === 50, `G lanza 50 plumas que suben y caen sobre la zona (quedan ${wRainF}, ${wRain} de daño)`);
+  // Vuelo (Q): cuantas más plumas, más rápido
+  await g(() => { const a = window.__ascend; a.wings.energy.refill(); a.player.spawnAt({ x: -24, y: 0.3, z: 34, yaw: Math.PI }); a.cameraController.yaw = 0; a.cameraController.pitch = 0.35; });
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => window.__ascend.wings.flying, null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyW');
+  const flyStep = (pitch, feathers) => g(([pitch, feathers]) => {
+    const a = window.__ascend;
+    const m = a.player.motor;
+    a.cameraController.yaw = 0;
+    a.cameraController.pitch = pitch;
+    a.wings.energy.value = feathers;
+    const y0 = m.position.y;
+    let sp = 0;
+    for (let i = 0; i < 90; i++) {
+      a.wings.energy.value = feathers;
+      a.wings.update(1 / 60);
+      a.player.update(1 / 60);
+      a.input.endFrame();
+      sp = Math.hypot(m.velocity.x, m.velocity.y, m.velocity.z);
+    }
+    return { rise: m.position.y - y0, sp, flying: !!m.fly };
+  }, [pitch, feathers]);
+  const wUp = await flyStep(0.35, 100);
+  await page.screenshot({ path: path.join(out, 'wings-03-flight.png') });
+  const wFast = await flyStep(0, 100);
+  const wSlow = await flyStep(0, 10);
+  await page.keyboard.up('KeyW');
+  check(wUp.flying && wUp.rise > 3, `Q activa el vuelo y se sube mirando hacia arriba (${wUp.rise.toFixed(1)} m)`);
+  check(wSlow.sp < wFast.sp * 0.6, `Con menos plumas se vuela más despacio (${wFast.sp.toFixed(1)} → ${wSlow.sp.toFixed(1)} m/s)`);
+  // Lluvia desde el aire: caen desde tu posición
+  await g(() => { const a = window.__ascend; a.wings.energy.refill(); a.wings.abilities.wave.reset(); const e = window.__we.position; a.player.spawnAt({ x: e.x, y: 9, z: e.z + 4, yaw: Math.PI }); a.player.motor.fly = { speed: 10, response: 4 }; window.__wDmg.lluvia = 0; });
+  await g(() => window.__aimAt({ x: window.__we.position.x, y: 0.2, z: window.__we.position.z }));
+  await page.keyboard.press('KeyG');
+  await page.waitForFunction(() => (window.__wDmg.lluvia ?? 0) > 0, null, { timeout: 15000 }).catch(() => {});
+  const wAir = await g(() => ({ ev: window.__wEv.filter((x) => x !== 'escudo-roto').join(','), d: window.__wDmg.lluvia ?? 0 }));
+  check(wAir.ev === 'suelo,aire' && wAir.d > 0, `En el aire, la lluvia cae desde tu posición (${wAir.ev}, ${wAir.d} de daño)`);
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => !window.__ascend.wings.flying, null, { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => window.__ascend.player.motor.grounded, null, { timeout: 10000 }).catch(() => {});
+  check(await g(() => !window.__ascend.wings.flying && window.__ascend.player.motor.grounded), 'Q de nuevo deja de volar y se cae al suelo');
+  // Escudo de plumas: aguanta un ataque
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.wings.energy.refill(); a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI }); });
+  await page.waitForTimeout(200);
+  await g(() => window.__aimAt({ x: -24, y: 1.2, z: 20 }));
+  await page.keyboard.press('KeyX');
+  await page.waitForFunction(() => window.__ascend.wings.shields.length > 0, null, { timeout: 5000 }).catch(() => {});
+  await page.screenshot({ path: path.join(out, 'wings-04-shield.png') });
+  const wSh = await g(() => window.__ascend.wings.feathers);
+  await g(() => {
+    const a = window.__ascend;
+    const p = a.player.motor.position;
+    for (let k = 0; k < 2; k++) {
+      a.projectiles.spawn({ origin: { x: p.x, y: p.y + 1.2, z: p.z - 8 - k * 6 }, dir: { x: 0, y: 0, z: 1 }, speed: 40, range: 20, radius: 0.1, damage: 5, color: '#ff4040', kind: 'bullet', faction: 'enemy' });
+    }
+    window.__hitsPlayer = 0;
+    a.events.on('projectile:hit', (e) => { if (e.target === a.playerCombat) window.__hitsPlayer++; });
+  });
+  await page.waitForFunction(() => window.__ascend.projectiles.list.length === 0, null, { timeout: 10000 }).catch(() => {});
+  const wShield = await g(() => ({ n: window.__ascend.wings.shields.length, ev: window.__wEv.includes('escudo-roto'), hits: window.__hitsPlayer }));
+  check(wSh >= 89 && wSh <= 91, `X crea un escudo de 10 plumas delante (quedan ${wSh})`);
+  check(wShield.ev && wShield.n === 0 && wShield.hits === 1, `El escudo para la primera bala y se deshace; la segunda pasa (${wShield.hits} impacto)`);
+  // Fuente de plumas: montón de cojines junto al inicio
+  await g(() => { const a = window.__ascend; a.wings.energy.value = 10; a.wings.energy.regenPerSecond = 0; a.marks.setActive('energia'); a.player.spawnAt({ x: -7, y: 0.3, z: 23.4, yaw: 0 }); });
+  await page.waitForFunction(() => /absorber plumas/i.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  const wPrompt = await g(() => document.getElementById('hud-prompt').textContent);
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.wings.energy.value > 40, null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  const wDrain = await g(() => ({ e: window.__ascend.wings.energy.value, active: window.__ascend.marks.activeFamily }));
+  check(/absorber plumas/i.test(wPrompt) && wDrain.e > 40 && wDrain.active === 'alas', `Absorber de un montón de cojines recupera plumas y activa las Alas (${wDrain.e.toFixed(0)})`);
+  await g(() => { const a = window.__ascend; a._applyModifiers(); a.save.data.debug.invulnerable = false; a.marks.setActive('energia'); a.save.save(); });
+
   // Reiniciar mapa desde la pausa
   await page.evaluate(() => window.__ascend.player.motor.teleport({ x: 30, y: 0.3, z: 30 }));
   await page.keyboard.press('Escape');

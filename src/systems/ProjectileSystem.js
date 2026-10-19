@@ -133,7 +133,7 @@ export class ProjectileSystem {
     const big = p.kind === 'discharge';
     this.vfx.impact(res.point, res.normal, p.color, big ? 2.2 : p.kind === 'bullet' ? 0.5 : 1);
     if (big) this.vfx.ring(res.point, p.splashRadius ?? 2, p.color, 0.35);
-    this.events?.emit('projectile:hit', { kind: p.kind, point: res.point, target, faction: p.faction });
+    this.events?.emit('projectile:hit', { kind: p.kind, point: res.point, target, faction: p.faction, collider: res.collider ?? null });
   }
 
   _remove(i) {

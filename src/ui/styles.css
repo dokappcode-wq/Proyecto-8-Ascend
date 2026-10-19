@@ -291,3 +291,12 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 /* ---------- Marca del Hilo ---------- */
 .hud-vitals[data-el="hilo"] .energy-fill { background: linear-gradient(90deg, #8a8f99, #e8ebf0 55%, #ffffff); }
 .ammo-icon.fist { width: 14px; }
+
+/* ---------- Marca de la Temperatura (degradado frío → calor) ---------- */
+.hud-vitals[data-el="temperatura"] .energy-fill { background: linear-gradient(90deg, #12807a, #2ee6d6 35%, #ffb36a 70%, #ff8a2a); }
+.ammo-icon.ice { width: 12px; color: #c8fffa; filter: drop-shadow(0 0 4px #2ee6d6); }
+.ammo-icon.flame { width: 11px; color: #ffc48a; filter: drop-shadow(0 0 4px #ff8a2a); }
+
+/* ---------- Marca de las Alas ---------- */
+.hud-vitals[data-el="alas"] .energy-fill { background: linear-gradient(90deg, #b8326a, #ff6fa8 55%, #ffe3ef); }
+.ammo-icon.feather { width: 10px; color: #fff0f6; }

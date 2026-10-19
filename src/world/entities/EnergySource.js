@@ -19,6 +19,12 @@ export const SOURCE_KINDS = {
   // Hilo: cosas de tela y cuerda
   clothesline: { name: 'Tendedero', element: 'hilo', capacity: 60, rechargeTime: 20 },
   fabric: { name: 'Rollos de tela', element: 'hilo', capacity: 80, rechargeTime: 24 },
+  // Temperatura: frío y calor
+  icebox: { name: 'Arcón congelador', element: 'temperatura', capacity: 80, rechargeTime: 24 },
+  brazier: { name: 'Bidón con fuego', element: 'temperatura', capacity: 60, rechargeTime: 20 },
+  // Alas: plumas (palomares y montones de cojines)
+  dovecote: { name: 'Palomar', element: 'alas', capacity: 60, rechargeTime: 18 },
+  pillows: { name: 'Montón de cojines', element: 'alas', capacity: 50, rechargeTime: 16 },
 };
 const KINDS = SOURCE_KINDS;
 
@@ -48,6 +54,12 @@ export class EnergySource {
     this.drainPoint = this._drainLocal.clone().applyMatrix4(this.root.matrixWorld);
     this.position = { x, y, z };
     this._addCollider(x, y, z, yaw);
+    // Lejos de la cámara se oculta (MapManager.cull); las que tienen luz no, porque
+    // cambiar el número de luces obliga a recompilar los materiales
+    if (!this.light) {
+      this.lodRoot = this.root;
+      this.lodDistance = 70;
+    }
   }
 
   _build(kind, withLight) {
@@ -56,7 +68,9 @@ export class EnergySource {
     const add = (geo, mat, px, py, pz) => {
       const m = new THREE.Mesh(geo, mat);
       m.position.set(px, py, pz);
-      m.castShadow = true;
+      // Solo las piezas grandes proyectan sombra (cada sombra es otra llamada de dibujo)
+      geo.computeBoundingSphere();
+      m.castShadow = geo.boundingSphere.radius > 0.3;
       m.receiveShadow = true;
       this.root.add(m);
       return m;
@@ -121,6 +135,47 @@ export class EnergySource {
       add(new THREE.BoxGeometry(1.0, 0.02, 0.02), glow(0xffffff, 1.2), 0, 0.98, 0.3);
       this._drainLocal = new THREE.Vector3(0, 0.8, 0.3);
       this._size = { w: 1.4, d: 1.0, h: 1.0 };
+    } else if (kind === 'icebox') {
+      // Arcón congelador de tienda con escarcha turquesa en la junta
+      const white = new THREE.MeshStandardMaterial({ color: 0xe4e8ea, roughness: 0.45, metalness: 0.1 });
+      add(new THREE.BoxGeometry(1.4, 0.82, 0.72), white, 0, 0.41, 0);
+      add(new THREE.BoxGeometry(1.44, 0.08, 0.76), new THREE.MeshStandardMaterial({ color: 0xb9c3c8, roughness: 0.4 }), 0, 0.86, 0);
+      add(new THREE.BoxGeometry(1.3, 0.04, 0.02), glow(0x2ee6d6, 1.8), 0, 0.8, 0.365);
+      add(new THREE.BoxGeometry(0.3, 0.05, 0.03), dark, 0, 0.7, 0.37);
+      this._drainLocal = new THREE.Vector3(0, 0.95, 0.2);
+      this._size = { w: 1.44, d: 0.76, h: 0.9 };
+    } else if (kind === 'brazier') {
+      // Bidón de chapa con fuego dentro (las brasas brillan en naranja)
+      const drum = new THREE.MeshStandardMaterial({ color: 0x4a3a30, roughness: 0.8, metalness: 0.3 });
+      add(new THREE.CylinderGeometry(0.32, 0.3, 0.92, 12, 1, true), drum, 0, 0.46, 0);
+      add(new THREE.TorusGeometry(0.32, 0.025, 6, 16), dark, 0, 0.3, 0).rotation.x = Math.PI / 2;
+      const ember = add(new THREE.CircleGeometry(0.3, 12), glow(0xff8a2a, 2.4), 0, 0.84, 0);
+      ember.rotation.x = -Math.PI / 2;
+      add(new THREE.ConeGeometry(0.18, 0.4, 7), glow(0xffb347, 2.0), 0, 1.05, 0);
+      this._drainLocal = new THREE.Vector3(0, 1.0, 0);
+      this._size = { w: 0.66, d: 0.66, h: 0.95 };
+    } else if (kind === 'dovecote') {
+      // Palomar de madera sobre un poste, con plumas sueltas que brillan
+      const wood = new THREE.MeshStandardMaterial({ color: 0x8a6a48, roughness: 0.85 });
+      add(new THREE.CylinderGeometry(0.06, 0.07, 1.6, 6), wood, 0, 0.8, 0);
+      add(new THREE.BoxGeometry(0.9, 0.6, 0.6), wood, 0, 1.9, 0);
+      const roof = add(new THREE.ConeGeometry(0.72, 0.4, 4), new THREE.MeshStandardMaterial({ color: 0x6b3b2e, roughness: 0.8 }), 0, 2.4, 0);
+      roof.rotation.y = Math.PI / 4;
+      for (const x of [-0.22, 0.22]) add(new THREE.CircleGeometry(0.09, 10), dark, x, 1.95, 0.301);
+      add(new THREE.BoxGeometry(0.7, 0.03, 0.12), glow(0xff6fa8, 1.6), 0, 1.66, 0.33);
+      this._drainLocal = new THREE.Vector3(0, 1.9, 0.35);
+      this._size = { w: 0.9, d: 0.6, h: 2.6 };
+    } else if (kind === 'pillows') {
+      // Montón de cojines y un edredón de plumas (las costuras brillan)
+      const cols = [0xf1e6ea, 0xd98fae, 0xe9d8c4, 0xb9c8e0];
+      add(new THREE.BoxGeometry(1.3, 0.22, 0.9), new THREE.MeshStandardMaterial({ color: 0xf6eef2, roughness: 0.95 }), 0, 0.11, 0);
+      [[-0.3, 0.32, 0.1], [0.3, 0.32, -0.1], [0, 0.52, 0], [0.05, 0.3, 0.25]].forEach(([x, y, z], i) => {
+        const c = add(new THREE.BoxGeometry(0.55, 0.18, 0.42), new THREE.MeshStandardMaterial({ color: cols[i], roughness: 0.95 }), x, y, z);
+        c.rotation.y = i * 0.5;
+      });
+      add(new THREE.BoxGeometry(1.2, 0.02, 0.02), glow(0xff6fa8, 1.4), 0, 0.23, 0.455);
+      this._drainLocal = new THREE.Vector3(0, 0.6, 0.2);
+      this._size = { w: 1.3, d: 0.9, h: 0.65 };
     } else if (kind === 'vending') {
       add(new THREE.BoxGeometry(1.0, 1.9, 0.8), new THREE.MeshStandardMaterial({ color: 0x9a2d2d, roughness: 0.5, metalness: 0.2 }), 0, 0.95, 0);
       add(new THREE.PlaneGeometry(0.62, 1.1), glow(0xbfe3ff, 1.4), -0.12, 1.15, 0.401);

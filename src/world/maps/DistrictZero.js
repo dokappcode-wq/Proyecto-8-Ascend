@@ -324,6 +324,18 @@ function energySources(ctx, byId) {
   roofG(byId.B2, -4, 3, 'clothesline');
   roofG(byId.B4, 3, 5, 'clothesline');
   roofG(byId.B8, 3, -5, 'fabric');
+
+  // Temperatura: bidones con fuego en los callejones, arcones de las tiendas
+  add({ kind: 'brazier', x: -22, z: -14, y: 0 });
+  add({ kind: 'brazier', x: 30, z: 20, y: 0 });
+  add({ kind: 'icebox', x: -9, z: -17.6, yaw: 0, y: 0 });
+  add({ kind: 'icebox', x: 9, z: 17.6, yaw: Math.PI, y: 0 });
+  roofG(byId.B3, -4, -4, 'icebox');
+
+  // Alas: palomares en las azoteas y cojines de un puesto de la plaza
+  roofG(byId.B5, -4, 4, 'dovecote');
+  roofG(byId.B6, 5, -3, 'dovecote');
+  add({ kind: 'pillows', x: -12.5, z: -3, yaw: Math.PI / 2, y: 0.2 });
 }
 
 function streetProps(B, M, group, ctx) {

@@ -45,8 +45,8 @@ export class PlayerController {
   }
 
   /** Posición en el mundo de la mano derecha (origen de los poderes). */
-  handWorldPosition(out = new THREE.Vector3()) {
-    const w = this.model.anchors.wristR;
+  handWorldPosition(out = new THREE.Vector3(), side = 'R') {
+    const w = this.model.anchors[`wrist${side}`];
     out.set(0, -0.1, 0.02);
     return w.localToWorld(out);
   }
@@ -147,7 +147,23 @@ export class PlayerController {
     const m = this.motor;
     // C: agacharse, o soltarse si está escalando
     const drop = on && m.isClimbing && inp.wasPressed('crouch');
-    if (on && !m.isClimbing && inp.wasPressed('crouch')) this.toggleCrouch();
+    if (on && !m.isClimbing && !m.fly && inp.wasPressed('crouch')) this.toggleCrouch();
+    // Volando (Alas): W/S siguen la inclinación de la cámara; Espacio sube y C baja
+    let flyY = 0;
+    if (m.fly) {
+      const cp = Math.cos(cam.pitch);
+      const up = on ? (inp.isDown('jump') ? 1 : 0) - (inp.isDown('crouch') ? 1 : 0) : 0;
+      mx = f.x * iz * cp + rx * ix;
+      mz = f.z * iz * cp + rz * ix;
+      flyY = iz * Math.sin(cam.pitch) + up;
+      const l3 = Math.hypot(mx, flyY, mz);
+      if (l3 > 1) {
+        mx /= l3;
+        flyY /= l3;
+        mz /= l3;
+      }
+      if (m.crouched) m.setCrouch(false);
+    }
     if (!on || m.isBusy) this.cover = null;
     let speedScale = this.speedScale;
     if (on && inp.isDown('sprint') && len > 0 && m.crouched && !this.cover) m.setCrouch(false);
@@ -168,6 +184,7 @@ export class PlayerController {
         moveX: mx,
         moveZ: mz,
         sprint,
+        flyY,
         jump: on && i === 0 && inp.wasPressed('jump'),
         dodge: on && i === 0 && inp.wasPressed('dodge'),
         drop: drop && i === 0,
@@ -256,7 +273,7 @@ export class PlayerController {
       landed: ev.landed,
       landingSpeed: ev.landingSpeed,
       climb: this.motor.climbState,
-      gliding: this.motor.gliding,
+      gliding: this.motor.gliding || (!!this.motor.fly && !this.motor.grounded),
       swinging: this.motor.isSwinging,
       climbDistance: this.motor.climbDistance,
       mantleProgress: this.motor.mantleProgress,

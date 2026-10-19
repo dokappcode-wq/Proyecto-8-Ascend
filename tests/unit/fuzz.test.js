@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { CollisionWorld } from '../../src/physics/CollisionWorld.js';
 import { CharacterMotor } from '../../src/physics/CharacterMotor.js';
 import { GRAVITY_CONFIG } from '../../src/powers/gravity/gravityConfig.js';
+import { TEMPERATURE_CONFIG } from '../../src/powers/temperature/temperatureConfig.js';
 
 /** Generador pseudoaleatorio reproducible. */
 function rng(seed) {
@@ -68,7 +69,7 @@ test('estrés del motor: entradas aleatorias en mundos aleatorios sin atravesar 
         const mv = r() < 0.85;
         input = {
           moveX: mv ? Math.cos(a) : 0, moveZ: mv ? Math.sin(a) : 0, sprint: r() < 0.5,
-          jump: r() < 0.3, jumpHeld: r() < 0.4, dodge: r() < 0.08, drop: r() < 0.05, noParkour: r() < 0.1,
+          flyY: (r() - 0.5) * 2, jump: r() < 0.3, jumpHeld: r() < 0.4, dodge: r() < 0.08, drop: r() < 0.05, noParkour: r() < 0.1,
         };
         if (r() < 0.05) m.startBurst({ x: Math.cos(a), z: Math.sin(a), speed: 30, duration: 0.2 });
         if (r() < 0.03) m.startTravel({ x: (r() - 0.5) * 60, y: r() * 10, z: (r() - 0.5) * 60 });
@@ -80,9 +81,17 @@ test('estrés del motor: entradas aleatorias en mundos aleatorios sin atravesar 
           m.startSwing({ x: pp.x + (r() - 0.5) * 16, y: pp.y + 4 + r() * 12, z: pp.z + (r() - 0.5) * 16 }, { pump: 16, maxSpeed: 32, maxLen: 3 + r() * 12 });
         }
         if (r() < 0.04) m.endSwing(5);
+        // Patinaje (Temperatura): sube por paredes en U; a veces carrera de hielo por el aire
+        if (r() < 0.08) m.skate = m.skate ? null : TEMPERATURE_CONFIG.skate;
+        // Vuelo (Alas): en cualquier dirección, a veces hacia el suelo o las paredes
+        if (r() < 0.05) m.fly = m.fly ? null : { speed: 6 + r() * 16, response: 4 };
+        if (r() < 0.04) m.iceRun = m.iceRun ? null : { x: Math.cos(a), y: (r() - 0.5) * 0.8, z: Math.sin(a), speed: TEMPERATURE_CONFIG.iceRun.speed };
       } else {
         input = { ...input, jump: false, dodge: false, drop: false };
       }
+      // Los muros límite del test miden 60 m: la carrera de hielo no sube por encima
+      if (m.iceRun && m.position.y > 45) m.iceRun = null;
+      if (m.fly && m.position.y > 45) m.fly = null;
       // Pasos de duración variable (frames lentos)
       m.update(r() < 0.1 ? 0.1 : DT, input);
       steps++;

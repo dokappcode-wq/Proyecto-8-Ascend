@@ -44,6 +44,8 @@ export function createDefaultSave() {
       grantEnergy: false, // atajo: concede Energía sin pasar por la estación de adquisición
       grantGravity: false, // atajo: concede Gravedad
       grantThread: false, // atajo: concede Hilo
+      grantTemperature: false, // atajo: concede Temperatura
+      grantWings: false, // atajo: concede Alas
       infiniteEnergy: false,
       maxMarks: false, // fuerza las marcas al máximo para revisar efectos
       invulnerable: false, // el jugador no recibe daño

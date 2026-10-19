@@ -62,7 +62,35 @@ export const MARKS = Object.freeze({
     bodyPattern: { side: 'R', seed: 21, wristOffset: 0.17, layer: 1.1, regions: ['wrist', 'forearm', 'upperArm', 'shoulder'] },
     passive: { name: 'Impulso', desc: 'Manteniendo el salto, das un salto lo bastante alto para empezar a balancearte.' },
   },
+  temperatura: {
+    id: 'temperatura',
+    name: 'Marca de la Temperatura',
+    concept: 'Temperatura',
+    original: false,
+    // Degradado del frío al calor: turquesa → naranja
+    color: '#2ee6d6',
+    color2: '#ff8a2a',
+    glowColor: '#b8fff7',
+    symbol: 'temperatura',
+    abilities: ['hielo-fuego', 'patinar', 'muro', 'estela', 'tormenta'],
+    // Brazo izquierdo, por encima de la Gravedad
+    bodyPattern: { side: 'L', seed: 31, wristOffset: 0.17, layer: 1.1, regions: ['wrist', 'forearm', 'upperArm', 'shoulder'] },
+    passive: { name: 'Quemadura', desc: 'Tus golpes físicos queman: 1 de daño cada medio segundo hasta 10 (no se acumula).' },
+  },
+  alas: {
+    id: 'alas',
+    name: 'Marca de las Alas',
+    concept: 'Alas',
+    original: false,
+    // Rosa plumaje
+    color: '#ff6fa8',
+    glowColor: '#ffc4dc',
+    symbol: 'alas',
+    abilities: ['plumas', 'vuelo', 'espada', 'lluvia', 'escudo'],
+    // Brazo derecho, la más alta del antebrazo (por encima del Hilo)
+    bodyPattern: { side: 'R', seed: 41, wristOffset: 0.25, layer: 1.2, regions: ['wrist', 'forearm', 'upperArm', 'shoulder'] },
+  },
 });
 
 /** Orden de las marcas copiadas (cambio de marca con V). */
-export const COPY_ORDER = Object.freeze(['energia', 'gravedad', 'hilo']);
+export const COPY_ORDER = Object.freeze(['energia', 'gravedad', 'hilo', 'temperatura', 'alas']);

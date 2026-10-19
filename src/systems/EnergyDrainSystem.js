@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+/** Qué se absorbe de cada fuente, según su elemento (texto del aviso). */
+const DRAIN_WORD = { energia: 'energía', gravedad: 'gravedad', hilo: 'hilo', temperatura: 'temperatura', alas: 'plumas' };
+
 /**
  * EnergyDrainSystem — absorción de energía de fuentes cotidianas.
  *
@@ -35,7 +38,7 @@ export class EnergyDrainSystem {
       label: () => {
         if (source.reserve.empty) return `${source.name} — agotada, se está recuperando`;
         if (this._pw(source).energy.full) return `${source.name} — tu carga está completa`;
-        return `Mantén E: absorber ${element === 'gravedad' ? 'gravedad' : 'energía'} (${source.name})`;
+        return `Mantén E: absorber ${DRAIN_WORD[element] ?? 'energía'} (${source.name})`;
       },
       onInteract: () => this.start(source),
     });

@@ -34,6 +34,9 @@ export class MapManager {
     const def = this.maps.get(id);
     if (!def) throw new Error(`Mapa desconocido: ${id}`);
     this.unload();
+    // Los primeros fotogramas se dibuja todo: así los materiales de lo que el
+    // LOD oculta se compilan durante la carga y no al acercarse (tirón)
+    this._cullDelay = 3;
 
     const group = new THREE.Group();
     group.name = `Mapa:${id}`;
@@ -58,6 +61,24 @@ export class MapManager {
   update(dt) {
     if (!this.current) return;
     for (const e of this.current.entities) e.update?.(dt);
+  }
+
+  /**
+   * Oculta las entidades con `lodRoot` que están más lejos de `lodDistance`
+   * (figuras pequeñas con muchas piezas: la niebla y la distancia las hacen
+   * casi invisibles y cuestan muchas llamadas de dibujo).
+   */
+  cull(eye) {
+    if (!this.current) return;
+    if (this._cullDelay > 0) {
+      this._cullDelay--;
+      return;
+    }
+    for (const e of this.current.entities) {
+      if (!e.lodRoot) continue;
+      const p = e.lodRoot.position;
+      e.lodRoot.visible = Math.hypot(p.x - eye.x, p.y - eye.y, p.z - eye.z) < e.lodDistance;
+    }
   }
 
   /** Devuelve las entidades del mapa a su estado inicial (menú de depuración). */

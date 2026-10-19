@@ -415,7 +415,11 @@ export class PowerSystem {
     const o = { x: cam.position.x + this._camDir.x * pivotDist, y: cam.position.y + this._camDir.y * pivotDist, z: cam.position.z + this._camDir.z * pivotDist };
     const d = { x: this._camDir.x, y: this._camDir.y, z: this._camDir.z };
     const hit = this.game.world.raycastHit(o, d, 200, { ignoreTags: ['bounds'] });
-    const t = hit ? hit.t : 200;
+    let t = hit ? hit.t : 200;
+    // Un enemigo delante del escenario es el punto de mira (si no, los disparos
+    // desde una mano alejada de la cámara convergen detrás de él y lo rozan)
+    const actor = this.game.combat.raycastActors(o, d, t, { excludeFaction: 'player' });
+    if (actor) t = actor.t;
     out.set(o.x + d.x * t, o.y + d.y * t, o.z + d.z * t);
     return out;
   }

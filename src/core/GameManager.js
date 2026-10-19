@@ -19,6 +19,8 @@ import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { PowerSystem } from '../systems/PowerSystem.js';
 import { GravityPowerSystem } from '../systems/GravityPowerSystem.js';
 import { ThreadPowerSystem } from '../systems/ThreadPowerSystem.js';
+import { TemperaturePowerSystem } from '../systems/TemperaturePowerSystem.js';
+import { WingsPowerSystem } from '../systems/WingsPowerSystem.js';
 import { MARKS } from '../data/marks.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { PlayerCombat } from '../systems/PlayerCombat.js';
@@ -82,6 +84,8 @@ export class GameManager {
     this.powers = new PowerSystem(this);
     this.gravity = new GravityPowerSystem(this);
     this.thread = new ThreadPowerSystem(this);
+    this.temperature = new TemperaturePowerSystem(this);
+    this.wings = new WingsPowerSystem(this);
     this.enemies = new EnemySystem({ scene: this.scene, world: this.world, combat: this.combat, projectiles: this.projectiles, vfx: this.vfx, events: this.events });
     this.playerCombat = new PlayerCombat(this);
     this.enemies.player = this.playerCombat;
@@ -131,18 +135,22 @@ export class GameManager {
   powersFor(element) {
     if (element === 'gravedad') return this.gravity;
     if (element === 'hilo') return this.thread;
+    if (element === 'temperatura') return this.temperature;
+    if (element === 'alas') return this.wings;
     return this.powers;
   }
 
   /** Todas las familias de poderes. */
   get families() {
-    return [this.powers, this.gravity, this.thread];
+    return [this.powers, this.gravity, this.thread, this.temperature, this.wings];
   }
 
   _applyModifiers() {
     this.powers.applyModifiers(this.progression.modifiers('energia'));
     this.gravity.applyModifiers(this.progression.modifiers('gravedad'));
     this.thread.applyModifiers(this.progression.modifiers('hilo'));
+    this.temperature.applyModifiers(this.progression.modifiers('temperatura'));
+    this.wings.applyModifiers(this.progression.modifiers('alas'));
   }
 
   /** Ajustes que dependen de la marca activa: saltos de Gravedad, HUD. */
@@ -180,6 +188,10 @@ export class GameManager {
       this.gravity.energy.refill();
       this.thread.resetAbilities();
       this.thread.energy.refill();
+      this.temperature.resetAbilities();
+      this.temperature.energy.refill();
+      this.wings.resetAbilities();
+      this.wings.energy.refill();
       this.marks.reset();
       if (map.sun) map.sun.castShadow = this.save.settings.shadows;
       this.ui.hideAll();
@@ -319,6 +331,8 @@ export class GameManager {
         const where = {
           gravedad: 'Absórbela de escombros o bloques de hormigón (mantén E)',
           hilo: 'Absórbela de tendederos o rollos de tela (mantén E)',
+          temperatura: 'Absórbela de arcones congeladores o bidones con fuego (mantén E)',
+          alas: 'Las plumas vuelven solas; más rápido junto a palomares o montones de cojines (mantén E)',
         }[this.marks.activeFamily] ?? 'Absórbela de farolas, armarios eléctricos o máquinas expendedoras (mantén E)';
         this.ui.toast('Sin carga', where, 3200);
       }
@@ -336,6 +350,14 @@ export class GameManager {
       this.vfx.lightning({ x: c.x, y: c.y + 1.2, z: c.z }, c, MARKS.energia.color, { width: 0.05, duration: 0.3, jitter: 0.3, branches: 3 });
       this.ui.damageNumber({ x: c.x, y: c.y + 0.6, z: c.z }, 'Detenido', false, 'passive');
       this.events.emit('passive:energy', { target: t });
+    });
+    // Pasiva de la Temperatura: los golpes físicos queman (1 por tic hasta 10, sin acumularse)
+    this.events.on('combat:damage', (d) => {
+      const t = d.target;
+      if (d.faction !== 'player' || !/^melee/.test(d.kind) || !t?.burn || !t.alive || !this.marks.owns('temperatura')) return;
+      if (!t.burn(this.temperature.cfg.burn)) return;
+      this.ui.damageNumber({ x: t.center.x, y: t.center.y + 0.6, z: t.center.z }, 'Quemado', false, 'passive');
+      this.events.emit('passive:temperature', { target: t });
     });
     // Pasiva de la Gravedad: al bajar del 5 % de vida, las balas enemigas flotan 4 s
     this.events.on('player:damaged', (d) => {
@@ -387,7 +409,7 @@ export class GameManager {
 
   _debugState() {
     const d = this.save.data.debug;
-    return { mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, grantGravity: d.grantGravity, grantThread: d.grantThread, gravityAcquired: this.marks.acquired('gravedad'), active: this.marks.activeFamily, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
+    return { mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, grantGravity: d.grantGravity, grantThread: d.grantThread, grantTemperature: d.grantTemperature, grantWings: d.grantWings, gravityAcquired: this.marks.acquired('gravedad'), active: this.marks.activeFamily, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
   }
 
   _onUiAction(action, data) {
@@ -432,6 +454,8 @@ export class GameManager {
         this.powers.energy.refill();
         this.gravity.energy.refill();
         this.thread.energy.refill();
+        this.temperature.energy.refill();
+        this.wings.energy.refill();
         this.ui.toast('Energía restaurada', '', 1200);
         break;
       case 'dbg-infinite':
@@ -465,6 +489,30 @@ export class GameManager {
         this.save.save();
         this._applyModifiers();
         this.ui.toast('Adquisición reiniciada', 'Se ha quitado la marca del Hilo y su progreso', 1800);
+        break;
+      case 'dbg-mark-temperature':
+        this.marks.setDebugGrant('temperatura', !this.save.data.debug.grantTemperature);
+        this.temperature.resetAbilities();
+        break;
+      case 'dbg-reset-temperature':
+        this.acquisition.cancel();
+        this.marks.revoke('temperatura');
+        this.progression.reset('temperatura');
+        this.save.save();
+        this._applyModifiers();
+        this.ui.toast('Adquisición reiniciada', 'Se ha quitado la marca de la Temperatura y su progreso', 1800);
+        break;
+      case 'dbg-mark-wings':
+        this.marks.setDebugGrant('alas', !this.save.data.debug.grantWings);
+        this.wings.resetAbilities();
+        break;
+      case 'dbg-reset-wings':
+        this.acquisition.cancel();
+        this.marks.revoke('alas');
+        this.progression.reset('alas');
+        this.save.save();
+        this._applyModifiers();
+        this.ui.toast('Adquisición reiniciada', 'Se ha quitado la marca de las Alas y su progreso', 1800);
         break;
       case 'set-mark':
         this.marks.setActive(data.mark);
@@ -507,6 +555,8 @@ export class GameManager {
         this.powers.resetAbilities();
         this.gravity.resetAbilities();
         this.thread.resetAbilities();
+        this.temperature.resetAbilities();
+        this.wings.resetAbilities();
         this.ui.toast('Habilidades reiniciadas', '', 1200);
         break;
       case 'dbg-scenario':
@@ -611,6 +661,8 @@ export class GameManager {
       this.powers.update(dt);
       this.gravity.update(dt);
       this.thread.update(dt);
+      this.temperature.update(dt);
+      this.wings.update(dt);
       this.interactions.update(dt);
       this.acquisition.update(dt);
       this.drain.update(dt);
@@ -619,6 +671,7 @@ export class GameManager {
       this.missions.update(dt);
       this.projectiles.update(dt);
       this.mapManager.update(dt);
+      this.mapManager.cull(this.camera.position);
       for (const s of this.systems) s.update?.(dt, this);
       this.marks.update(dt);
       this.vfx.update(dt);
@@ -678,7 +731,7 @@ export class GameManager {
         }])),
         dashing: m.isDashing || m.isTraveling,
         targeting: pw.isTargeting,
-        magazine: pw.magazine && { ammo: pw.magazine.ammo, size: pw.magazine.size, reloading: pw.magazine.reloading, progress: pw.magazine.reloadProgress },
+        magazine: pw.magazine && { ammo: pw.magazine.ammo, size: pw.magazine.size, reloading: pw.magazine.reloading, progress: pw.magazine.reloadProgress, iconStep: pw.magazine.iconStep ?? 1 },
         diving: pw.isDiving,
       },
       debugText: this.ui.debugVisible

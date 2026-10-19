@@ -13,6 +13,10 @@ const DEFAULT_MODS = Object.freeze({
   stoneBonus: 0, pullDamageAdd: 0, pullStunAdd: 0, pushDamageAdd: 0, pushKnockbackAdd: 0, bubbleRadiusAdd: 0, bubbleTimeAdd: 0,
   // Hilo
   swingRangeAdd: 0, bindTimeAdd: 0, fistSpeedMul: 1, chainDamageAdd: 0,
+  // Temperatura
+  wallWidthAdd: 0, wallLifeAdd: 0, trailDpsMul: 1, trailLifeAdd: 0, stormRadiusAdd: 0, stormLifeAdd: 0,
+  // Alas
+  featherRegenMul: 1, flySpeedAdd: 0, swordBonusAdd: 0, shieldHitsAdd: 0,
 });
 
 export class Progression {
