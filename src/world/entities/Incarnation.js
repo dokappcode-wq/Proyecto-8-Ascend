@@ -13,6 +13,8 @@ import { MARKS } from '../../data/marks.js';
 const PALETTES = {
   // Gravedad: abrigo gris violáceo, pelo canoso
   gravedad: { skin: 0xc79478, jacket: 0x4f4558, hoodie: 0x2f2f35, pants: 0x4a4036, boots: 0x2e2622, hair: 0x9a9590 },
+  // Hilo: chaqueta clara de punto, pantalón beis
+  hilo: { skin: 0xb98266, jacket: 0xd9d4c8, hoodie: 0x6b6f7a, pants: 0x8f826b, boots: 0x3a3330, hair: 0x1f1a17 },
 };
 
 export class Incarnation {

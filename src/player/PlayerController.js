@@ -257,6 +257,7 @@ export class PlayerController {
       landingSpeed: ev.landingSpeed,
       climb: this.motor.climbState,
       gliding: this.motor.gliding,
+      swinging: this.motor.isSwinging,
       climbDistance: this.motor.climbDistance,
       mantleProgress: this.motor.mantleProgress,
     });

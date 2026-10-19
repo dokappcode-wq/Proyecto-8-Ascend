@@ -46,4 +46,21 @@ export const PROGRESSION = Object.freeze({
       { id: 'colapso', name: 'Colapso', type: 'future', cost: 3, requires: ['burbuja', 'atraccion'], desc: 'La burbuja implosiona y aplasta a quien flota. Llegará en una versión posterior.' },
     ],
   },
+  hilo: {
+    xpPerLevel: 100,
+    energyPerLevel: 15,
+    xpRewards: { pdc: 40, acolyte: 60, dummy: 5 },
+    nodes: [
+      { id: 'hilos', name: 'Hilos', type: 'base', desc: 'Tus puños se vuelven hilos y golpean a distancia; sin balas, pero esperas a que vuelvan.' },
+      { id: 'balanceo', name: 'Balanceo', type: 'base', desc: 'Mantén Q: hilo a la estructura más próxima y te balanceas.' },
+      { id: 'atar', name: 'Atar', type: 'base', desc: 'Ata a un enemigo y lo inmoviliza.' },
+      { id: 'lanzar', name: 'Lanzar', type: 'base', desc: 'Lanza a un enemigo por los aires.' },
+      { id: 'atraer', name: 'Atraer', type: 'base', desc: 'Te lleva hasta un enemigo (cuerpo a cuerpo) o hasta una pared.' },
+      { id: 'hilo-largo', name: 'Hilo largo', type: 'upgrade', cost: 1, requires: ['balanceo'], desc: '+8 m de alcance al balancearte y al atraerte.', effects: { swingRangeAdd: 8 } },
+      { id: 'nudo', name: 'Nudo firme', type: 'upgrade', cost: 1, requires: ['atar'], desc: 'Atar inmoviliza 2 s más.', effects: { bindTimeAdd: 2 } },
+      { id: 'puño-rapido', name: 'Puño rápido', type: 'upgrade', cost: 1, requires: ['hilos'], desc: 'El puño de hilo va y vuelve un 40 % más rápido.', effects: { fistSpeedMul: 1.4 } },
+      { id: 'cadena', name: 'Cadena pesada', type: 'upgrade', cost: 2, requires: ['hilos', 'lanzar'], desc: '+10 de daño y más alcance con el golpe de cadena.', effects: { chainDamageAdd: 10 } },
+      { id: 'telarana', name: 'Telaraña', type: 'future', cost: 3, requires: ['cadena', 'nudo'], desc: 'Atrapa a varios enemigos a la vez. Llegará en una versión posterior.' },
+    ],
+  },
 });

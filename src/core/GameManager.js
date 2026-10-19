@@ -18,6 +18,7 @@ import { MarkSystem } from '../systems/MarkSystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { PowerSystem } from '../systems/PowerSystem.js';
 import { GravityPowerSystem } from '../systems/GravityPowerSystem.js';
+import { ThreadPowerSystem } from '../systems/ThreadPowerSystem.js';
 import { MARKS } from '../data/marks.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { PlayerCombat } from '../systems/PlayerCombat.js';
@@ -80,6 +81,7 @@ export class GameManager {
     this.projectiles = new ProjectileSystem({ scene: this.scene, world: this.world, combat: this.combat, vfx: this.vfx, events: this.events });
     this.powers = new PowerSystem(this);
     this.gravity = new GravityPowerSystem(this);
+    this.thread = new ThreadPowerSystem(this);
     this.enemies = new EnemySystem({ scene: this.scene, world: this.world, combat: this.combat, projectiles: this.projectiles, vfx: this.vfx, events: this.events });
     this.playerCombat = new PlayerCombat(this);
     this.enemies.player = this.playerCombat;
@@ -122,23 +124,32 @@ export class GameManager {
 
   /** Familia de poderes de la marca activa (Energía o Gravedad). */
   get activePowers() {
-    return this.marks.activeFamily === 'gravedad' ? this.gravity : this.powers;
+    return this.powersFor(this.marks.activeFamily);
   }
 
   /** Familia de poderes de un elemento. */
   powersFor(element) {
-    return element === 'gravedad' ? this.gravity : this.powers;
+    if (element === 'gravedad') return this.gravity;
+    if (element === 'hilo') return this.thread;
+    return this.powers;
+  }
+
+  /** Todas las familias de poderes. */
+  get families() {
+    return [this.powers, this.gravity, this.thread];
   }
 
   _applyModifiers() {
     this.powers.applyModifiers(this.progression.modifiers('energia'));
     this.gravity.applyModifiers(this.progression.modifiers('gravedad'));
+    this.thread.applyModifiers(this.progression.modifiers('hilo'));
   }
 
   /** Ajustes que dependen de la marca activa: saltos de Gravedad, HUD. */
   _onMarkChanged() {
-    const grav = this.marks.activeFamily === 'gravedad';
-    this.player.motor.jumpAbilities = grav ? this.gravity.cfg.jumps : null;
+    const fam = this.marks.activeFamily;
+    // Saltos especiales de la marca activa (Gravedad: triple y planeo; Hilo: salto alto)
+    this.player.motor.jumpAbilities = fam === 'gravedad' ? this.gravity.cfg.jumps : fam === 'hilo' ? this.thread.cfg.jumps : null;
     this.player.model.setReload(null);
     this.ui.setPowerAvailable(this.activePowers.available, this.marks.activeDef);
   }
@@ -167,6 +178,8 @@ export class GameManager {
       this.powers.energy.refill();
       this.gravity.resetAbilities();
       this.gravity.energy.refill();
+      this.thread.resetAbilities();
+      this.thread.energy.refill();
       this.marks.reset();
       if (map.sun) map.sun.castShadow = this.save.settings.shadows;
       this.ui.hideAll();
@@ -303,9 +316,11 @@ export class GameManager {
       const now = performance.now();
       if (this.activePowers.energy.value < 30 && now - (this._lowEnergyHint ?? -1e9) > 8000) {
         this._lowEnergyHint = now;
-        this.ui.toast('Sin carga', this.marks.activeFamily === 'gravedad'
-          ? 'Absórbela de escombros o bloques de hormigón (mantén E)'
-          : 'Absórbela de farolas, armarios eléctricos o máquinas expendedoras (mantén E)', 3200);
+        const where = {
+          gravedad: 'Absórbela de escombros o bloques de hormigón (mantén E)',
+          hilo: 'Absórbela de tendederos o rollos de tela (mantén E)',
+        }[this.marks.activeFamily] ?? 'Absórbela de farolas, armarios eléctricos o máquinas expendedoras (mantén E)';
+        this.ui.toast('Sin carga', where, 3200);
       }
     });
     this.events.on('marks:changed', () => this._onMarkChanged());
@@ -372,7 +387,7 @@ export class GameManager {
 
   _debugState() {
     const d = this.save.data.debug;
-    return { mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, grantGravity: d.grantGravity, gravityAcquired: this.marks.acquired('gravedad'), active: this.marks.activeFamily, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
+    return { mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, grantGravity: d.grantGravity, grantThread: d.grantThread, gravityAcquired: this.marks.acquired('gravedad'), active: this.marks.activeFamily, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
   }
 
   _onUiAction(action, data) {
@@ -416,6 +431,7 @@ export class GameManager {
       case 'dbg-energy':
         this.powers.energy.refill();
         this.gravity.energy.refill();
+        this.thread.energy.refill();
         this.ui.toast('Energía restaurada', '', 1200);
         break;
       case 'dbg-infinite':
@@ -437,6 +453,18 @@ export class GameManager {
         this.save.save();
         this._applyModifiers();
         this.ui.toast('Adquisición reiniciada', 'Se ha quitado la marca de la Gravedad y su progreso', 1800);
+        break;
+      case 'dbg-mark-thread':
+        this.marks.setDebugGrant('hilo', !this.save.data.debug.grantThread);
+        this.thread.resetAbilities();
+        break;
+      case 'dbg-reset-thread':
+        this.acquisition.cancel();
+        this.marks.revoke('hilo');
+        this.progression.reset('hilo');
+        this.save.save();
+        this._applyModifiers();
+        this.ui.toast('Adquisición reiniciada', 'Se ha quitado la marca del Hilo y su progreso', 1800);
         break;
       case 'set-mark':
         this.marks.setActive(data.mark);
@@ -478,6 +506,7 @@ export class GameManager {
       case 'dbg-abilities':
         this.powers.resetAbilities();
         this.gravity.resetAbilities();
+        this.thread.resetAbilities();
         this.ui.toast('Habilidades reiniciadas', '', 1200);
         break;
       case 'dbg-scenario':
@@ -581,6 +610,7 @@ export class GameManager {
       if (this.input.wasPressed('switchMark') && !this.playerCombat.dead && !this.acquisition.active && !this.drain.active) this.marks.cycle();
       this.powers.update(dt);
       this.gravity.update(dt);
+      this.thread.update(dt);
       this.interactions.update(dt);
       this.acquisition.update(dt);
       this.drain.update(dt);

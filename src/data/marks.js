@@ -49,7 +49,20 @@ export const MARKS = Object.freeze({
     bodyPattern: { side: 'L', seed: 13, wristOffset: 0.09, regions: ['wrist', 'forearm', 'upperArm', 'shoulder', 'chest'] },
     passive: { name: 'Estasis', desc: 'Al bajar al 5 % de vida, durante 4 s las balas enemigas se quedan flotando.' },
   },
+  hilo: {
+    id: 'hilo',
+    name: 'Marca del Hilo',
+    concept: 'Hilo',
+    original: false,
+    color: '#f2f4f8',
+    glowColor: '#ffffff',
+    symbol: 'hilo',
+    abilities: ['hilos', 'balanceo', 'atar', 'lanzar', 'atraer', 'cadena'],
+    // Brazo derecho, sobre el antebrazo (por encima del símbolo de la Energía)
+    bodyPattern: { side: 'R', seed: 21, wristOffset: 0.17, layer: 1.1, regions: ['wrist', 'forearm', 'upperArm', 'shoulder'] },
+    passive: { name: 'Impulso', desc: 'Manteniendo el salto, das un salto lo bastante alto para empezar a balancearte.' },
+  },
 });
 
 /** Orden de las marcas copiadas (cambio de marca con V). */
-export const COPY_ORDER = Object.freeze(['energia', 'gravedad']);
+export const COPY_ORDER = Object.freeze(['energia', 'gravedad', 'hilo']);

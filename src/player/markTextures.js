@@ -54,6 +54,21 @@ export function markSymbolTexture(symbol, color) {
     g.lineTo(m + 10, m - 4);
     g.lineTo(m - 8, size - 30);
     g.stroke();
+  } else if (symbol === 'hilo') {
+    // Un hilo que se enrolla en tres lazos alrededor de un nudo central
+    for (let k = 0; k < 3; k++) {
+      const a0 = (k / 3) * Math.PI * 2 - Math.PI / 2;
+      g.beginPath();
+      g.ellipse(m + Math.cos(a0) * 22, m + Math.sin(a0) * 22, 26, 11, a0, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.beginPath();
+    g.arc(m, m, 8, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();
+    g.moveTo(m + 8, m + 6);
+    g.quadraticCurveTo(m + 40, m + 30, size - 10, size - 8);
+    g.stroke();
   } else if (symbol === 'gravedad') {
     // Órbita inclinada alrededor de un núcleo y flecha hacia abajo: lo que
     // atrae y lo que cae.

@@ -105,6 +105,7 @@ export class PlayerCombat {
     g.activePowers.energy.refill();
     g.powers.resetAbilities();
     g.gravity?.resetAbilities();
+    g.thread?.resetAbilities();
     g.enemies.forgetTarget();
     g.events.emit('player:respawned', { afterDeath: true });
   }
@@ -178,8 +179,8 @@ export class PlayerCombat {
       g.activePowers.energy.spend(c.elementalCost);
       this._fists = 1;
       g.marks.pulse(0.45, 0.15);
-      // Embestida hacia el enemigo más cercano delante
-      const target = this._lungeTarget();
+      // Embestida hacia el enemigo más cercano delante (el Hilo golpea con la cadena, sin embestida)
+      const target = g.marks.activeFamily === 'hilo' ? null : this._lungeTarget();
       if (target) {
         const p = g.player.motor.position;
         const t = target.center;
@@ -243,8 +244,13 @@ export class PlayerCombat {
     const p = this.position;
     const f = g.player.facingVector();
     const energy = this._meleeElemental;
-    const damage = energy ? c.elementalDamage : c.damage;
-    const knockback = energy ? c.elementalKnockback : c.knockback;
+    // Hilo: la cuerda gruesa como cadena, en barrido amplio
+    const chain = energy && g.marks.activeFamily === 'hilo' ? g.thread.chainCfg : null;
+    const damage = chain ? chain.damage : energy ? c.elementalDamage : c.damage;
+    const knockback = chain ? chain.knockback : energy ? c.elementalKnockback : c.knockback;
+    const range = chain ? chain.range : c.range;
+    const arc = chain ? chain.arc : c.arc;
+    if (chain) this._chainVfx(f, chain.range);
     let hits = 0;
     for (const t of [...g.combat.targets]) {
       if (t === this || !t.alive) continue;
@@ -253,14 +259,14 @@ export class PlayerCombat {
       const dz = tc.z - p.z;
       const dy = tc.y - (p.y + 1);
       const d = Math.hypot(dx, dz) - (t.radius ?? 0.3);
-      if (d > c.range || Math.abs(dy) > 1.6) continue;
+      if (d > range || Math.abs(dy) > 1.6) continue;
       const l = Math.hypot(dx, dz) || 1;
       const cos = (dx * f.x + dz * f.z) / l;
-      if (cos < Math.cos(THREE.MathUtils.degToRad(c.arc))) continue;
+      if (cos < Math.cos(THREE.MathUtils.degToRad(arc))) continue;
       const dir = { x: (dx / l) * 0.85, y: 0.35, z: (dz / l) * 0.85 };
       g.combat.applyDamage(t, damage, { point: tc, dir, knockback, kind: energy ? `melee-${g.marks.activeFamily}` : 'melee', faction: 'player', source: this });
       hits++;
-      if (energy) {
+      if (energy && !chain) {
         g.player.updateModelMatrices();
         g.vfx.lightning(g.player.handWorldPosition(), tc, g.activePowers.color, { width: 0.05, duration: 0.2, jitter: 0.2, branches: 2 });
       }
@@ -273,6 +279,22 @@ export class PlayerCombat {
       if (energy) g.marks.pulse(0.5, 0.1);
       g.cameraController.shake(0.15);
     }
-    g.events.emit('player:melee', { hits, elemental: energy });
+    g.events.emit('player:melee', { hits, elemental: energy, chain: !!chain });
+  }
+
+  /** Barrido de la cuerda: un arco de hilo blanco delante del personaje. */
+  _chainVfx(f, range) {
+    const g = this.game;
+    const p = this.position;
+    const base = Math.atan2(f.x, f.z);
+    const color = new THREE.Color(g.thread.color);
+    for (let i = 0; i <= 24; i++) {
+      const a = base + (i / 24 - 0.5) * Math.PI * 0.9;
+      const r = range * (0.75 + Math.random() * 0.2);
+      g.vfx.particles.emit({
+        x: p.x + Math.sin(a) * r, y: p.y + 1.1 + Math.sin(i / 24 * Math.PI) * 0.3, z: p.z + Math.cos(a) * r,
+        vx: Math.cos(a) * 3, vy: 0, vz: -Math.sin(a) * 3, color, size: 0.16, life: 0.3, drag: 3,
+      });
+    }
   }
 }

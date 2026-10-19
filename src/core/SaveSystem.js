@@ -43,6 +43,7 @@ export function createDefaultSave() {
     debug: {
       grantEnergy: false, // atajo: concede Energía sin pasar por la estación de adquisición
       grantGravity: false, // atajo: concede Gravedad
+      grantThread: false, // atajo: concede Hilo
       infiniteEnergy: false,
       maxMarks: false, // fuerza las marcas al máximo para revisar efectos
       invulnerable: false, // el jugador no recibe daño

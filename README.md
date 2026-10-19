@@ -30,6 +30,8 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   flotantes, disparo que hace flotar, atraer, empujar, granada de
   antigravedad, saltos altos/triples con planeo y pasiva de estasis; cambio de
   marca con V; pasiva de la Energía (5 % de detener).
+- **Marca del Hilo** ✅: tercera marca (blanca): balanceo con hilo, puño de
+  hilo, golpe de cadena, atar, lanzar, atraerse y salto alto.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -146,6 +148,37 @@ Código: `src/systems/GravityPowerSystem.js` (habilidades),
 (`float`, `stun`, `pullTo`), saltos en `src/physics/CharacterMotor.js`
 (`jumpAbilities`), estasis en `src/systems/ProjectileSystem.js` y marca activa
 en `src/systems/MarkSystem.js`.
+
+## Marca del Hilo
+
+**Cómo conseguirla**: tercera Encarnación de la Zona E (chaqueta clara, junto a
+un tendedero). Contacto y voluntad, como las demás. V recorre las tres marcas.
+
+**Recarga**: **tendederos** y **rollos de tela** (plaza, calles y azoteas del
+Distrito; inicio y zonas del Campo).
+
+| Tecla | Habilidad | Coste | Efecto |
+| --- | --- | --- | --- |
+| Clic izq. | Hilos | 2 | El puño se convierte en hilo y golpea a distancia (24 m, 14 de daño). **Sin balas**, pero no puedes volver a golpear hasta que el puño ha vuelto |
+| Q (mantener) | Balanceo | 4 | Lanza un hilo a la estructura más próxima por encima y por delante (30 m) y te balanceas: la cuerda se mantiene tensa, WASD empuja el péndulo, al soltar Q (o saltar) sales despedido con la velocidad que llevabas. Desde el suelo, el hilo tira de ti y despegas |
+| R | Atar | 15 | Ata al enemigo de la mira y lo **inmoviliza 4 s** (hilos alrededor del cuerpo) |
+| G | Lanzar | 15 | Lanza al enemigo de la mira **por los aires** (≈5 m); al caer se hace daño |
+| X / clic central | Atraer | 10 | Te lleva **hasta el enemigo** (a distancia de golpe) o, si señalas una pared o superficie, **hasta ella** |
+| F | Cadena | 5 | Con carga, la cuerda gruesa como cadena: **barrido de 160°** y 4.6 m, 26 de daño a todos los que alcanza |
+
+**Pasiva — Impulso**: con el Hilo activo, **mantener el salto** da un salto de
+≈4.5 m, suficiente para empezar a balancearse.
+
+**Mejoras**: Hilo largo (+8 m), Nudo firme (+2 s atado), Puño rápido (40 % más
+rápido), Cadena pesada (+10 de daño y alcance) y Telaraña (próximamente).
+
+**Enemigos**: pueden quedar **atados** (inmóviles) y reciben **daño al caer**
+desde altura.
+
+Código: `src/systems/ThreadPowerSystem.js`, `src/powers/thread/`, balanceo en
+`src/physics/CharacterMotor.js` (`startSwing`/`endSwing`, cuerda con
+corrección limitada para no atravesar muros finos) y selección del enemigo de
+la mira compartida en `src/powers/targeting.js`.
 
 ## Etapa 7 — Pulido
 
@@ -555,6 +588,11 @@ contenedores y cajas (A1, A2).
     mantener el salto llega a ≈3.2 m, se planea y hay 3 saltos; la estasis se
     activa al 5 % de vida; la pasiva de Energía detiene al enemigo; los
     escombros recargan la Gravedad y la activan.
+  - Hilo: se copia y quedan tres marcas; V las recorre; el puño de hilo golpea
+    y espera a volver; atar inmoviliza; atraerse lleva hasta el enemigo y
+    hasta una pared; la cadena alcanza a dos enemigos; lanzar sube al enemigo
+    ≈5 m; mantener Q balancea y soltar suelta; el salto alto llega a ≈4.5 m;
+    los rollos de tela recargan el Hilo.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.

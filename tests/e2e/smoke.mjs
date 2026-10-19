@@ -1205,6 +1205,124 @@ try {
   await page.keyboard.up('KeyE');
   const gDrain = await g(() => ({ e: window.__ascend.gravity.energy.value, active: window.__ascend.marks.activeFamily }));
   check(gDrain.e > 50 && gDrain.active === 'gravedad', `Absorber escombros recarga la Gravedad y la activa (${gDrain.e.toFixed(0)})`);
+
+  // ---------------- Marca del Hilo ----------------
+  console.log('\n[hilo]');
+  await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = true; a.enemies.clear(); a.gravity.clear(); a.playerCombat.restore(); });
+  await g(() => window.__ascend.player.spawnAt({ x: 7, y: 0.4, z: -61.4, yaw: Math.PI }));
+  await page.waitForFunction(() => /Hilo/.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'contact', null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.save.data.profile.marks.includes('hilo'), null, { timeout: 25000 }).catch(() => {});
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'idle', null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  await page.waitForTimeout(300);
+  const hAcq = await g(() => ({
+    owned: window.__ascend.marks.ownedCopies.join(','), active: window.__ascend.marks.activeFamily,
+    slots: [...document.querySelectorAll('#hud-abilities .ability')].filter((e) => e.style.display !== 'none').map((e) => e.querySelector('.name').textContent).join(','),
+  }));
+  check(hAcq.owned === 'energia,gravedad,hilo' && hAcq.active === 'hilo', `Hilo copiado: tres marcas y el Hilo queda activo (${hAcq.owned})`);
+  check(/Hilos/.test(hAcq.slots) && /Balanceo/.test(hAcq.slots) && /Atar/.test(hAcq.slots) && /Lanzar/.test(hAcq.slots) && /Atraer/.test(hAcq.slots), `El HUD muestra las habilidades del Hilo (${hAcq.slots})`);
+  const cyc = [];
+  for (let k = 0; k < 3; k++) {
+    await page.keyboard.press('KeyV');
+    await page.waitForTimeout(250);
+    cyc.push(await g(() => window.__ascend.marks.activeFamily));
+  }
+  check(cyc.join(',') === 'energia,gravedad,hilo', `V recorre las tres marcas (${cyc.join(' → ')})`);
+
+  // Puño de hilo: golpea a distancia y hay que esperar a que vuelva
+  await g(() => {
+    const a = window.__ascend;
+    a.thread.resetAbilities();
+    a.thread.energy.refill();
+    a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI });
+    window.__he = a.enemies.spawn('pdc', { x: -24, y: 0.2, z: 20, yaw: 0, tag: 'h', patrol: [{ x: -24, z: 20 }] });
+    window.__fists = 0;
+    a.events.on('power:used', (e) => { if (e.id === 'hilos') window.__fists++; });
+  });
+  await page.waitForTimeout(300);
+  await g(() => window.__aimAt(window.__he.center));
+  await page.mouse.down();
+  await page.waitForFunction(() => window.__ascend.thread.fist !== null, null, { timeout: 8000 }).catch(() => {});
+  const whileOut = await g(() => { const a = window.__ascend; a.thread._fireFist(); return window.__fists; });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.__ascend.thread.fist === null, null, { timeout: 15000 }).catch(() => {});
+  const hFist = await g(() => ({ hp: window.__he.health.value, n: window.__fists }));
+  check(hFist.hp < 80 && whileOut === 1, `El puño de hilo golpea a distancia y no vuelve a golpear hasta regresar (salud ${hFist.hp})`);
+  // Atar
+  await g(() => window.__aimAt(window.__he.center));
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(() => window.__he.bound, null, { timeout: 8000 }).catch(() => {});
+  const hBind = await g(() => ({ b: window.__he.bound, s: window.__he._stun }));
+  await page.screenshot({ path: path.join(out, 'thread-01-bind.png') });
+  check(hBind.b && hBind.s > 2.5, `Atar inmoviliza al enemigo (${hBind.s.toFixed(1)} s)`);
+  // Atraer hacia el enemigo atado (cuerpo a cuerpo) y golpe de cadena
+  await g(() => window.__aimAt(window.__he.center));
+  await page.keyboard.press('KeyX');
+  await page.waitForFunction(() => { const a = window.__ascend; const e = window.__he; return !a.player.motor.isTraveling && Math.hypot(e.position.x - a.player.motor.position.x, e.position.z - a.player.motor.position.z) < 2.5; }, null, { timeout: 10000 }).catch(() => {});
+  const hZip = await g(() => { const a = window.__ascend; const e = window.__he; return Math.hypot(e.position.x - a.player.motor.position.x, e.position.z - a.player.motor.position.z); });
+  check(hZip < 2.5, `Atraer lleva al personaje hasta el enemigo, a distancia de golpe (${hZip.toFixed(2)} m)`);
+  await g(() => {
+    const a = window.__ascend;
+    const p = a.player.motor.position;
+    const e = window.__he;
+    a.player.facing = Math.atan2(e.position.x - p.x, e.position.z - p.z);
+    const f = { x: Math.sin(a.player.facing), z: Math.cos(a.player.facing) };
+    window.__he2 = a.enemies.spawn('pdc', { x: p.x + f.x * 2.2 - f.z * 2.2, y: 0.2, z: p.z + f.z * 2.2 + f.x * 2.2, tag: 'h' });
+    window.__he2.bind(5);
+    window.__chainHp = [e.health.value, window.__he2.health.value];
+    a.playerCombat._meleeCd = 0;
+  });
+  await page.keyboard.press('KeyF');
+  await page.waitForFunction(() => window.__ascend.audio.stats.chain > 0 || window.__he2.health.value < window.__chainHp[1], null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const hChain = await g(() => ({ a: window.__chainHp[0] - window.__he.health.value, b: window.__chainHp[1] - window.__he2.health.value }));
+  check(hChain.a > 0 && hChain.b > 0, `El golpe de cadena alcanza a varios enemigos a la vez (${hChain.a} y ${hChain.b} de daño)`);
+  // Lanzar
+  await g(() => { window.__he._stun = 0; window.__he._bound = 0; window.__ascend.enemies.remove(window.__he2); window.__aimAt(window.__he.center); });
+  const y0 = await g(() => window.__he.position.y);
+  await page.keyboard.press('KeyG');
+  let hTop = 0;
+  for (let k = 0; k < 20; k++) {
+    await page.waitForTimeout(100);
+    hTop = Math.max(hTop, await g(() => window.__he.position.y));
+  }
+  check(hTop > y0 + 2, `Lanzar manda al enemigo por los aires (sube ${(hTop - y0).toFixed(1)} m)`);
+  // Atraer hacia una pared (fachada de la Zona B)
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.thread.resetAbilities(); a.player.spawnAt({ x: 54, y: 0.3, z: 2, yaw: 0 }); });
+  await page.waitForTimeout(300);
+  await g(() => window.__aimAt({ x: 54, y: 4, z: 11.5 }));
+  await page.keyboard.press('KeyX');
+  await page.waitForFunction(() => !window.__ascend.player.motor.isTraveling && window.__ascend.player.motor.position.z > 9, null, { timeout: 10000 }).catch(() => {});
+  check((await g(() => window.__ascend.player.motor.position.z)) > 9, 'Atraer hacia una pared lleva al personaje hasta ella');
+  // Balanceo: mantener Q
+  await g(() => { const a = window.__ascend; a.player.spawnAt({ x: 54, y: 0.3, z: 3, yaw: 0 }); a.cameraController.yaw = Math.PI; a.cameraController.pitch = 0.1; });
+  await page.waitForTimeout(300);
+  await page.keyboard.down('KeyQ');
+  await page.waitForFunction(() => window.__ascend.player.motor.isSwinging, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const hSw = await g(() => { const m = window.__ascend.player.motor; const s = m.swingAnchor; return { sw: m.isSwinging, y: m.position.y, rope: window.__ascend.thread.rope.visible, len: s?.len, d: s ? Math.hypot(m.position.x - s.x, m.position.y + 1.5 - s.y, m.position.z - s.z) : 0 }; });
+  await page.screenshot({ path: path.join(out, 'thread-02-swing.png') });
+  await page.keyboard.up('KeyQ');
+  await page.waitForFunction(() => !window.__ascend.player.motor.isSwinging, null, { timeout: 5000 }).catch(() => {});
+  check(hSw.sw && hSw.rope && hSw.y > 1 && hSw.d < hSw.len + 0.3, `Mantener Q lanza un hilo a la estructura y se balancea (y=${hSw.y.toFixed(1)}, cuerda ${hSw.len?.toFixed(1)} m)`);
+  check(!(await g(() => window.__ascend.player.motor.isSwinging)), 'Soltar Q suelta el hilo');
+  // Pasiva: salto alto manteniendo
+  await g(() => { const a = window.__ascend; a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI }); for (let i = 0; i < 20; i++) a.player.update(1 / 60); });
+  await page.keyboard.down('Space');
+  const hJump = await g(() => { const a = window.__ascend; const m = a.player.motor; let top = 0; for (let i = 0; i < 120; i++) { a.player.update(1 / 60); a.input.endFrame(); top = Math.max(top, m.position.y); } return top; });
+  await page.keyboard.up('Space');
+  check(hJump > 4, `Pasiva del Hilo: manteniendo el salto se llega a ${hJump.toFixed(2)} m`);
+  // Fuente del Hilo: rollos de tela junto al inicio
+  await g(() => { const a = window.__ascend; a.thread.energy.value = 20; a.marks.setActive('energia'); a.player.spawnAt({ x: 0, y: 0.3, z: 23.4, yaw: 0 }); });
+  await page.waitForFunction(() => /absorber hilo/i.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.thread.energy.value > 50, null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  const hDrain = await g(() => ({ e: window.__ascend.thread.energy.value, active: window.__ascend.marks.activeFamily }));
+  check(hDrain.e > 50 && hDrain.active === 'hilo', `Absorber de unos rollos de tela recarga el Hilo y lo activa (${hDrain.e.toFixed(0)})`);
   await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = false; a.marks.setActive('energia'); a.save.save(); });
 
   // Reiniciar mapa desde la pausa

@@ -42,6 +42,8 @@ export class MarkVisual {
     const sx = S === 'L' ? 1 : -1;
     const seed = this.def.bodyPattern?.seed ?? 1;
     const regions = new Set(this.def.bodyPattern?.regions ?? ['wrist']);
+    // Capa: las marcas del mismo brazo se dibujan un poco más anchas para no solaparse
+    const L = this.def.bodyPattern?.layer ?? 1;
 
     // Símbolo de la muñeca (cara externa)
     const wrist = a[`wrist${S}`];
@@ -59,17 +61,20 @@ export class MarkVisual {
     const circuit = (i, w, h) => circuitTexture(seed * 10 + i, w, h);
     if (regions.has('forearm')) {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(0.064, 0.058, 0.27, 20, 1, true), this._mat(circuit(1, 128, 256)));
+      m.scale.set(L, 1, L);
       a[`forearm${S}`].add(m);
       this.parts.push({ mesh: m, threshold: REGION_THRESHOLDS.forearm, base: 0 });
     }
     if (regions.has('upperArm')) {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(0.074, 0.068, 0.3, 20, 1, true), this._mat(circuit(2, 128, 256)));
+      m.scale.set(L, 1, L);
       a[`upperArm${S}`].add(m);
       this.parts.push({ mesh: m, threshold: REGION_THRESHOLDS.upperArm, base: 0 });
     }
     if (regions.has('shoulder')) {
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.098, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), this._mat(circuit(3, 128, 128)));
       m.position.y = -0.01;
+      m.scale.setScalar(L);
       a[`shoulder${S}`].add(m);
       this.parts.push({ mesh: m, threshold: REGION_THRESHOLDS.shoulder, base: 0 });
     }

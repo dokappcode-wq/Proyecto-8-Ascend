@@ -16,6 +16,9 @@ export const SOURCE_KINDS = {
   // Gravedad: cosas pesadas
   rubble: { name: 'Escombros', element: 'gravedad', capacity: 80, rechargeTime: 24 },
   concrete: { name: 'Bloque de hormigón', element: 'gravedad', capacity: 60, rechargeTime: 20 },
+  // Hilo: cosas de tela y cuerda
+  clothesline: { name: 'Tendedero', element: 'hilo', capacity: 60, rechargeTime: 20 },
+  fabric: { name: 'Rollos de tela', element: 'hilo', capacity: 80, rechargeTime: 24 },
 };
 const KINDS = SOURCE_KINDS;
 
@@ -95,6 +98,29 @@ export class EnergySource {
       add(new THREE.BoxGeometry(0.04, 0.3, 0.02), glow(0xa24dff, 1.6), -0.25, 0.42, 0.305);
       this._drainLocal = new THREE.Vector3(0, 0.6, 0.35);
       this._size = { w: 1.8, d: 0.8, h: 0.85 };
+    } else if (kind === 'clothesline') {
+      // Dos postes, una cuerda y ropa tendida (la cuerda brilla un poco)
+      const post = new THREE.MeshStandardMaterial({ color: 0x5c5f66, metalness: 0.4, roughness: 0.6 });
+      add(new THREE.CylinderGeometry(0.04, 0.05, 1.9, 6), post, -1.2, 0.95, 0);
+      add(new THREE.CylinderGeometry(0.04, 0.05, 1.9, 6), post, 1.2, 0.95, 0);
+      add(new THREE.BoxGeometry(2.4, 0.025, 0.025), glow(0xffffff, 1.2), 0, 1.82, 0);
+      const cloth = [0x3d6fa8, 0xd8d2c4, 0xa8443d, 0x6b8a4a];
+      cloth.forEach((c, i) => add(new THREE.BoxGeometry(0.42, 0.6, 0.02), new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, side: THREE.DoubleSide }), -0.8 + i * 0.53, 1.5, 0));
+      this._drainLocal = new THREE.Vector3(0, 1.8, 0);
+      this._size = { w: 2.5, d: 0.3, h: 1.9 };
+    } else if (kind === 'fabric') {
+      // Puesto con rollos de tela apilados sobre un palé
+      add(new THREE.BoxGeometry(1.4, 0.15, 1.0), new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 }), 0, 0.075, 0);
+      const cols = [0xc9c2b4, 0x7b2f3a, 0x2f4f7b, 0xd9c27a, 0x4d6b4a];
+      for (let i = 0; i < 5; i++) {
+        const row = i < 3 ? 0 : 1;
+        const x = row ? -0.22 + (i - 3) * 0.44 : -0.44 + i * 0.44;
+        const r = add(new THREE.CylinderGeometry(0.21, 0.21, 0.95, 14), new THREE.MeshStandardMaterial({ color: cols[i], roughness: 0.95 }), x, 0.36 + row * 0.38, 0);
+        r.rotation.x = Math.PI / 2;
+      }
+      add(new THREE.BoxGeometry(1.0, 0.02, 0.02), glow(0xffffff, 1.2), 0, 0.98, 0.3);
+      this._drainLocal = new THREE.Vector3(0, 0.8, 0.3);
+      this._size = { w: 1.4, d: 1.0, h: 1.0 };
     } else if (kind === 'vending') {
       add(new THREE.BoxGeometry(1.0, 1.9, 0.8), new THREE.MeshStandardMaterial({ color: 0x9a2d2d, roughness: 0.5, metalness: 0.2 }), 0, 0.95, 0);
       add(new THREE.PlaneGeometry(0.62, 1.1), glow(0xbfe3ff, 1.4), -0.12, 1.15, 0.401);

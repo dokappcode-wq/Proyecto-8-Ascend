@@ -456,6 +456,22 @@ export class CharacterModel {
       mix(R.knee, 'x', 0.5);
     }
 
+    // Balanceo (Hilo): brazo derecho arriba sujetando el hilo, piernas juntas
+    this._swingW = (this._swingW ?? 0) + ((s.swinging ? 1 : 0) - (this._swingW ?? 0)) * k(14);
+    if (this._swingW > 0.001) {
+      const sw = this._swingW;
+      const mix = (obj, axis, v) => (obj.rotation[axis] += (v - obj.rotation[axis]) * sw);
+      mix(A.R.shoulder, 'x', -2.95);
+      mix(A.R.shoulder, 'z', -0.15);
+      mix(A.R.elbow, 'x', -0.1);
+      mix(A.L.shoulder, 'x', -0.6);
+      mix(A.L.shoulder, 'z', 0.5);
+      mix(L.hip, 'x', -0.35);
+      mix(R.hip, 'x', -0.15);
+      mix(L.knee, 'x', 0.7);
+      mix(R.knee, 'x', 0.35);
+    }
+
     // Parkour: trepar, colgar, subir a una cornisa y saltar obstáculos
     if (s.climb) this._climbPose = s.climb;
     this._climbW += ((s.climb ? 1 : 0) - this._climbW) * k(s.climb ? 22 : 10);

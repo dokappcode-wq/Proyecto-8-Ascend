@@ -11,6 +11,8 @@ const DEFAULT_MODS = Object.freeze({
   dashCostSub: 0, targetedRangeAdd: 0, drainMul: 1, energyMaxAdd: 0,
   // Gravedad
   stoneBonus: 0, pullDamageAdd: 0, pullStunAdd: 0, pushDamageAdd: 0, pushKnockbackAdd: 0, bubbleRadiusAdd: 0, bubbleTimeAdd: 0,
+  // Hilo
+  swingRangeAdd: 0, bindTimeAdd: 0, fistSpeedMul: 1, chainDamageAdd: 0,
 });
 
 export class Progression {

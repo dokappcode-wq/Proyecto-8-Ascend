@@ -314,6 +314,16 @@ function energySources(ctx, byId) {
   roofG(byId.B3, 4, 5, 'rubble');
   roofG(byId.B1, 6, -4, 'concrete');
   roofG(byId.B6, -6, 3, 'rubble');
+
+  // Hilo: tendederos en azoteas y callejones, puestos de tela en la plaza
+  add({ kind: 'fabric', x: -12.5, z: 2, yaw: Math.PI / 2, y: 0.2 });
+  add({ kind: 'fabric', x: 12.5, z: -2, yaw: -Math.PI / 2, y: 0.2 });
+  add({ kind: 'clothesline', x: 22, z: -12, y: 0 });
+  add({ kind: 'clothesline', x: -40, z: 24, y: 0 });
+  roofG(byId.B7, -3, 4, 'clothesline');
+  roofG(byId.B2, -4, 3, 'clothesline');
+  roofG(byId.B4, 3, 5, 'clothesline');
+  roofG(byId.B8, 3, -5, 'fabric');
 }
 
 function streetProps(B, M, group, ctx) {

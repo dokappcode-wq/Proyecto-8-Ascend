@@ -192,12 +192,14 @@ export class AudioSystem {
       const map = { wall: 'grab', hang: 'grab', mantle: 'mantle', vault: 'vault', leap: 'jump', walljump: 'dodge' };
       if (map[e.kind]) this.play(map[e.kind], { pos: me() });
     });
-    ev.on('player:melee', (e) => this.play(e.elemental ? 'punchZap' : 'punch', { pos: me() }));
+    ev.on('player:melee', (e) => this.play(e.chain ? 'chain' : e.elemental ? 'punchZap' : 'punch', { pos: me() }));
+    ev.on('thread:release', () => this.play('airjump', { pos: me(), volume: 0.7 }));
     ev.on('player:lunge', () => this.play('dash', { pos: me(), volume: 0.6 }));
     ev.on('power:used', (e) => {
       const map = {
         proyectil: 'zap', dash: 'dash', 'dash-dirigido': 'dash', descarga: 'discharge', onda: 'wave', rayo: 'dash',
         disparo: 'gshot', rocas: 'stone', atraer: 'pull', empujar: 'push', granada: 'throw',
+        hilos: 'whip', balanceo: 'thwip', atar: 'bind', lanzar: 'launch', 'atraer-hilo': 'thwip',
       };
       if (map[e.id]) this.play(map[e.id], { pos: me() });
     });
@@ -390,6 +392,27 @@ const SFX = {
   airjump: (a, o, t) => noise(a, o, t, 0.16, { type: 'bandpass', freq: 300, freq2: 900, q: 1.4, peak: 0.22 }),
   stasis: (a, o, t) => {
     for (const f of [110, 165, 220]) tone(a, o, t, 1.4, { freq: f, freq2: f * 0.7, peak: 0.1, attack: 0.15 });
+  },
+  // --- Hilo: chasquidos secos y tensión de cuerda ---
+  whip: (a, o, t) => {
+    noise(a, o, t, 0.05, { type: 'highpass', freq: 2500, peak: 0.35, attack: 0.001 });
+    tone(a, o, t, 0.12, { type: 'triangle', freq: 900, freq2: 300, peak: 0.12 });
+  },
+  thwip: (a, o, t) => {
+    noise(a, o, t, 0.12, { type: 'bandpass', freq: 3000, freq2: 1200, q: 3, peak: 0.25 });
+    tone(a, o, t + 0.02, 0.15, { type: 'triangle', freq: 420, freq2: 640, peak: 0.08 });
+  },
+  bind: (a, o, t) => {
+    for (let i = 0; i < 3; i++) noise(a, o, t + i * 0.07, 0.06, { type: 'bandpass', freq: 2600 - i * 400, q: 3, peak: 0.2 });
+    tone(a, o, t, 0.3, { type: 'triangle', freq: 300, freq2: 220, peak: 0.08 });
+  },
+  launch: (a, o, t) => {
+    noise(a, o, t, 0.08, { type: 'highpass', freq: 2000, peak: 0.3 });
+    noise(a, o, t + 0.05, 0.3, { type: 'bandpass', freq: 400, freq2: 1600, q: 1, peak: 0.2 });
+  },
+  chain: (a, o, t) => {
+    noise(a, o, t, 0.25, { type: 'bandpass', freq: 500, freq2: 1800, q: 1.2, peak: 0.3 });
+    tone(a, o, t + 0.12, 0.12, { freq: 160, freq2: 60, peak: 0.4 });
   },
   switch: (a, o, t) => {
     tone(a, o, t, 0.08, { type: 'triangle', freq: 440, peak: 0.1 });

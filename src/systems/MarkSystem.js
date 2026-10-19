@@ -27,7 +27,7 @@ export class MarkSystem {
   owns(id) {
     if (this.save.data.profile.marks.includes(id)) return true;
     const d = this.save.data.debug ?? {};
-    return (id === 'energia' && !!d.grantEnergy) || (id === 'gravedad' && !!d.grantGravity);
+    return (id === 'energia' && !!d.grantEnergy) || (id === 'gravedad' && !!d.grantGravity) || (id === 'hilo' && !!d.grantThread);
   }
 
   /** Marcas copiadas que posee, en orden. */
@@ -109,6 +109,7 @@ export class MarkSystem {
   setDebugGrant(id, value) {
     if (id === 'energia') this.save.data.debug.grantEnergy = value;
     else if (id === 'gravedad') this.save.data.debug.grantGravity = value;
+    else if (id === 'hilo') this.save.data.debug.grantThread = value;
     else return;
     this.save.save();
     this.refresh();

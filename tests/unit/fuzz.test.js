@@ -74,6 +74,12 @@ test('estrés del motor: entradas aleatorias en mundos aleatorios sin atravesar 
         if (r() < 0.03) m.startTravel({ x: (r() - 0.5) * 60, y: r() * 10, z: (r() - 0.5) * 60 });
         if (r() < 0.03) m.startDive();
         if (r() < 0.05) m.setCrouch(!m.crouched);
+        // Balanceo con hilo (Hilo) desde un anclaje aleatorio por encima
+        if (r() < 0.06) {
+          const pp = m.position;
+          m.startSwing({ x: pp.x + (r() - 0.5) * 16, y: pp.y + 4 + r() * 12, z: pp.z + (r() - 0.5) * 16 }, { pump: 16, maxSpeed: 32, maxLen: 3 + r() * 12 });
+        }
+        if (r() < 0.04) m.endSwing(5);
       } else {
         input = { ...input, jump: false, dodge: false, drop: false };
       }

@@ -60,6 +60,7 @@ export class Enemy {
     this._floatPh = Math.random() * 6;
     /** Segundos de aturdimiento (Atraer, pasiva de Energía). */
     this._stun = 0;
+    this._bound = 0;
     this.intent = { move: 'patrol' };
 
     this.model = new CharacterModel({ variant: type.variant, glow: type.glow });
@@ -166,6 +167,36 @@ export class Enemy {
     this.sys.events.emit('enemy:floated', { enemy: this });
   }
 
+  /** Atado (Hilo): inmovilizado `t` segundos, con hilos alrededor del cuerpo. */
+  bind(t) {
+    if (!this.alive) return;
+    this._stun = Math.max(this._stun, t);
+    this._bound = Math.max(this._bound ?? 0, t);
+    if (!this._bindMesh) {
+      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffffff').multiplyScalar(1.3), toneMapped: false });
+      this._bindMesh = new THREE.Group();
+      for (const [y, r] of [[0.55, 0.36], [0.95, 0.4], [1.35, 0.36]]) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.025, 6, 24), mat);
+        ring.rotation.x = Math.PI / 2 + (y - 0.95) * 0.4;
+        ring.position.y = y;
+        this._bindMesh.add(ring);
+      }
+      this.root.add(this._bindMesh);
+    }
+    this._bindMesh.visible = true;
+    this.sys.events.emit('enemy:bound', { enemy: this, time: t });
+  }
+
+  get bound() {
+    return (this._bound ?? 0) > 0;
+  }
+
+  /** Daño al caer desde altura (lanzado por los aires). */
+  _checkFall() {
+    const ev = this.motor.events;
+    if (ev.landed && ev.landingSpeed > 14) this.sys.combat.applyDamage(this, Math.round((ev.landingSpeed - 14) * 4), { kind: 'fall', faction: 'neutral' });
+  }
+
   /** Aturdido `t` segundos: no se mueve, no apunta y no dispara. */
   stun(t) {
     if (!this.alive) return;
@@ -197,6 +228,10 @@ export class Enemy {
     const p = m.position;
     const w = this.sys.world;
     this._stun = Math.max(0, this._stun - dt);
+    if (this._bound > 0) {
+      this._bound = Math.max(0, this._bound - dt);
+      if (this._bound === 0 && this._bindMesh) this._bindMesh.visible = false;
+    }
     const f = this._float;
     if (f) {
       f.t -= dt;
@@ -233,7 +268,10 @@ export class Enemy {
     } else {
       // Aturdido: se queda quieto (la física sigue: si está en el aire, cae)
       const steps = Math.max(1, Math.ceil(dt / DT_STEP - 1e-6));
-      for (let i = 0; i < steps; i++) m.update(dt / steps, { moveX: 0, moveZ: 0, sprint: false, jump: false, dodge: false });
+      for (let i = 0; i < steps; i++) {
+        m.update(dt / steps, { moveX: 0, moveZ: 0, sprint: false, jump: false, dodge: false });
+        this._checkFall();
+      }
       if (Math.random() < 0.25) {
         this.sys.vfx.particles.emit({ x: p.x + (Math.random() - 0.5) * 0.6, y: p.y + 1.6 + Math.random() * 0.3, z: p.z + (Math.random() - 0.5) * 0.6, vx: 0, vy: 0.4, vz: 0, color: STUN_COLOR, size: 0.06, life: 0.3, drag: 1 });
       }
@@ -270,6 +308,8 @@ export class Enemy {
       this._float = null;
     }
     this._stun = 0;
+    this._bound = 0;
+    if (this._bindMesh) this._bindMesh.visible = false;
     this.brain.update(0, { dead: true }); // estado: neutralizado
     this.sys.events.emit('enemy:neutralized', { enemy: this, type: this.type.id, tag: this.tag });
   }
@@ -523,6 +563,7 @@ export class Enemy {
     const scale = speed / this.motor.cfg.walkSpeed;
     for (let i = 0; i < steps; i++) {
       this.motor.update(sdt, { moveX: mx, moveZ: mz, sprint: false, jump: jump && i === 0, dodge: false, speedScale: scale });
+      this._checkFall();
     }
 
     // --- Disparo ---

@@ -78,7 +78,7 @@ test('Energía (sin saltos de Gravedad): un solo salto y sin planeo', () => {
 });
 
 test('Gravedad: datos de la marca, pasiva y árbol de mejoras', () => {
-  assert.deepEqual(COPY_ORDER, ['energia', 'gravedad']);
+  assert.deepEqual(COPY_ORDER.slice(0, 2), ['energia', 'gravedad']);
   assert.equal(MARKS.gravedad.original, false);
   assert.ok(MARKS.gravedad.passive && MARKS.energia.passive);
   assert.equal(GRAVITY_CONFIG.projectile.magazineSize, 1);

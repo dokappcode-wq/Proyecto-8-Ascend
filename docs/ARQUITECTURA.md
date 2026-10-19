@@ -261,3 +261,17 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   planeo al mantenerlo cayendo. El jugador pasa `jumpHeld` en la entrada.
 - **Pasivas**: en `GameManager` (escuchan `combat:damage` y `player:damaged`);
   la de Gravedad llama a `ProjectileSystem.stasis(segundos)`.
+
+## Hilo
+
+- `ThreadPowerSystem` sigue la interfaz común; su «cargador» es un objeto que
+  indica si el puño está listo o volviendo (el HUD lo muestra igual).
+- **Balanceo**: estado `_swing` del `CharacterMotor`. Con el hilo, la entrada
+  empuja el péndulo en lugar de frenar hacia una velocidad objetivo; tras
+  integrar (con colisiones) se aplica la cuerda: se elimina la velocidad que
+  la estira y se corrige la posición como mucho 0.2 m por paso (si no, una
+  cuerda tensa podía meter el cuerpo a través de un muro fino: lo encontró la
+  prueba de estrés). Tocar el suelo, un impulso, un desplazamiento o el picado
+  sueltan el hilo.
+- `powers/targeting.js` (`enemyAtCrosshair`) lo comparten Gravedad e Hilo.
+- `Enemy.bind` (aturdido + anillos de hilo) y daño por caída de los enemigos.

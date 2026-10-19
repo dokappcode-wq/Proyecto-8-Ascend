@@ -39,6 +39,8 @@ const CONTROL_ROWS = [
  */
 const ELEMENT_AMMO_ICONS = {
   energia: '<svg class="ammo-icon" viewBox="0 0 12 24" aria-hidden="true"><path d="M6 0 10 6H7.4L9.6 12H6.8L8.8 24 2 10.4h3L2.6 6H5z" fill="currentColor"/></svg>',
+  // Hilo: un puño (listo o volviendo)
+  hilo: '<svg class="ammo-icon fist" viewBox="0 0 20 24" aria-hidden="true"><path d="M4 9h11a3 3 0 0 1 3 3v5a5 5 0 0 1-5 5H8a4 4 0 0 1-4-4z" fill="currentColor"/><path d="M5 9V5a2 2 0 0 1 4 0v4M9 9V4a2 2 0 0 1 4 0v5M13 9V5a2 2 0 0 1 4 0v5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 0v3" stroke="currentColor" stroke-width="1"/></svg>',
   // Gravedad: núcleo con órbita y flecha hacia abajo
   gravedad: '<svg class="ammo-icon grav" viewBox="0 0 16 24" aria-hidden="true"><ellipse cx="8" cy="9" rx="7" ry="3" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(-18 8 9)"/><circle cx="8" cy="9" r="2.6" fill="currentColor"/><path d="M8 14v8M5 19l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
 };
@@ -47,6 +49,7 @@ const ELEMENT_AMMO_ICONS = {
 const FAMILY_SLOT_NAMES = {
   energia: { projectile: 'Proyectil', dash: 'Dash', discharge: 'Descarga', wave: 'Onda' },
   gravedad: { projectile: 'Disparo', dash: 'Rocas', discharge: 'Atraer', wave: 'Empujar', grenade: 'Granada' },
+  hilo: { projectile: 'Hilos', dash: 'Balanceo', discharge: 'Atar', wave: 'Lanzar', grenade: 'Atraer' },
 };
 
 /** Casillas de habilidades del HUD. `power` = requiere la marca activa. */
@@ -463,7 +466,9 @@ export class UIManager {
 
   _renderHint() {
     let power = '';
-    if (this._powerAvailable && this._element === 'gravedad') {
+    if (this._powerAvailable && this._element === 'hilo') {
+      power = ' · <b>E</b> (mantener) junto a tendederos o rollos de tela: absorber hilo · <b>Clic izq.</b> hilos (el puño debe volver) · <b>Q</b> (mantener) balancearse · <b>R</b> atar · <b>G</b> lanzar · <b>X</b> atraerse · <b>F</b> cadena · <b>Espacio</b> mantener: salto alto · <b>V</b> cambiar de marca';
+    } else if (this._powerAvailable && this._element === 'gravedad') {
       power = ' · <b>E</b> (mantener) junto a escombros o bloques de hormigón: absorber gravedad · <b>Clic izq.</b> disparo (hace flotar) · <b>Q</b> elevar roca (en el aire, otra: hasta 3) · <b>R</b> atraer · <b>G</b> empujar · <b>X</b> granada · <b>Espacio</b> mantener: más alto, hasta 3 saltos, cayendo: planear · <b>V</b> cambiar de marca';
     } else if (this._powerAvailable) {
       power = ' · <b>E</b> (mantener) junto a farolas, armarios o máquinas: absorber energía · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> recargar (mantener: descarga) · <b>G</b> onda (en el aire: rayo) · <b>V</b> cambiar de marca';
@@ -527,7 +532,7 @@ export class UIManager {
         }
         if (mag) {
           const low = !reloading && mag.ammo <= Math.ceil(mag.size * 0.3);
-          this.hud.ammo.textContent = reloading ? 'Recargando' : `${mag.ammo}/${mag.size}`;
+          this.hud.ammo.textContent = reloading ? (this._element === 'hilo' ? 'Puño volviendo' : 'Recargando') : `${mag.ammo}/${mag.size}`;
           this._renderAmmoIcons(mag);
           this.hud.ammo.classList.toggle('low', low);
           this.hud.ammo.classList.toggle('reloading', reloading);
@@ -577,6 +582,8 @@ export class UIManager {
         ${toggle('dbg-mark', 'Conceder Energía (atajo)', state.grantEnergy)}
         ${toggle('dbg-mark-gravity', 'Conceder Gravedad (atajo)', state.grantGravity)}
         ${btn('dbg-reset-gravity', 'Reiniciar adquisición de Gravedad')}
+        ${toggle('dbg-mark-thread', 'Conceder Hilo (atajo)', state.grantThread)}
+        ${btn('dbg-reset-thread', 'Reiniciar adquisición de Hilo')}
         ${toggle('dbg-maxmarks', 'Marcas al máximo', state.maxMarks)}
         ${btn('dbg-xp', '+60 EXP')}
         ${btn('dbg-points', '+1 punto de mejora')}

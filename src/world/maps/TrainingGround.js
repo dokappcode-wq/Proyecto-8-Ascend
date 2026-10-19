@@ -357,7 +357,7 @@ function buildZoneE(B, M, ctx) {
   B.block({ x: x0 + 2.2, z: z0 - 4, w: 2.4, d: 0.6, y: 0.06, h: 0.45, mat: wood });
   B.block({ x: x0 + 2.2, z: z0 - 4.3, w: 2.4, d: 0.1, y: 0.5, h: 0.5, mat: wood, collide: false });
   ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, { kind: 'lamp', x: x0 + 4.2, z: z0 - 4.6 })));
-  B.sign(['ZONA E — ADQUISICIÓN DE MARCAS', 'Encarnaciones de la Energía y de la Gravedad · Contacto + voluntad'], {
+  B.sign(['ZONA E — ADQUISICIÓN DE MARCAS', 'Encarnaciones de la Energía, la Gravedad y el Hilo · Contacto + voluntad'], {
     x: x0, y: 3.4, z: z0 + 13, w: 9, h: 1.9, facing: 0, opts: { width: 1024, height: 220 },
   });
   B.block({ x: x0, z: z0 + 12.95, w: 0.2, d: 0.2, h: 2.4, mat: M.metal, collide: false });
@@ -373,6 +373,13 @@ function buildZoneE(B, M, ctx) {
   ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, { kind: 'rubble', x: gx + 2.6, z: gz - 0.8 })));
   const npc2 = ctx.addEntity(new Incarnation(ctx, { x: gx, y: 0.06, z: gz, yaw: 0, markId: 'gravedad' }));
   ctx.acquisition.registerSource(npc2);
+
+  // Encarnación del Hilo: junto a un tendedero
+  const hx = x0 - 8;
+  const hz = z0 - 3;
+  ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, { kind: 'clothesline', x: hx - 1.6, z: hz - 1.6 })));
+  const npc3 = ctx.addEntity(new Incarnation(ctx, { x: hx, y: 0.06, z: hz, yaw: 0, markId: 'hilo' }));
+  ctx.acquisition.registerSource(npc3);
 }
 
 /**
@@ -381,6 +388,12 @@ function buildZoneE(B, M, ctx) {
  */
 function buildEnergySources(ctx) {
   const add = (o) => ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, o)));
+  // Hilo: tendederos y rollos de tela
+  add({ kind: 'fabric', x: 0, z: 25 });
+  add({ kind: 'clothesline', x: -40, z: 4 });
+  add({ kind: 'clothesline', x: 36, z: 4 });
+  add({ kind: 'fabric', x: -48, z: -44 });
+  add({ kind: 'fabric', x: 50, z: -44 });
   // Gravedad: bloques de hormigón y escombros
   add({ kind: 'concrete', x: 3.5, z: 24.5, yaw: Math.PI });
   add({ kind: 'rubble', x: -3.5, z: 24.5 });

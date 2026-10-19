@@ -4,6 +4,7 @@ import { Ability } from '../powers/Ability.js';
 import { Magazine } from '../powers/Magazine.js';
 import { GRAVITY_CONFIG } from '../powers/gravity/gravityConfig.js';
 import { GravityStone } from '../powers/gravity/GravityStone.js';
+import { enemyAtCrosshair } from '../powers/targeting.js';
 
 const PURPLE = '#a24dff';
 
@@ -258,32 +259,7 @@ export class GravityPowerSystem {
   // ---------------------------------------------------------------- Atraer (R)
   /** Enemigo vivo más cercano al centro de la mira, dentro del cono y con línea de visión. */
   pullTarget() {
-    const g = this.game;
-    const c = this.cfg.pull;
-    const cam = g.camera.position;
-    const dir = new THREE.Vector3();
-    g.camera.getWorldDirection(dir);
-    const p = g.player.motor.position;
-    let best = null;
-    let bestAng = THREE.MathUtils.degToRad(c.cone);
-    for (const e of g.combat.actors) {
-      if (!e.alive || e.faction !== 'enemy') continue;
-      const t = e.center;
-      if (Math.hypot(t.x - p.x, t.z - p.z) > c.range) continue;
-      const v = this._v.set(t.x - cam.x, t.y - cam.y, t.z - cam.z);
-      const ang = v.angleTo(dir);
-      if (ang > bestAng) continue;
-      const eye = { x: p.x, y: p.y + 1.4, z: p.z };
-      const dx = t.x - eye.x;
-      const dy = t.y - eye.y;
-      const dz = t.z - eye.z;
-      const d = Math.hypot(dx, dy, dz);
-      const hit = g.world.raycastHit(eye, { x: dx / d, y: dy / d, z: dz / d }, d, { ignoreTags: ['bounds', 'stone'] });
-      if (hit && hit.t < d - 0.6) continue;
-      best = e;
-      bestAng = ang;
-    }
-    return best;
+    return enemyAtCrosshair(this.game, this.cfg.pull);
   }
 
   _pull() {

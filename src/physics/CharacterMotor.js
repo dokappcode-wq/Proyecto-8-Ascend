@@ -80,6 +80,8 @@ export class CharacterMotor {
     this._airJumpsLeft = 0;
     this._holdT = 0;
     this.gliding = false;
+    /** Balanceo con hilo: { x, y, z (anclaje), len, pump, maxSpeed } */
+    this._swing = null;
 
     /**
      * Eventos del último paso (para animación / efectos).
@@ -87,6 +89,91 @@ export class CharacterMotor {
      * `diveLanded`: { fallHeight } al terminar un picado.
      */
     this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null, airJump: false };
+  }
+
+  // ------------------------------------------------------------------ Balanceo (Hilo)
+  /** Altura del punto del cuerpo del que cuelga el hilo (manos sobre la cabeza). */
+  static get ROPE_POINT() {
+    return 1.5;
+  }
+
+  get isSwinging() {
+    return this._swing !== null;
+  }
+
+  get swingAnchor() {
+    return this._swing;
+  }
+
+  /**
+   * Empieza a balancearse colgado de `anchor` (la cuerda mide la distancia
+   * actual). Mientras dure: gravedad normal, la entrada empuja el péndulo y
+   * la cuerda no deja alejarse más del anclaje.
+   */
+  startSwing(anchor, { pump = 16, maxSpeed = 32, maxLen = Infinity } = {}) {
+    if (this.isBusy) return false;
+    const p = this.position;
+    // Con `maxLen` más corto que la distancia, el hilo tira del cuerpo hacia el anclaje
+    const len = Math.min(maxLen, Math.hypot(anchor.x - p.x, anchor.y - (p.y + CharacterMotor.ROPE_POINT), anchor.z - p.z));
+    if (len < 1.2) return false;
+    this._swing = { x: anchor.x, y: anchor.y, z: anchor.z, len, pump, maxSpeed };
+    if (this.crouched) this.setCrouch(false);
+    return true;
+  }
+
+  /** Suelta el hilo conservando la velocidad (más un impulso vertical opcional). */
+  endSwing(boost = 0) {
+    if (!this._swing) return;
+    this._swing = null;
+    this.velocity.y += boost;
+  }
+
+  _applyRope() {
+    const s = this._swing;
+    const p = this.position;
+    const v = this.velocity;
+    const cx = p.x - s.x;
+    const cy = p.y + CharacterMotor.ROPE_POINT - s.y;
+    const cz = p.z - s.z;
+    const d = Math.hypot(cx, cy, cz);
+    if (d > s.len) {
+      const nx = cx / d;
+      const ny = cy / d;
+      const nz = cz / d;
+      // Corrección de posición pequeña por paso (el resto lo hace la
+      // velocidad, que sí se integra con colisiones): así la cuerda nunca
+      // atraviesa un muro fino.
+      const corr = Math.min(d - s.len, 0.2);
+      p.x -= nx * corr;
+      p.y -= ny * corr;
+      p.z -= nz * corr;
+      this.world.resolveHorizontal(p, this.cfg.radius, p.y, this.currentHeight, this.cfg.stepHeight);
+      this.world.resolveHorizontal(p, this.cfg.radius, p.y, this.currentHeight, this.cfg.stepHeight);
+      const ceil = this.world.ceilingHeight(p.x, p.z, this.cfg.radius * 0.9, p.y + 0.01);
+      if (p.y + this.currentHeight > ceil) p.y = ceil - this.currentHeight;
+      const ground = this.world.groundHeight(p.x, p.z, this.cfg.radius * 0.85, p.y + this.cfg.stepHeight);
+      if (p.y < ground) p.y = ground;
+      // Se elimina la velocidad que estira la cuerda
+      const vr = v.x * nx + v.y * ny + v.z * nz;
+      if (vr > 0) {
+        v.x -= nx * vr;
+        v.y -= ny * vr;
+        v.z -= nz * vr;
+      }
+      // Si la cuerda está más estirada de lo que corrige un paso, tira hacia el anclaje
+      if (d - s.len > 0.2) {
+        const pull = Math.min(12, (d - s.len) * 8);
+        v.x -= nx * pull * 0.1;
+        v.y -= ny * pull * 0.1;
+        v.z -= nz * pull * 0.1;
+      }
+    }
+    const sp = Math.hypot(v.x, v.y, v.z);
+    if (sp > s.maxSpeed) {
+      v.x *= s.maxSpeed / sp;
+      v.y *= s.maxSpeed / sp;
+      v.z *= s.maxSpeed / sp;
+    }
   }
 
   /** 'wall' | 'hang' | 'mantle' | 'vault' | null */
@@ -155,6 +242,7 @@ export class CharacterMotor {
   startDive(speed = 42) {
     if (this.grounded || this.isBusy) return false;
     this._dive = { speed, startY: this.position.y };
+    this._swing = null;
     this.velocity.x = this.velocity.z = 0;
     this.velocity.y = -speed;
     return true;
@@ -171,6 +259,7 @@ export class CharacterMotor {
     const dist = Math.hypot(x - from.x, y - from.y, z - from.z);
     if (dist < 0.5) return false;
     this._travel = { from, to: { x, y, z }, t: 0, duration: dist / speed };
+    this._swing = null;
     this.velocity.x = this.velocity.y = this.velocity.z = 0;
     this.grounded = false;
     return true;
@@ -198,6 +287,7 @@ export class CharacterMotor {
     const l = Math.hypot(x, z);
     if (l < 1e-6) return false;
     this._burst = { kind, x: x / l, z: z / l, speed, time: duration, gravityScale, exitFactor };
+    this._swing = null;
     // El dash anula la caída para poder cruzar huecos.
     if (kind === 'dash' && this.velocity.y < 0) this.velocity.y = 0;
     return true;
@@ -222,6 +312,7 @@ export class CharacterMotor {
     this._travel = null;
     this._climb = null;
     this._mantle = null;
+    this._swing = null;
     this._noGrab = 0;
     this._dodgeCooldown = 0;
     this._coyote = 0;
@@ -296,9 +387,13 @@ export class CharacterMotor {
         v.z *= burst.exitFactor;
         this._burst = null;
       }
+    } else if (this._swing) {
+      // Balanceándose: la entrada empuja el péndulo (sin frenar la velocidad)
+      v.x += mx * this._swing.pump * dt;
+      v.z += mz * this._swing.pump * dt;
     } else {
       const J = this.jumpAbilities;
-      const glide = !!J && this._glideNow(input);
+      const glide = !!J && J.glide !== false && this._glideNow(input);
       const maxSpeed = glide ? Math.max(J.glideSpeed, this.horizontalSpeed) : (input.sprint ? c.sprintSpeed : c.walkSpeed) * (input.speedScale ?? 1);
       const tx = mx * maxSpeed;
       const tz = mz * maxSpeed;
@@ -352,7 +447,7 @@ export class CharacterMotor {
       if (J && input.jumpHeld && v.y > 0 && this._holdT > 0) g *= J.holdGravityScale;
       v.y = Math.max(v.y - g * dt, -c.maxFallSpeed);
       // Mantener el salto cayendo: planeo
-      if (J && this._glideNow(input)) {
+      if (J && J.glide !== false && this._glideNow(input)) {
         v.y = Math.max(v.y, -J.glideFallSpeed);
         this.gliding = true;
       }
@@ -361,8 +456,13 @@ export class CharacterMotor {
     // Velocidad antes de chocar (para decidir si salta un obstáculo por encima)
     const approachSpeed = this.horizontalSpeed;
     this._integrate(dt);
+    if (this._swing) {
+      this._applyRope();
+      // Al tocar el suelo se suelta el hilo
+      if (this.grounded) this._swing = null;
+    }
 
-    if (c.parkour && !input.noParkour && !this.isBusy && !this.crouched) this._tryParkour(mx, mz, mLen, approachSpeed);
+    if (c.parkour && !input.noParkour && !this.isBusy && !this.crouched && !this._swing) this._tryParkour(mx, mz, mLen, approachSpeed);
   }
 
   /** ¿Planea ahora? (Gravedad: salto mantenido mientras cae) */
