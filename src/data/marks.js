@@ -32,5 +32,24 @@ export const MARKS = Object.freeze({
     // Brazo derecho (el Destino conserva su marca en la izquierda). Las regiones
     // se iluminan en orden según la intensidad del poder.
     bodyPattern: { side: 'R', seed: 7, regions: ['wrist', 'forearm', 'upperArm', 'shoulder', 'chest'] },
+    /** Pasiva: cada golpe de Energía tiene un 5 % de probabilidad de detener (aturdir) al enemigo. */
+    passive: { name: 'Cortocircuito', desc: '5 % de probabilidad de detener a un enemigo al golpearle con Energía.' },
+  },
+  gravedad: {
+    id: 'gravedad',
+    name: 'Marca de la Gravedad',
+    concept: 'Gravedad',
+    original: false,
+    color: '#a24dff',
+    glowColor: '#d9b3ff',
+    symbol: 'gravedad',
+    abilities: ['disparo', 'rocas', 'atraer', 'empujar', 'granada'],
+    // Brazo izquierdo; el símbolo se desplaza hacia el antebrazo para no tapar
+    // la marca del Destino de la muñeca.
+    bodyPattern: { side: 'L', seed: 13, wristOffset: 0.09, regions: ['wrist', 'forearm', 'upperArm', 'shoulder', 'chest'] },
+    passive: { name: 'Estasis', desc: 'Al bajar al 5 % de vida, durante 4 s las balas enemigas se quedan flotando.' },
   },
 });
+
+/** Orden de las marcas copiadas (cambio de marca con V). */
+export const COPY_ORDER = Object.freeze(['energia', 'gravedad']);

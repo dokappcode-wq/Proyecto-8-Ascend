@@ -9,6 +9,8 @@ import { PROGRESSION } from '../data/progression.js';
 const DEFAULT_MODS = Object.freeze({
   magazineBonus: 0, reloadMul: 1, fullCharge: null, waveRadiusAdd: 0, waveDamageAdd: 0,
   dashCostSub: 0, targetedRangeAdd: 0, drainMul: 1, energyMaxAdd: 0,
+  // Gravedad
+  stoneBonus: 0, pullDamageAdd: 0, pullStunAdd: 0, pushDamageAdd: 0, pushKnockbackAdd: 0, bubbleRadiusAdd: 0, bubbleTimeAdd: 0,
 });
 
 export class Progression {

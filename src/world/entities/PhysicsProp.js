@@ -47,8 +47,24 @@ export class PhysicsProp {
     this.sleeping = false;
   }
 
+  /** Gravedad: flota `t` segundos a `height` m sobre donde está. */
+  float(t, height = 1.6) {
+    if (!this._float) this._float = { t, y: this.pos.y + height };
+    else this._float.t = Math.max(this._float.t, t);
+    this.sleeping = false;
+  }
+
+  get floating() {
+    return !!this._float;
+  }
+
   update(dt) {
     const w = this.ctx.world;
+    if (this._float) {
+      this._float.t -= dt;
+      if (this._float.t <= 0) this._float = null;
+      this.sleeping = false;
+    }
     if (this.sleeping) {
       // Despierta si lo que tenía debajo se ha movido.
       this.collider.enabled = false;
@@ -65,7 +81,14 @@ export class PhysicsProp {
     const steps = Math.max(1, Math.ceil((Math.hypot(v.x, v.y, v.z) * dt) / (this.radius * 0.5)));
     const sdt = dt / steps;
     for (let i = 0; i < steps; i++) {
-      v.y -= 24 * sdt;
+      if (this._float) {
+        // Sube hasta la altura de flotación y se mece; el movimiento lateral se frena
+        const want = (this._float.y + Math.sin(performance.now() * 0.002 + this.spawn.x) * 0.15 - p.y) * 3;
+        v.y += (want - v.y) * Math.min(1, 6 * sdt);
+        v.x *= 1 - Math.min(1, 1.5 * sdt);
+        v.z *= 1 - Math.min(1, 1.5 * sdt);
+        this.spin += 0.6 * sdt;
+      } else v.y -= 24 * sdt;
       const prevY = p.y;
       p.x += v.x * sdt;
       p.z += v.z * sdt;
@@ -130,6 +153,7 @@ export class PhysicsProp {
   }
 
   reset() {
+    this._float = null;
     this.pos = { ...this.spawn };
     this.vel = { x: 0, y: 0, z: 0 };
     this.spin = 0;

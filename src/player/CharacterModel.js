@@ -31,8 +31,9 @@ const PALETTES = {
 
 export class CharacterModel {
   /** @param {object} [o] { variant: 'protagonist' | 'pdc' | 'acolyte', glow: color del Acólito } */
-  constructor({ variant = 'protagonist', glow = 0xb45cff } = {}) {
+  constructor({ variant = 'protagonist', glow = 0xb45cff, palette = null } = {}) {
     this.variant = variant;
+    this.paletteOverride = palette;
     this.glowColor = glow;
     this.root = new THREE.Group();
     this.root.name = variant === 'protagonist' ? 'Protagonista' : variant;
@@ -60,7 +61,7 @@ export class CharacterModel {
   _build() {
     const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.05, ...opts });
     const V = this.variant;
-    const pal = PALETTES[V] ?? PALETTES.protagonist;
+    const pal = { ...(PALETTES[V] ?? PALETTES.protagonist), ...(this.paletteOverride ?? {}) };
     const M = {
       skin: mat(pal.skin, { roughness: 0.6 }),
       jacket: mat(pal.jacket, { roughness: 0.55, metalness: 0.15 }),
@@ -436,6 +437,23 @@ export class CharacterModel {
       mix(A.R.elbow, 'x', 0);
       mix(A.L.shoulder, 'x', 0.9);
       mix(A.L.shoulder, 'z', 0.5);
+    }
+
+    // Planeo (Gravedad): brazos abiertos y piernas atrás
+    this._glideW = (this._glideW ?? 0) + ((s.gliding ? 1 : 0) - (this._glideW ?? 0)) * k(10);
+    if (this._glideW > 0.001) {
+      const gw = this._glideW;
+      const mix = (obj, axis, v) => (obj.rotation[axis] += (v - obj.rotation[axis]) * gw);
+      mix(A.L.shoulder, 'z', 1.35);
+      mix(A.R.shoulder, 'z', -1.35);
+      mix(A.L.shoulder, 'x', -0.2);
+      mix(A.R.shoulder, 'x', -0.2);
+      mix(A.L.elbow, 'x', -0.15);
+      mix(A.R.elbow, 'x', -0.15);
+      mix(L.hip, 'x', 0.35);
+      mix(R.hip, 'x', 0.25);
+      mix(L.knee, 'x', 0.4);
+      mix(R.knee, 'x', 0.5);
     }
 
     // Parkour: trepar, colgar, subir a una cornisa y saltar obstáculos

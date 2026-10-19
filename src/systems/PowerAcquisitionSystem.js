@@ -162,6 +162,7 @@ export class PowerAcquisitionSystem {
       if (!this._acquired && k >= 0.6) {
         this._acquired = true;
         g.marks.acquire(t.markId);
+        g.marks.setActive(t.markId); // la nueva marca pasa a ser la activa
         const hand = g.player.handWorldPosition(this._v);
         const color = MARKS[t.markId].color;
         g.vfx.impact(hand, null, color, 2);

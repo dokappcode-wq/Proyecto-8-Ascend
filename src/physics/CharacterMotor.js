@@ -43,6 +43,7 @@ export const DEFAULT_MOTOR_CONFIG = Object.freeze({
  * @property {number} [facingZ]
  * @property {number} [speedScale] Multiplicador de velocidad (apuntar, cargar…). Por defecto 1.
  * @property {boolean} [drop]   Soltarse de una pared o cornisa (solo el frame en que se pulsa).
+ * @property {boolean} [jumpHeld] Salto mantenido (saltos de Gravedad: más altura y planeo).
  * @property {boolean} [noParkour] Desactiva el agarre (apuntando, a cubierto…).
  */
 
@@ -71,13 +72,21 @@ export class CharacterMotor {
     /** Subida a una cornisa o salto de obstáculo: { kind, from, to, t, duration, exit, crouch, then } */
     this._mantle = null;
     this._noGrab = 0;
+    /**
+     * Saltos de Gravedad (null = salto normal): { airJumps, airJumpVelocity,
+     * holdGravityScale, holdTime, glideFallSpeed, glideSpeed }.
+     */
+    this.jumpAbilities = null;
+    this._airJumpsLeft = 0;
+    this._holdT = 0;
+    this.gliding = false;
 
     /**
      * Eventos del último paso (para animación / efectos).
      * `landingImmune`: el aterrizaje no debe causar daño por caída (picado).
      * `diveLanded`: { fallHeight } al terminar un picado.
      */
-    this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null };
+    this.events = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null, airJump: false };
   }
 
   /** 'wall' | 'hang' | 'mantle' | 'vault' | null */
@@ -234,6 +243,8 @@ export class CharacterMotor {
     ev.jumped = ev.landed = ev.dodged = ev.respawned = ev.landingImmune = false;
     ev.landingSpeed = 0;
     ev.diveLanded = ev.travelEnded = ev.parkour = null;
+    ev.airJump = false;
+    this.gliding = false;
     if (dt <= 0) return;
     dt = Math.min(dt, 0.1);
     this._noGrab = Math.max(0, this._noGrab - dt);
@@ -286,7 +297,9 @@ export class CharacterMotor {
         this._burst = null;
       }
     } else {
-      const maxSpeed = (input.sprint ? c.sprintSpeed : c.walkSpeed) * (input.speedScale ?? 1);
+      const J = this.jumpAbilities;
+      const glide = !!J && this._glideNow(input);
+      const maxSpeed = glide ? Math.max(J.glideSpeed, this.horizontalSpeed) : (input.sprint ? c.sprintSpeed : c.walkSpeed) * (input.speedScale ?? 1);
       const tx = mx * maxSpeed;
       const tz = mz * maxSpeed;
       const hasInput = mLen > 0.01;
@@ -312,18 +325,37 @@ export class CharacterMotor {
       // Saltar estando agachado: primero se levanta (si hay sitio)
       if (!this.setCrouch(false)) this._jumpBuffer = 0;
     }
+    const J = this.jumpAbilities;
+    if (this.grounded) this._airJumpsLeft = J?.airJumps ?? 0;
     if (this._jumpBuffer > 0 && this._coyote > 0) {
       v.y = c.jumpVelocity;
       this._jumpBuffer = 0;
       this._coyote = 0;
       this.grounded = false;
+      this._holdT = J?.holdTime ?? 0;
       ev.jumped = true;
+    } else if (J && this._jumpBuffer > 0 && !this.grounded && this._airJumpsLeft > 0 && !burst) {
+      // Saltos de Gravedad: hasta 3 en total (uno desde el suelo + 2 en el aire)
+      v.y = J.airJumpVelocity;
+      this._airJumpsLeft--;
+      this._jumpBuffer = 0;
+      this._holdT = J.holdTime;
+      ev.jumped = true;
+      ev.airJump = true;
     }
+    this._holdT = Math.max(0, this._holdT - dt);
 
     // --- Gravedad (los impulsos aéreos suspenden brevemente la caída) ---
     if (!this.grounded) {
-      const g = burst && burst.time > 0 ? c.gravity * burst.gravityScale : c.gravity;
+      let g = burst && burst.time > 0 ? c.gravity * burst.gravityScale : c.gravity;
+      // Mantener el salto mientras sube: salto más alto
+      if (J && input.jumpHeld && v.y > 0 && this._holdT > 0) g *= J.holdGravityScale;
       v.y = Math.max(v.y - g * dt, -c.maxFallSpeed);
+      // Mantener el salto cayendo: planeo
+      if (J && this._glideNow(input)) {
+        v.y = Math.max(v.y, -J.glideFallSpeed);
+        this.gliding = true;
+      }
     }
 
     // Velocidad antes de chocar (para decidir si salta un obstáculo por encima)
@@ -331,6 +363,11 @@ export class CharacterMotor {
     this._integrate(dt);
 
     if (c.parkour && !input.noParkour && !this.isBusy && !this.crouched) this._tryParkour(mx, mz, mLen, approachSpeed);
+  }
+
+  /** ¿Planea ahora? (Gravedad: salto mantenido mientras cae) */
+  _glideNow(input) {
+    return !this.grounded && !!input.jumpHeld && this.velocity.y <= 0 && !this._burst && !this.crouched;
   }
 
   // ------------------------------------------------------------------ Parkour

@@ -7,6 +7,8 @@ import { EnemyBrain, STATE_NAMES } from './EnemyBrain.js';
 
 const DT_STEP = 1 / 60;
 const tmp = new THREE.Vector3();
+const FLOAT_COLOR = new THREE.Color('#c58bff');
+const STUN_COLOR = new THREE.Color('#9fd0ff');
 
 /**
  * Enemy — actor enemigo: cuerpo físico (CharacterMotor), modelo animado,
@@ -53,6 +55,11 @@ export class Enemy {
     this._attackPosFor = null;
     this._deadTime = 0;
     this._flash = 0;
+    /** Gravedad: { t, y, pull, pullSpeed } mientras flota. */
+    this._float = null;
+    this._floatPh = Math.random() * 6;
+    /** Segundos de aturdimiento (Atraer, pasiva de Energía). */
+    this._stun = 0;
     this.intent = { move: 'patrol' };
 
     this.model = new CharacterModel({ variant: type.variant, glow: type.glow });
@@ -117,6 +124,8 @@ export class Enemy {
 
   applyImpulse(x, y, z) {
     if (!this.alive) return;
+    // Un empujón saca de la flotación: sale despedido
+    if (this._float && Math.hypot(x, y, z) > 3) this._endFloat();
     const v = this.motor.velocity;
     v.x += x / 1.4;
     v.z += z / 1.4;
@@ -132,6 +141,109 @@ export class Enemy {
     const p = this.motor.position;
     const d = Math.hypot(pos.x - p.x, pos.z - p.z);
     if (d <= Math.min(radius, this.type.hearRange)) this._heard = { x: pos.x, y: pos.y, z: pos.z };
+  }
+
+  // ---------------------------------------------------------------- Control (poderes)
+  get floating() {
+    return this._float !== null;
+  }
+
+  get stunned() {
+    return this._stun > 0;
+  }
+
+  /** Flota `t` segundos a `height` m del suelo, indefenso (no se mueve ni dispara). */
+  float(t, height = 1.8) {
+    if (!this.alive) return;
+    if (this._float) {
+      this._float.t = Math.max(this._float.t, t);
+      return;
+    }
+    const p = this.motor.position;
+    const g = this.sys.world.groundHeight(p.x, p.z, 0.3, p.y + 0.5);
+    this._float = { t, y: (Number.isFinite(g) ? Math.max(g, p.y) : p.y) + height, pull: null, pullSpeed: 0 };
+    this.motor.velocity.x = this.motor.velocity.y = this.motor.velocity.z = 0;
+    this.sys.events.emit('enemy:floated', { enemy: this });
+  }
+
+  /** Aturdido `t` segundos: no se mueve, no apunta y no dispara. */
+  stun(t) {
+    if (!this.alive) return;
+    this._stun = Math.max(this._stun, t);
+    this.sys.events.emit('enemy:stunned', { enemy: this, time: t });
+  }
+
+  /** Lo arrastra hacia `dest` (pies). Si flota, va por el aire; si no, por el suelo. */
+  pullTo(dest, speed = 18) {
+    if (!this.alive) return false;
+    if (this._float) {
+      this._float.pull = { ...dest };
+      this._float.pullSpeed = speed;
+      this._float.t = Math.max(this._float.t, 3);
+      return true;
+    }
+    return this.motor.startTravel({ ...dest, speed });
+  }
+
+  _endFloat() {
+    this._float = null;
+    this.model.root.rotation.z = 0;
+    this.motor.grounded = false;
+  }
+
+  /** Flotando o aturdido: sin percepción, IA ni disparos. */
+  _updateControlled(dt) {
+    const m = this.motor;
+    const p = m.position;
+    const w = this.sys.world;
+    this._stun = Math.max(0, this._stun - dt);
+    const f = this._float;
+    if (f) {
+      f.t -= dt;
+      this._floatPh += dt;
+      if (f.pull) {
+        const dx = f.pull.x - p.x;
+        const dy = f.pull.y - p.y;
+        const dz = f.pull.z - p.z;
+        const d = Math.hypot(dx, dy, dz);
+        if (d < 0.35) {
+          // Llega a distancia de cuerpo a cuerpo: deja de flotar y cae
+          f.pull = null;
+          f.t = 0;
+        } else {
+          const step = Math.min(d, f.pullSpeed * dt);
+          p.x += (dx / d) * step;
+          p.y += (dy / d) * step;
+          p.z += (dz / d) * step;
+          w.resolveHorizontal(p, m.cfg.radius, p.y, m.cfg.height, 0.05);
+        }
+      } else {
+        const want = f.y + Math.sin(this._floatPh * 2) * 0.12;
+        p.y += (want - p.y) * Math.min(1, dt * 4);
+      }
+      const ceil = w.ceilingHeight(p.x, p.z, m.cfg.radius * 0.9, p.y + 0.5);
+      if (p.y + m.cfg.height > ceil) p.y = ceil - m.cfg.height;
+      m.velocity.x = m.velocity.y = m.velocity.z = 0;
+      m.grounded = false;
+      this.model.root.rotation.z = Math.sin(this._floatPh * 1.3) * 0.25;
+      if (f.t <= 0) this._endFloat();
+      if (Math.random() < 0.3) {
+        this.sys.vfx.particles.emit({ x: p.x + (Math.random() - 0.5), y: p.y + Math.random() * 1.8, z: p.z + (Math.random() - 0.5), vx: 0, vy: 0.6, vz: 0, color: FLOAT_COLOR, size: 0.08, life: 0.5, drag: 1 });
+      }
+    } else {
+      // Aturdido: se queda quieto (la física sigue: si está en el aire, cae)
+      const steps = Math.max(1, Math.ceil(dt / DT_STEP - 1e-6));
+      for (let i = 0; i < steps; i++) m.update(dt / steps, { moveX: 0, moveZ: 0, sprint: false, jump: false, dodge: false });
+      if (Math.random() < 0.25) {
+        this.sys.vfx.particles.emit({ x: p.x + (Math.random() - 0.5) * 0.6, y: p.y + 1.6 + Math.random() * 0.3, z: p.z + (Math.random() - 0.5) * 0.6, vx: 0, vy: 0.4, vz: 0, color: STUN_COLOR, size: 0.06, life: 0.3, drag: 1 });
+      }
+    }
+    const v = m.velocity;
+    this.model.animate(dt, {
+      speed: 0, grounded: m.grounded, sprinting: false, dodging: false, verticalSpeed: f ? 0 : v.y,
+      landed: m.events.landed, landingSpeed: m.events.landingSpeed, aimWeight: 0, aimPitch: 0,
+    });
+    this._sync();
   }
 
   /** Aviso por radio: acude a `pos` aunque no lo haya oído. */
@@ -150,6 +262,14 @@ export class Enemy {
 
   _die() {
     this._deadTime = 0;
+    if (this._float) {
+      // Cae al suelo
+      const p = this.motor.position;
+      const g = this.sys.world.groundHeight(p.x, p.z, 0.3, p.y + 0.5);
+      if (Number.isFinite(g)) p.y = g;
+      this._float = null;
+    }
+    this._stun = 0;
     this.brain.update(0, { dead: true }); // estado: neutralizado
     this.sys.events.emit('enemy:neutralized', { enemy: this, type: this.type.id, tag: this.tag });
   }
@@ -246,6 +366,10 @@ export class Enemy {
     }
     if (this.magazine.update(dt)) this.model.setReload(null);
     this._fireCd = Math.max(0, this._fireCd - dt);
+    if (this._float || this._stun > 0) {
+      this._updateControlled(dt);
+      return;
+    }
 
     // Visión (cada 0.15 s para ahorrar rayos)
     this._seeTimer -= dt;

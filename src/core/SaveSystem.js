@@ -36,10 +36,13 @@ export function createDefaultSave() {
       skillProgress: {},
       // Misiones completadas: { [id]: { completed, bestTime, runs } }
       missions: {},
+      // Marca copiada activa (cambio con V o al absorber una fuente de su elemento)
+      activeMark: null,
     },
     // Herramientas de depuración del prototipo (menú F2).
     debug: {
       grantEnergy: false, // atajo: concede Energía sin pasar por la estación de adquisición
+      grantGravity: false, // atajo: concede Gravedad
       infiniteEnergy: false,
       maxMarks: false, // fuerza las marcas al máximo para revisar efectos
       invulnerable: false, // el jugador no recibe daño

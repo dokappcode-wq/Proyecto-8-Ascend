@@ -278,3 +278,12 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 .mission-stats dt { color: var(--muted); }
 .mission-stats dd { margin: 0; }
 .mission-done { font-style: normal; color: #5fd38a; margin-left: 6px; }
+
+/* ---------- Marca de la Gravedad ---------- */
+.mark-card.active { border-color: var(--el, var(--energy)); }
+.tag.active-tag { color: #5fd38a; }
+.menu-btn.mini { display: inline-block; padding: 2px 8px; margin: 0 0 4px 6px; min-height: 0; width: auto; }
+.menu-btn.mini .btn-title { font-size: 12px; }
+.mark-card .passive { font-size: 12px; color: #c9d6e6; }
+.ammo-icon.grav { width: 12px; }
+.hud-vitals[data-el="gravedad"] .energy-fill { background: linear-gradient(90deg, #3c1670, #a24dff 55%, #d9b3ff); }

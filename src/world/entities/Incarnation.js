@@ -10,6 +10,11 @@ import { MARKS } from '../../data/marks.js';
  * Solo al establecerse la conexión la marca se ilumina un momento.
  * Tras la copia conserva su marca y su poder (Regla IV).
  */
+const PALETTES = {
+  // Gravedad: abrigo gris violáceo, pelo canoso
+  gravedad: { skin: 0xc79478, jacket: 0x4f4558, hoodie: 0x2f2f35, pants: 0x4a4036, boots: 0x2e2622, hair: 0x9a9590 },
+};
+
 export class Incarnation {
   constructor(ctx, { x, y = 0, z, yaw = 0, markId = 'energia' }) {
     this.ctx = ctx;
@@ -23,7 +28,8 @@ export class Incarnation {
     this.channel = 0; // 0..1: intensidad durante la copia
     this._time = Math.random() * 10;
 
-    this.model = new CharacterModel({ variant: 'incarnation' });
+    // Cada Encarnación viste distinto (siempre ropa corriente)
+    this.model = new CharacterModel({ variant: 'incarnation', palette: PALETTES[markId] ?? null });
     this.model.root.position.set(x, y, z);
     this.model.root.rotation.y = yaw;
     ctx.group.add(this.model.root);
@@ -39,10 +45,10 @@ export class Incarnation {
     return this.mark.parts.length > 0;
   }
 
-  /** Posición de su muñeca derecha (donde está la marca), en el mundo. */
+  /** Posición de la muñeca donde lleva la marca, en el mundo. */
   wristPosition(out = new THREE.Vector3()) {
     this.model.root.updateMatrixWorld(true);
-    return this.model.anchors.wristR.getWorldPosition(out);
+    return this.model.anchors[`wrist${this.mark.side}`].getWorldPosition(out);
   }
 
   /** Mira hacia un punto (durante el contacto). */

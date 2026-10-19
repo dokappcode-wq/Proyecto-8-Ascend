@@ -17,6 +17,8 @@ import { VfxSystem } from '../vfx/VfxSystem.js';
 import { MarkSystem } from '../systems/MarkSystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { PowerSystem } from '../systems/PowerSystem.js';
+import { GravityPowerSystem } from '../systems/GravityPowerSystem.js';
+import { MARKS } from '../data/marks.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { PlayerCombat } from '../systems/PlayerCombat.js';
 import { InteractionSystem } from '../systems/InteractionSystem.js';
@@ -77,6 +79,7 @@ export class GameManager {
     this.marks = new MarkSystem({ save: this.save, model: this.player.model, events: this.events });
     this.projectiles = new ProjectileSystem({ scene: this.scene, world: this.world, combat: this.combat, vfx: this.vfx, events: this.events });
     this.powers = new PowerSystem(this);
+    this.gravity = new GravityPowerSystem(this);
     this.enemies = new EnemySystem({ scene: this.scene, world: this.world, combat: this.combat, projectiles: this.projectiles, vfx: this.vfx, events: this.events });
     this.playerCombat = new PlayerCombat(this);
     this.enemies.player = this.playerCombat;
@@ -99,7 +102,11 @@ export class GameManager {
     this.audio = new AudioSystem(this.save.settings);
     this.audio.attach(this);
     this.progression = new Progression(this.save.data.profile);
-    this.powers.applyModifiers(this.progression.modifiers('energia'));
+    /** Aleatoriedad del juego (las pruebas pueden sustituirla). */
+    this.rng = Math.random;
+    this._time = 0;
+    this._gravityPassiveAt = -Infinity;
+    this._applyModifiers();
 
     this._clock = new THREE.Timer();
     this._clock.connect(document);
@@ -111,6 +118,29 @@ export class GameManager {
     this._resize();
     this.ui.show('menu');
     this.renderer.setAnimationLoop(() => this._frame());
+  }
+
+  /** Familia de poderes de la marca activa (Energía o Gravedad). */
+  get activePowers() {
+    return this.marks.activeFamily === 'gravedad' ? this.gravity : this.powers;
+  }
+
+  /** Familia de poderes de un elemento. */
+  powersFor(element) {
+    return element === 'gravedad' ? this.gravity : this.powers;
+  }
+
+  _applyModifiers() {
+    this.powers.applyModifiers(this.progression.modifiers('energia'));
+    this.gravity.applyModifiers(this.progression.modifiers('gravedad'));
+  }
+
+  /** Ajustes que dependen de la marca activa: saltos de Gravedad, HUD. */
+  _onMarkChanged() {
+    const grav = this.marks.activeFamily === 'gravedad';
+    this.player.motor.jumpAbilities = grav ? this.gravity.cfg.jumps : null;
+    this.player.model.setReload(null);
+    this.ui.setPowerAvailable(this.activePowers.available, this.marks.activeDef);
   }
 
   addSystem(system) {
@@ -135,13 +165,15 @@ export class GameManager {
       this.player.spawn(map.spawn);
       this.powers.resetAbilities();
       this.powers.energy.refill();
+      this.gravity.resetAbilities();
+      this.gravity.energy.refill();
       this.marks.reset();
       if (map.sun) map.sun.castShadow = this.save.settings.shadows;
       this.ui.hideAll();
       this.ui.setHudVisible(true);
       this.ui.setMapName(def.name, def.description);
       this.ui.setWaypoints(def.waypoints ?? []);
-      this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef);
+      this._onMarkChanged();
       this.ui.showDeath(false);
       if (id === 'campo' && !this.marks.activeFamily) {
         setTimeout(() => this.ui.toast('Sin poderes todavía', 'Ve a la Zona E para copiar la marca de la Energía', 4000), 3000);
@@ -264,17 +296,47 @@ export class GameManager {
     this.events.on('combat:damage', (d) => {
       if (d.killed && d.target?.maxHealth && d.faction === 'player') this._awardXp('dummy');
     });
-    this.events.on('marks:changed', () => this.powers.applyModifiers(this.progression.modifiers('energia')));
+    this.events.on('marks:changed', () => this._applyModifiers());
     this.events.on('power:failed', (d) => {
       this.ui.abilityFailed(d.id);
       // Sin regeneración pasiva: recuerda cómo recargar (como mucho cada 8 s)
       const now = performance.now();
-      if (this.powers.energy.value < 30 && now - (this._lowEnergyHint ?? -1e9) > 8000) {
+      if (this.activePowers.energy.value < 30 && now - (this._lowEnergyHint ?? -1e9) > 8000) {
         this._lowEnergyHint = now;
-        this.ui.toast('Sin energía', 'Absórbela de farolas, armarios eléctricos o máquinas expendedoras (mantén E)', 3200);
+        this.ui.toast('Sin carga', this.marks.activeFamily === 'gravedad'
+          ? 'Absórbela de escombros o bloques de hormigón (mantén E)'
+          : 'Absórbela de farolas, armarios eléctricos o máquinas expendedoras (mantén E)', 3200);
       }
     });
-    this.events.on('marks:changed', () => this.ui.setPowerAvailable(this.powers.available, this.marks.activeDef));
+    this.events.on('marks:changed', () => this._onMarkChanged());
+    this.events.on('mark:switched', ({ active }) => this.ui.toast(MARKS[active].name, 'Marca activa · V para cambiar', 1400));
+    // Pasiva de la Energía: 5 % de probabilidad de detener (aturdir) al enemigo golpeado
+    const energyKinds = new Set(['bolt', 'discharge', 'splash', 'wave', 'rayo', 'melee-energia']);
+    this.events.on('combat:damage', (d) => {
+      const t = d.target;
+      if (d.faction !== 'player' || !energyKinds.has(d.kind) || !t?.stun || !t.alive || !this.marks.owns('energia')) return;
+      if (this.rng() >= 0.05) return;
+      t.stun(1.5);
+      const c = t.center;
+      this.vfx.lightning({ x: c.x, y: c.y + 1.2, z: c.z }, c, MARKS.energia.color, { width: 0.05, duration: 0.3, jitter: 0.3, branches: 3 });
+      this.ui.damageNumber({ x: c.x, y: c.y + 0.6, z: c.z }, 'Detenido', false, 'passive');
+      this.events.emit('passive:energy', { target: t });
+    });
+    // Pasiva de la Gravedad: al bajar del 5 % de vida, las balas enemigas flotan 4 s
+    this.events.on('player:damaged', (d) => {
+      const pc = this.playerCombat;
+      const cfg = this.gravity.cfg.passive;
+      if (!this.marks.owns('gravedad') || !pc.alive || d.health > pc.health.max * cfg.threshold) return;
+      if (this._time < this._gravityPassiveAt + cfg.cooldown) return;
+      this._gravityPassiveAt = this._time;
+      this.projectiles.stasis(cfg.duration);
+      const p = this.player.motor.position;
+      this.vfx.ring({ x: p.x, y: p.y + 0.05, z: p.z }, 6, MARKS.gravedad.color, 0.6);
+      this.vfx.lights.flash({ x: p.x, y: p.y + 1, z: p.z }, MARKS.gravedad.color, 40, 12, 0.5);
+      this.marks.pulse(1, 0.5);
+      this.ui.toast('Estasis', 'Las balas enemigas se quedan flotando', 2000);
+      this.events.emit('passive:gravity', { duration: cfg.duration });
+    });
   }
 
   /** Experiencia para la familia de poderes activa (solo si se posee la marca). */
@@ -288,8 +350,8 @@ export class GameManager {
     this.ui.xpGain(amount, mark);
     if (levels > 0) {
       const s = this.progression.state(mark);
-      this.powers.applyModifiers(this.progression.modifiers(mark));
-      this.ui.toast(`Nivel ${s.level} de Energía`, `Energía máxima ${this.powers.energy.max} · Punto de mejora disponible · Tab`, 3000);
+      this._applyModifiers();
+      this.ui.toast(`Nivel ${s.level} de ${MARKS[mark].concept}`, `Carga máxima ${this.powersFor(mark).energy.max} · Punto de mejora disponible · Tab`, 3000);
       this.events.emit('progression:level', { mark, level: s.level });
     }
   }
@@ -310,7 +372,7 @@ export class GameManager {
 
   _debugState() {
     const d = this.save.data.debug;
-    return { mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
+    return { mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, grantGravity: d.grantGravity, gravityAcquired: this.marks.acquired('gravedad'), active: this.marks.activeFamily, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
   }
 
   _onUiAction(action, data) {
@@ -353,6 +415,7 @@ export class GameManager {
         break;
       case 'dbg-energy':
         this.powers.energy.refill();
+        this.gravity.energy.refill();
         this.ui.toast('Energía restaurada', '', 1200);
         break;
       case 'dbg-infinite':
@@ -363,20 +426,38 @@ export class GameManager {
         this.marks.setDebugGrant('energia', !this.save.data.debug.grantEnergy);
         this.powers.resetAbilities();
         break;
+      case 'dbg-mark-gravity':
+        this.marks.setDebugGrant('gravedad', !this.save.data.debug.grantGravity);
+        this.gravity.resetAbilities();
+        break;
+      case 'dbg-reset-gravity':
+        this.acquisition.cancel();
+        this.marks.revoke('gravedad');
+        this.progression.reset('gravedad');
+        this.save.save();
+        this._applyModifiers();
+        this.ui.toast('Adquisición reiniciada', 'Se ha quitado la marca de la Gravedad y su progreso', 1800);
+        break;
+      case 'set-mark':
+        this.marks.setActive(data.mark);
+        this.ui.renderMarks(this._marksState());
+        return;
       case 'dbg-reset-acquisition':
         this.acquisition.cancel();
         this.marks.revoke('energia');
         this.progression.reset('energia');
         this.save.save();
-        this.powers.applyModifiers(this.progression.modifiers('energia'));
+        this._applyModifiers();
         this.powers.resetAbilities();
         this.ui.toast('Adquisición reiniciada', 'Se ha quitado la marca de la Energía y su progreso', 1800);
         break;
-      case 'dbg-points':
-        this.progression.state('energia').points += 1;
+      case 'dbg-points': {
+        const mark = this.marks.activeFamily ?? 'energia';
+        this.progression.state(mark).points += 1;
         this.save.save();
-        this.ui.toast('+1 punto de mejora', 'Energía', 1200);
+        this.ui.toast('+1 punto de mejora', MARKS[mark].concept, 1200);
         break;
+      }
       case 'dbg-xp':
         this._awardXp('acolyte');
         break;
@@ -384,7 +465,7 @@ export class GameManager {
         const r = this.progression.unlock(data.mark, data.node);
         if (r.ok) {
           this.save.save();
-          this.powers.applyModifiers(this.progression.modifiers(data.mark));
+          this._applyModifiers();
           this.events.emit('progression:unlocked', { mark: data.mark, node: data.node });
         }
         this.ui.renderMarks(this._marksState());
@@ -396,6 +477,7 @@ export class GameManager {
         break;
       case 'dbg-abilities':
         this.powers.resetAbilities();
+        this.gravity.resetAbilities();
         this.ui.toast('Habilidades reiniciadas', '', 1200);
         break;
       case 'dbg-scenario':
@@ -488,6 +570,7 @@ export class GameManager {
   _frame() {
     this._clock.update();
     const dt = Math.min(this._clock.getDelta(), 0.1);
+    if (this.state === 'playing') this._time += dt;
     if (dt > 0) this._fps += (1 / dt - this._fps) * 0.05;
 
     if (this.state === 'playing') {
@@ -495,7 +578,9 @@ export class GameManager {
       this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active;
       this.player.update(dt);
       this.playerCombat.update(dt);
+      if (this.input.wasPressed('switchMark') && !this.playerCombat.dead && !this.acquisition.active && !this.drain.active) this.marks.cycle();
       this.powers.update(dt);
+      this.gravity.update(dt);
       this.interactions.update(dt);
       this.acquisition.update(dt);
       this.drain.update(dt);
@@ -536,7 +621,7 @@ export class GameManager {
     const m = this.player.motor;
     const p = m.position;
     const v = m.velocity;
-    const pw = this.powers;
+    const pw = this.activePowers;
     this.ui.updateHud({
       dt,
       camera: this.camera,

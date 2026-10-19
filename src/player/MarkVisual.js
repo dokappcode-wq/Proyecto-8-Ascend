@@ -46,12 +46,13 @@ export class MarkVisual {
     // Símbolo de la muñeca (cara externa)
     const wrist = a[`wrist${S}`];
     const sym = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 0.08), this._mat(markSymbolTexture(this.def.symbol, '#ffffff')));
-    sym.position.set(0.053 * sx, 0.02, 0);
+    const wy = this.def.bodyPattern?.wristOffset ?? 0;
+    sym.position.set(0.053 * sx, 0.02 + wy, 0);
     sym.rotation.y = (Math.PI / 2) * sx;
     wrist.add(sym);
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.004, 6, 24), this._mat(null));
     band.rotation.x = Math.PI / 2;
-    band.position.y = 0.045;
+    band.position.y = 0.045 + wy;
     wrist.add(band);
     this.parts.push({ mesh: sym, threshold: -1, base: 0.75 }, { mesh: band, threshold: -1, base: 0.6 });
 

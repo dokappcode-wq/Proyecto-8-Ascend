@@ -29,4 +29,21 @@ export const PROGRESSION = Object.freeze({
       { id: 'sobrecarga', name: 'Sobrecarga', type: 'future', cost: 3, requires: ['absorcion'], desc: 'Potenciación temporal de todas las habilidades. Llegará en una versión posterior.' },
     ],
   },
+  gravedad: {
+    xpPerLevel: 100,
+    energyPerLevel: 15,
+    xpRewards: { pdc: 40, acolyte: 60, dummy: 5 },
+    nodes: [
+      { id: 'disparo', name: 'Disparo gravitatorio', type: 'base', desc: 'Un disparo por cargador; el objetivo queda flotando.' },
+      { id: 'rocas', name: 'Elevar rocas', type: 'base', desc: 'Q eleva una roca bajo tus pies; en el aire, otra (hasta 3).' },
+      { id: 'atraer', name: 'Atraer', type: 'base', desc: 'Atrae, daña y aturde; si flota, lo trae a tu lado.' },
+      { id: 'empujar', name: 'Empujar', type: 'base', desc: 'Empuja y daña a todo lo que tienes delante.' },
+      { id: 'granada', name: 'Granada de gravedad', type: 'base', desc: 'Burbuja de antigravedad que deja flotando a los enemigos.' },
+      { id: 'roca-extra', name: 'Cuarta roca', type: 'upgrade', cost: 1, requires: ['rocas'], desc: 'Puedes encadenar una roca más (4).', effects: { stoneBonus: 1 } },
+      { id: 'atraccion', name: 'Atracción férrea', type: 'upgrade', cost: 1, requires: ['atraer'], desc: '+10 de daño al atraer y +0.5 s de aturdimiento.', effects: { pullDamageAdd: 10, pullStunAdd: 0.5 } },
+      { id: 'empuje', name: 'Empuje violento', type: 'upgrade', cost: 1, requires: ['empujar'], desc: '+10 de daño y más retroceso al empujar.', effects: { pushDamageAdd: 10, pushKnockbackAdd: 6 } },
+      { id: 'burbuja', name: 'Burbuja amplia', type: 'upgrade', cost: 2, requires: ['granada'], desc: '+1.5 m de radio y +2 s de duración de la burbuja.', effects: { bubbleRadiusAdd: 1.5, bubbleTimeAdd: 2 } },
+      { id: 'colapso', name: 'Colapso', type: 'future', cost: 3, requires: ['burbuja', 'atraccion'], desc: 'La burbuja implosiona y aplasta a quien flota. Llegará en una versión posterior.' },
+    ],
+  },
 });

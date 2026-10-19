@@ -195,12 +195,22 @@ export class AudioSystem {
     ev.on('player:melee', (e) => this.play(e.elemental ? 'punchZap' : 'punch', { pos: me() }));
     ev.on('player:lunge', () => this.play('dash', { pos: me(), volume: 0.6 }));
     ev.on('power:used', (e) => {
-      const map = { proyectil: 'zap', dash: 'dash', 'dash-dirigido': 'dash', descarga: 'discharge', onda: 'wave', rayo: 'dash' };
+      const map = {
+        proyectil: 'zap', dash: 'dash', 'dash-dirigido': 'dash', descarga: 'discharge', onda: 'wave', rayo: 'dash',
+        disparo: 'gshot', rocas: 'stone', atraer: 'pull', empujar: 'push', granada: 'throw',
+      };
       if (map[e.id]) this.play(map[e.id], { pos: me() });
     });
     ev.on('power:impact', (e) => {
       if (e.id === 'rayo') this.play('wave', { pos: me(), volume: 1 });
+      if (e.id === 'granada') this.play('bubble', { pos: e.center });
     });
+    ev.on('player:airjump', () => this.play('airjump', { pos: me() }));
+    ev.on('player:glide-start', () => this.loop('glide'));
+    ev.on('player:glide-end', () => this.stopLoop('glide'));
+    ev.on('passive:gravity', () => this.play('stasis', { bus: 'ui' }));
+    ev.on('passive:energy', (e) => this.play('punchZap', { pos: at(e.target?.position), volume: 0.7 }));
+    ev.on('mark:switched', () => this.play('switch', { bus: 'ui' }));
     ev.on('power:failed', () => this.play('fail', { bus: 'ui', throttle: 0.25 }));
     ev.on('power:reloading', () => this.play('reload', { pos: me() }));
     ev.on('projectile:hit', (e) => this.play(e.faction === 'player' ? 'impact' : 'ricochet', { pos: e.point, throttle: 0.03 }));
@@ -354,6 +364,37 @@ const SFX = {
     tone(a, o, t, 0.25, { type: 'sine', freq: 620, freq2: 1100, peak: 0.08 });
   },
   ui: (a, o, t) => tone(a, o, t, 0.05, { freq: 880, peak: 0.1 }),
+  // --- Gravedad: sonidos graves y ondulantes ---
+  gshot: (a, o, t) => {
+    tone(a, o, t, 0.3, { type: 'sine', freq: 180, freq2: 60, peak: 0.4 });
+    tone(a, o, t, 0.2, { type: 'triangle', freq: 520, freq2: 160, peak: 0.12 });
+  },
+  stone: (a, o, t) => {
+    noise(a, o, t, 0.35, { freq: 260, freq2: 120, peak: 0.5, buffer: 'brown' });
+    noise(a, o, t + 0.05, 0.08, { type: 'bandpass', freq: 1800, q: 2, peak: 0.2 });
+    tone(a, o, t, 0.3, { freq: 70, freq2: 45, peak: 0.35 });
+  },
+  pull: (a, o, t) => {
+    noise(a, o, t, 0.3, { type: 'bandpass', freq: 2500, freq2: 300, q: 1.4, peak: 0.25 });
+    tone(a, o, t, 0.3, { type: 'sine', freq: 90, freq2: 200, peak: 0.3 });
+  },
+  push: (a, o, t) => {
+    tone(a, o, t, 0.4, { freq: 110, freq2: 35, peak: 0.6 });
+    noise(a, o, t, 0.35, { freq: 1200, freq2: 150, peak: 0.45, buffer: 'brown' });
+  },
+  throw: (a, o, t) => noise(a, o, t, 0.18, { type: 'bandpass', freq: 600, freq2: 1500, q: 1.2, peak: 0.2 }),
+  bubble: (a, o, t) => {
+    tone(a, o, t, 0.9, { freq: 60, freq2: 120, peak: 0.45, attack: 0.05 });
+    tone(a, o, t, 0.8, { type: 'triangle', freq: 300, freq2: 600, peak: 0.08, attack: 0.1 });
+  },
+  airjump: (a, o, t) => noise(a, o, t, 0.16, { type: 'bandpass', freq: 300, freq2: 900, q: 1.4, peak: 0.22 }),
+  stasis: (a, o, t) => {
+    for (const f of [110, 165, 220]) tone(a, o, t, 1.4, { freq: f, freq2: f * 0.7, peak: 0.1, attack: 0.15 });
+  },
+  switch: (a, o, t) => {
+    tone(a, o, t, 0.08, { type: 'triangle', freq: 440, peak: 0.1 });
+    tone(a, o, t + 0.08, 0.12, { type: 'triangle', freq: 660, peak: 0.1 });
+  },
   detected: (a, o, t) => {
     tone(a, o, t, 0.1, { type: 'square', freq: 660, peak: 0.08, lp: 3000 });
     tone(a, o, t + 0.13, 0.12, { type: 'square', freq: 880, peak: 0.08, lp: 3000 });
@@ -427,6 +468,22 @@ const LOOPS = {
     n.start();
     return { sources: [o, n] };
   },
+};
+
+LOOPS.glide = (a, out) => {
+  const ctx = a.ctx;
+  const n = ctx.createBufferSource();
+  n.buffer = a.white;
+  n.loop = true;
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 700;
+  f.Q.value = 0.6;
+  const g = ctx.createGain();
+  g.gain.value = 0.08;
+  n.connect(f).connect(g).connect(out);
+  n.start();
+  return { sources: [n] };
 };
 
 /** Ambiente de cada mapa. */

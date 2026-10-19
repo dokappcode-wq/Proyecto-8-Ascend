@@ -357,7 +357,7 @@ function buildZoneE(B, M, ctx) {
   B.block({ x: x0 + 2.2, z: z0 - 4, w: 2.4, d: 0.6, y: 0.06, h: 0.45, mat: wood });
   B.block({ x: x0 + 2.2, z: z0 - 4.3, w: 2.4, d: 0.1, y: 0.5, h: 0.5, mat: wood, collide: false });
   ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, { kind: 'lamp', x: x0 + 4.2, z: z0 - 4.6 })));
-  B.sign(['ZONA E — ADQUISICIÓN DE MARCAS', 'Encarnación de la Energía (prueba) · Contacto + voluntad'], {
+  B.sign(['ZONA E — ADQUISICIÓN DE MARCAS', 'Encarnaciones de la Energía y de la Gravedad · Contacto + voluntad'], {
     x: x0, y: 3.4, z: z0 + 13, w: 9, h: 1.9, facing: 0, opts: { width: 1024, height: 220 },
   });
   B.block({ x: x0, z: z0 + 12.95, w: 0.2, d: 0.2, h: 2.4, mat: M.metal, collide: false });
@@ -365,6 +365,14 @@ function buildZoneE(B, M, ctx) {
 
   const npc = ctx.addEntity(new Incarnation(ctx, { x: x0, y: 0.06, z: z0 - 2, yaw: 0, markId: 'energia' }));
   ctx.acquisition.registerSource(npc);
+
+  // Encarnación de la Gravedad: sentada junto a un muro de obra con escombros
+  const gx = x0 + 8;
+  const gz = z0 - 3;
+  B.block({ x: gx + 1.6, z: gz - 2.2, w: 3.2, d: 0.5, y: 0.06, h: 1.1, mat: M.white });
+  ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, { kind: 'rubble', x: gx + 2.6, z: gz - 0.8 })));
+  const npc2 = ctx.addEntity(new Incarnation(ctx, { x: gx, y: 0.06, z: gz, yaw: 0, markId: 'gravedad' }));
+  ctx.acquisition.registerSource(npc2);
 }
 
 /**
@@ -373,6 +381,14 @@ function buildZoneE(B, M, ctx) {
  */
 function buildEnergySources(ctx) {
   const add = (o) => ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, o)));
+  // Gravedad: bloques de hormigón y escombros
+  add({ kind: 'concrete', x: 3.5, z: 24.5, yaw: Math.PI });
+  add({ kind: 'rubble', x: -3.5, z: 24.5 });
+  add({ kind: 'rubble', x: -34, z: 4 });
+  add({ kind: 'concrete', x: 30, z: 4, yaw: 0 });
+  add({ kind: 'rubble', x: -55, z: -44 });
+  add({ kind: 'concrete', x: -4, z: -47, yaw: Math.PI / 2 });
+  add({ kind: 'rubble', x: 55, z: -50 });
   add({ kind: 'cabinet', x: 6.5, z: 18, yaw: -Math.PI / 2 }); // inicio
   add({ kind: 'vending', x: -6.6, z: 18, yaw: Math.PI / 2 });
   add({ kind: 'cabinet', x: -30, z: 4, yaw: 0 }); // zona A

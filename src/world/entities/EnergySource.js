@@ -8,11 +8,16 @@ import { EnergyReserve } from '../../powers/EnergyReserve.js';
  *
  * Mira hacia +Z en su espacio local (la cara "frontal" queda en +Z).
  */
-const KINDS = {
-  lamp: { name: 'Farola', capacity: 50, rechargeTime: 18 },
-  cabinet: { name: 'Armario eléctrico', capacity: 90, rechargeTime: 25 },
-  vending: { name: 'Máquina expendedora', capacity: 70, rechargeTime: 22 },
+export const SOURCE_KINDS = {
+  // Energía: cosas eléctricas
+  lamp: { name: 'Farola', element: 'energia', capacity: 50, rechargeTime: 18 },
+  cabinet: { name: 'Armario eléctrico', element: 'energia', capacity: 90, rechargeTime: 25 },
+  vending: { name: 'Máquina expendedora', element: 'energia', capacity: 70, rechargeTime: 22 },
+  // Gravedad: cosas pesadas
+  rubble: { name: 'Escombros', element: 'gravedad', capacity: 80, rechargeTime: 24 },
+  concrete: { name: 'Bloque de hormigón', element: 'gravedad', capacity: 60, rechargeTime: 20 },
 };
+const KINDS = SOURCE_KINDS;
 
 export class EnergySource {
   /**
@@ -24,6 +29,8 @@ export class EnergySource {
     this.kind = kind;
     const k = KINDS[kind];
     this.name = k.name;
+    /** Elemento que recarga ('energia' | 'gravedad'). */
+    this.element = k.element;
     this.reserve = new EnergyReserve({ capacity: k.capacity, rechargeTime: k.rechargeTime });
     this.root = new THREE.Group();
     this.root.position.set(x, y, z);
@@ -66,6 +73,28 @@ export class EnergySource {
         this.light.position.set(0, 4.7, 0);
         this.root.add(this.light);
       }
+    } else if (kind === 'rubble') {
+      // Montón de escombros de obra con vetas que vibran por la gravedad
+      const rock = new THREE.MeshStandardMaterial({ color: 0x7a7470, roughness: 0.95, flatShading: true });
+      const vein = glow(0xa24dff, 1.6);
+      const pieces = [[0, 0.35, 0, 0.55], [0.55, 0.25, 0.2, 0.38], [-0.5, 0.22, -0.15, 0.36], [0.1, 0.75, -0.1, 0.32], [-0.2, 0.2, 0.5, 0.3], [0.35, 0.2, -0.5, 0.28]];
+      for (const [px, py, pz, r] of pieces) {
+        const m = add(new THREE.DodecahedronGeometry(r, 0), rock, px, py, pz);
+        m.rotation.set(px * 3, pz * 5, py * 4);
+      }
+      add(new THREE.OctahedronGeometry(0.12, 0), vein, 0.05, 0.98, -0.05);
+      add(new THREE.BoxGeometry(0.9, 0.03, 0.05), vein, 0, 0.42, 0.52);
+      this._drainLocal = new THREE.Vector3(0, 0.8, 0.2);
+      this._size = { w: 1.5, d: 1.4, h: 0.95 };
+    } else if (kind === 'concrete') {
+      // Bloque de hormigón de obra (barrera) con una grieta luminosa
+      const conc = new THREE.MeshStandardMaterial({ color: 0xa8a39a, roughness: 0.9 });
+      add(new THREE.BoxGeometry(1.8, 0.85, 0.6), conc, 0, 0.425, 0);
+      add(new THREE.BoxGeometry(1.8, 0.2, 0.8), conc, 0, 0.1, 0);
+      add(new THREE.BoxGeometry(0.7, 0.04, 0.02), glow(0xa24dff, 1.6), 0.1, 0.55, 0.305);
+      add(new THREE.BoxGeometry(0.04, 0.3, 0.02), glow(0xa24dff, 1.6), -0.25, 0.42, 0.305);
+      this._drainLocal = new THREE.Vector3(0, 0.6, 0.35);
+      this._size = { w: 1.8, d: 0.8, h: 0.85 };
     } else if (kind === 'vending') {
       add(new THREE.BoxGeometry(1.0, 1.9, 0.8), new THREE.MeshStandardMaterial({ color: 0x9a2d2d, roughness: 0.5, metalness: 0.2 }), 0, 0.95, 0);
       add(new THREE.PlaneGeometry(0.62, 1.1), glow(0xbfe3ff, 1.4), -0.12, 1.15, 0.401);

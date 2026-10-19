@@ -1,4 +1,4 @@
-import { MARKS } from '../data/marks.js';
+import { MARKS, COPY_ORDER } from '../data/marks.js';
 import { MarkVisual } from '../player/MarkVisual.js';
 
 /**
@@ -26,12 +26,43 @@ export class MarkSystem {
 
   owns(id) {
     if (this.save.data.profile.marks.includes(id)) return true;
-    return id === 'energia' && !!this.save.data.debug?.grantEnergy;
+    const d = this.save.data.debug ?? {};
+    return (id === 'energia' && !!d.grantEnergy) || (id === 'gravedad' && !!d.grantGravity);
   }
 
-  /** Familia de poderes activa (en el prototipo, la única marca copiada disponible). */
+  /** Marcas copiadas que posee, en orden. */
+  get ownedCopies() {
+    return COPY_ORDER.filter((id) => this.owns(id));
+  }
+
+  /**
+   * Familia de poderes activa: la elegida (guardada en el perfil) si la
+   * posee; si no, la primera marca copiada que tenga.
+   */
   get activeFamily() {
-    return this.owns('energia') ? 'energia' : null;
+    const chosen = this.save.data.profile.activeMark;
+    if (chosen && this.owns(chosen)) return chosen;
+    return this.ownedCopies[0] ?? null;
+  }
+
+  /** Cambia la marca activa (si la posee). Devuelve true si cambió. */
+  setActive(id) {
+    if (!this.owns(id) || this.activeFamily === id) return false;
+    this.save.data.profile.activeMark = id;
+    this.save.save();
+    this._pulse = Math.max(this._pulse, 0.7);
+    this._hold = 0.25;
+    this.events?.emit('marks:changed', { active: this.activeFamily });
+    this.events?.emit('mark:switched', { active: id });
+    return true;
+  }
+
+  /** Pasa a la siguiente marca copiada (tecla V). */
+  cycle() {
+    const list = this.ownedCopies;
+    if (list.length < 2) return false;
+    const i = list.indexOf(this.activeFamily);
+    return this.setActive(list[(i + 1) % list.length]);
   }
 
   get activeDef() {
@@ -76,8 +107,9 @@ export class MarkSystem {
   }
 
   setDebugGrant(id, value) {
-    if (id !== 'energia') return;
-    this.save.data.debug.grantEnergy = value;
+    if (id === 'energia') this.save.data.debug.grantEnergy = value;
+    else if (id === 'gravedad') this.save.data.debug.grantGravity = value;
+    else return;
     this.save.save();
     this.refresh();
   }
@@ -100,8 +132,9 @@ export class MarkSystem {
     // Subida rápida, bajada suave
     const k = target > this.level ? 1 - Math.exp(-dt * 25) : 1 - Math.exp(-dt * 6);
     this.level += (target - this.level) * k;
-    const v = this.visuals.get(this.activeFamily);
-    v?.setIntensity(this.level);
+    // Solo la marca activa se enciende; las demás quedan en reposo
+    const active = this.activeFamily;
+    for (const [id, v] of this.visuals) v.setIntensity(id === active ? this.level : 0);
   }
 
   reset() {

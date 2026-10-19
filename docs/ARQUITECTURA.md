@@ -240,3 +240,24 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   entidades (dianas, fuentes, Encarnación…) no se fusionan porque cambian.
 - **Barandillas**: `LevelBuilder.bridge({ rails })` añade colisión por tramos
   de 1 m con `climbable: false` y `cameraBlocking: false`.
+
+## Varias marcas (Gravedad)
+
+- **Marca activa**: `MarkSystem.activeFamily` devuelve la marca elegida
+  (`profile.activeMark`) si se posee, o la primera copiada. `setActive` y
+  `cycle` (V) la cambian y emiten `marks:changed` y `mark:switched`.
+- **Familias de poderes**: `PowerSystem` (Energía) y `GravityPowerSystem`
+  comparten interfaz (`available`, `energy`, `abilities`, `magazine`, `color`,
+  `applyModifiers`, `resetAbilities`). `GameManager.activePowers` da la de la
+  marca activa (HUD, golpe) y `powersFor(elemento)` la de un elemento
+  (absorción). Cada una se actualiza siempre, pero solo la activa lee el input.
+- **Fuentes**: `EnergySource` lleva `element`; `EnergyDrainSystem` recarga la
+  familia de ese elemento y activa su marca.
+- **Estados de enemigo**: `Enemy.float`, `stun` y `pullTo` sustituyen la
+  percepción, la IA y el disparo mientras duran (`_updateControlled`). El
+  arrastre por el suelo usa `CharacterMotor.startTravel` (con colisiones).
+- **Saltos de Gravedad**: `CharacterMotor.jumpAbilities` (null en Energía)
+  añade saltos en el aire, menos gravedad al mantener el salto mientras sube y
+  planeo al mantenerlo cayendo. El jugador pasa `jumpHeld` en la entrada.
+- **Pasivas**: en `GameManager` (escuchan `combat:damage` y `player:damaged`);
+  la de Gravedad llama a `ProjectileSystem.stasis(segundos)`.

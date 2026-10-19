@@ -54,6 +54,24 @@ export function markSymbolTexture(symbol, color) {
     g.lineTo(m + 10, m - 4);
     g.lineTo(m - 8, size - 30);
     g.stroke();
+  } else if (symbol === 'gravedad') {
+    // Órbita inclinada alrededor de un núcleo y flecha hacia abajo: lo que
+    // atrae y lo que cae.
+    g.beginPath();
+    g.ellipse(m, m, 46, 20, -0.35, 0, Math.PI * 2);
+    g.stroke();
+    g.beginPath();
+    g.arc(m, m, 13, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();
+    g.moveTo(m, 16);
+    g.lineTo(m, m - 22);
+    g.moveTo(m, m + 22);
+    g.lineTo(m, size - 14);
+    g.moveTo(m - 12, size - 28);
+    g.lineTo(m, size - 14);
+    g.lineTo(m + 12, size - 28);
+    g.stroke();
   } else {
     g.beginPath();
     g.arc(m, m, 40, 0, Math.PI * 2);

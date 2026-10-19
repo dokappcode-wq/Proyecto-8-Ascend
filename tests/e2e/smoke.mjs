@@ -1054,6 +1054,159 @@ try {
   await g(() => { const a = window.__ascend; a.save.data.debug.infiniteEnergy = false; a.save.data.debug.invulnerable = false; a.save.save(); });
   await page.setViewportSize({ width: 960, height: 540 });
 
+  // ---------------- Marca de la Gravedad ----------------
+  console.log('\n[gravedad]');
+  await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = true; a.enemies.clear(); a.playerCombat.restore(); a.mapManager.resetEntities(); });
+  // Adquisición en la Zona E (contacto + voluntad)
+  await g(() => window.__ascend.player.spawnAt({ x: 23, y: 0.4, z: -61.4, yaw: Math.PI }));
+  await page.waitForFunction(() => /establecer contacto/.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  check(/Gravedad/.test(await g(() => document.getElementById('hud-prompt').textContent)), 'Junto a la Encarnación de la Gravedad aparece su aviso de contacto');
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'contact', null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.save.data.profile.marks.includes('gravedad'), null, { timeout: 25000 }).catch(() => {});
+  await page.waitForFunction(() => window.__ascend.acquisition.state === 'idle', null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  await page.waitForTimeout(300);
+  const gAcq = await g(() => {
+    const a = window.__ascend;
+    return {
+      marks: a.save.data.profile.marks.join(','), active: a.marks.activeFamily, vis: a.marks.visuals.has('gravedad'),
+      slots: [...document.querySelectorAll('#hud-abilities .ability')].filter((e) => e.style.display !== 'none').map((e) => e.querySelector('.name').textContent).join(','),
+    };
+  });
+  await page.screenshot({ path: path.join(out, 'gravity-01-acquired.png') });
+  check(/energia/.test(gAcq.marks) && /gravedad/.test(gAcq.marks) && gAcq.active === 'gravedad' && gAcq.vis, `Gravedad copiada: dos marcas y la nueva queda activa (${gAcq.marks})`);
+  check(/Disparo/.test(gAcq.slots) && /Rocas/.test(gAcq.slots) && /Atraer/.test(gAcq.slots) && /Empujar/.test(gAcq.slots) && /Granada/.test(gAcq.slots), `El HUD muestra las habilidades de Gravedad (${gAcq.slots})`);
+  await page.keyboard.press('KeyV');
+  await page.waitForFunction(() => window.__ascend.marks.activeFamily === 'energia', null, { timeout: 5000 }).catch(() => {});
+  const vEnergy = await g(() => window.__ascend.marks.activeFamily);
+  await page.keyboard.press('KeyV');
+  await page.waitForFunction(() => window.__ascend.marks.activeFamily === 'gravedad', null, { timeout: 5000 }).catch(() => {});
+  check(vEnergy === 'energia' && (await g(() => window.__ascend.marks.activeFamily)) === 'gravedad', 'V cambia de marca (Gravedad → Energía → Gravedad)');
+
+  // Rocas (Q): en el suelo levanta; en el aire, otra bajo los pies (hasta 3)
+  await g(() => { const a = window.__ascend; a.gravity.resetAbilities(); a.gravity.energy.refill(); a.player.spawnAt({ x: -12, y: 0.3, z: 32, yaw: Math.PI }); });
+  await page.waitForTimeout(300);
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => window.__ascend.gravity.stones.length === 1 && window.__ascend.player.motor.position.y > 1.9, null, { timeout: 10000 }).catch(() => {});
+  const st1 = await g(() => ({ n: window.__ascend.gravity.stones.length, y: window.__ascend.player.motor.position.y }));
+  check(st1.n === 1 && st1.y > 1.9, `Q en el suelo eleva una roca que levanta al personaje (y=${st1.y.toFixed(2)})`);
+  for (let k = 0; k < 3; k++) {
+    await page.keyboard.press('Space');
+    await page.waitForFunction(() => { const m = window.__ascend.player.motor; return !m.grounded && m.velocity.y < 2; }, null, { timeout: 8000 }).catch(() => {});
+    await page.keyboard.press('KeyQ');
+    await page.waitForTimeout(250);
+  }
+  const st3 = await g(() => ({ n: window.__ascend.gravity.stones.length, chain: window.__ascend.gravity._chain, y: window.__ascend.player.motor.position.y, gr: window.__ascend.player.motor.grounded }));
+  await page.screenshot({ path: path.join(out, 'gravity-02-stones.png') });
+  check(st3.chain === 3 && st3.n === 3 && st3.y > 4.5, `En el aire, Q pone otra roca bajo los pies: 3 como máximo (cadena ${st3.chain}, y=${st3.y.toFixed(2)})`);
+
+  // Combate: disparo que hace flotar, atraer, empujar y granada
+  await g(() => {
+    const a = window.__ascend;
+    a.gravity.clear();
+    a.gravity.resetAbilities();
+    a.gravity.energy.refill();
+    a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI });
+    window.__ge = a.enemies.spawn('pdc', { x: -24, y: 0.2, z: 20, yaw: 0, tag: 'g', patrol: [{ x: -24, z: 20 }] });
+  });
+  await page.waitForTimeout(300);
+  await g(() => window.__aimAt(window.__ge.center));
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  await page.waitForFunction(() => window.__ge.floating, null, { timeout: 15000 }).catch(() => {});
+  const gShot = await g(() => ({ f: window.__ge.floating, hp: window.__ge.health.value, mag: window.__ascend.gravity.magazine.size }));
+  await page.screenshot({ path: path.join(out, 'gravity-03-float.png') });
+  check(gShot.f && gShot.hp < 80 && gShot.mag === 1, `El disparo de Gravedad (1 por cargador) daña y deja flotando al enemigo (salud ${gShot.hp})`);
+  await g(() => window.__aimAt(window.__ge.center));
+  await page.keyboard.press('KeyR');
+  await page.waitForFunction(() => { const e = window.__ge; const p = window.__ascend.player.motor.position; return Math.hypot(e.position.x - p.x, e.position.z - p.z) < 2.6; }, null, { timeout: 15000 }).catch(() => {});
+  const gPull = await g(() => { const e = window.__ge; const p = window.__ascend.player.motor.position; return { d: Math.hypot(e.position.x - p.x, e.position.z - p.z), hp: e.health.value }; });
+  check(gPull.d < 2.6 && gPull.hp < gShot.hp, `Atraer trae al enemigo flotando a distancia de golpe y le daña (${gPull.d.toFixed(2)} m)`);
+  check(await g(() => window.__ge.stunned || window.__ascend.audio.stats.pull > 0), 'Atraer aturde al enemigo');
+  await page.waitForTimeout(400);
+  await g(() => window.__aimAt(window.__ge.center));
+  await page.keyboard.press('KeyG');
+  await page.waitForTimeout(1200);
+  const gPush = await g(() => { const e = window.__ge; const p = window.__ascend.player.motor.position; return { d: Math.hypot(e.position.x - p.x, e.position.z - p.z), hp: e.health.value }; });
+  check(gPush.d > 4 && gPush.hp < gPull.hp, `Empujar aleja y daña al enemigo (${gPush.d.toFixed(1)} m)`);
+  await g(() => { const e = window.__ge; e._float = null; e._stun = 0; e.health.value = e.health.max; e.motor.teleport({ x: -24, y: 0.2, z: 22 }); });
+  await page.waitForTimeout(400);
+  await g(() => window.__aimAt({ x: -24, y: 0.3, z: 22 }));
+  await page.keyboard.press('KeyX');
+  await page.waitForFunction(() => window.__ascend.gravity.bubbles.length > 0 && window.__ge.floating, null, { timeout: 15000 }).catch(() => {});
+  await page.screenshot({ path: path.join(out, 'gravity-04-bubble.png') });
+  check(await g(() => window.__ascend.gravity.bubbles.length > 0 && window.__ge.floating), 'La granada de gravedad crea una burbuja que deja flotando al enemigo');
+
+  // Saltos de Gravedad (pasos fijos para no depender de los FPS)
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.gravity.clear(); a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI }); for (let i = 0; i < 20; i++) a.player.update(1 / 60); });
+  await page.keyboard.down('Space');
+  const jHold = await g(() => {
+    const a = window.__ascend;
+    const m = a.player.motor;
+    let peak = 0;
+    let glided = false;
+    let vy = 0;
+    for (let i = 0; i < 150; i++) {
+      a.player.update(1 / 60);
+      a.input.endFrame();
+      peak = Math.max(peak, m.position.y);
+      if (m.gliding) {
+        glided = true;
+        vy = Math.min(vy, m.velocity.y);
+      }
+    }
+    return { peak, glided, vy };
+  });
+  await page.keyboard.up('Space');
+  check(jHold.peak > 2.3, `Mantener el salto lo hace más alto (${jHold.peak.toFixed(2)} m; normal ≈ 1.7 m)`);
+  check(jHold.glided && jHold.vy >= -2.3 && jHold.vy < -1, `Manteniendo en el aire se planea (cae a ${(-jHold.vy).toFixed(2)} m/s en vez de acelerar)`);
+  await g(() => { const a = window.__ascend; a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI }); for (let i = 0; i < 20; i++) a.player.update(1 / 60); window.__nj = 0; a.events.on('player:jumped', () => window.__nj++); });
+  for (let k = 0; k < 4; k++) {
+    await page.keyboard.down('Space');
+    await g(() => { const a = window.__ascend; a.player.update(1 / 60); a.input.endFrame(); });
+    await page.keyboard.up('Space');
+    await g(() => { const a = window.__ascend; for (let i = 0; i < 16; i++) { a.player.update(1 / 60); a.input.endFrame(); } });
+  }
+  check((await g(() => window.__nj)) === 3, `Hasta 3 saltos seguidos (${await g(() => window.__nj)})`);
+
+  // Pasiva de Gravedad: al 5 % de vida, las balas enemigas se quedan flotando
+  await g(() => { window.__ascend.save.data.debug.invulnerable = false; });
+  await page.waitForTimeout(400);
+  const gPas = await g(() => { const a = window.__ascend; a.playerCombat.health.value = 10; a.playerCombat.health.invulnerable = 0; a.playerCombat.takeDamage(6, { kind: 'bullet' }); return { hp: a.playerCombat.health.value, stasis: a.projectiles.stasisActive }; });
+  check(gPas.hp <= 5 && gPas.stasis, `Pasiva de Gravedad: al bajar al 5 % de vida se activa la estasis de balas (salud ${gPas.hp})`);
+  // Pasiva de Energía: 5 % de detener (probabilidad forzada para la prueba)
+  const ePas = await g(() => {
+    const a = window.__ascend;
+    a.save.data.debug.invulnerable = true;
+    a.playerCombat.restore();
+    a.marks.setActive('energia');
+    const e = a.enemies.spawn('pdc', { x: -24, y: 0.2, z: 22, yaw: 0, tag: 'g' });
+    a.rng = () => 0.99;
+    a.combat.applyDamage(e, 5, { faction: 'player', kind: 'bolt' });
+    const no = e.stunned;
+    a.rng = () => 0.01;
+    a.combat.applyDamage(e, 5, { faction: 'player', kind: 'bolt' });
+    const yes = e.stunned;
+    a.rng = Math.random;
+    a.enemies.clear();
+    return { no, yes };
+  });
+  check(!ePas.no && ePas.yes, 'Pasiva de Energía: un golpe de Energía puede detener al enemigo (5 %)');
+
+  // Fuentes de Gravedad: escombros junto al inicio; absorber activa la Gravedad
+  await g(() => { const a = window.__ascend; a.gravity.energy.value = 20; a.player.spawnAt({ x: -3.5, y: 0.3, z: 22.6, yaw: 0 }); });
+  await page.waitForFunction(() => /absorber gravedad/i.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  check(/absorber gravedad/i.test(await g(() => document.getElementById('hud-prompt').textContent)), 'Junto a unos escombros aparece «Mantén E: absorber gravedad»');
+  await page.keyboard.down('KeyE');
+  await page.waitForFunction(() => window.__ascend.gravity.energy.value > 50, null, { timeout: 15000 }).catch(() => {});
+  await page.keyboard.up('KeyE');
+  const gDrain = await g(() => ({ e: window.__ascend.gravity.energy.value, active: window.__ascend.marks.activeFamily }));
+  check(gDrain.e > 50 && gDrain.active === 'gravedad', `Absorber escombros recarga la Gravedad y la activa (${gDrain.e.toFixed(0)})`);
+  await g(() => { const a = window.__ascend; a.save.data.debug.invulnerable = false; a.marks.setActive('energia'); a.save.save(); });
+
   // Reiniciar mapa desde la pausa
   await page.evaluate(() => window.__ascend.player.motor.teleport({ x: 30, y: 0.3, z: 30 }));
   await page.keyboard.press('Escape');

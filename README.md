@@ -26,6 +26,10 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   volúmenes), rendimiento (geometría estática fusionada, resolución de render),
   barandillas en las pasarelas, polvo al aterrizar, prueba de estrés del motor
   y limpieza de avisos.
+- **Marca de la Gravedad** ✅: segunda marca copiable (púrpura) con rocas
+  flotantes, disparo que hace flotar, atraer, empujar, granada de
+  antigravedad, saltos altos/triples con planeo y pasiva de estasis; cambio de
+  marca con V; pasiva de la Energía (5 % de detener).
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -86,12 +90,62 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Impulso hacia arriba en la pared | Espacio | ✅ |
 | Salto hacia atrás desde la pared | S + Espacio | ✅ |
 | Soltarse | C | ✅ |
+| Cambiar de marca copiada | V | ✅ |
+| Gravedad: granada | X o clic central | ✅ |
 
 La tecla **Alt** es alternativa a Ctrl para esquivar porque algunos navegadores
 reservan combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña); **C** pasa a
 ser agacharse. El documento de diseño
 no asignaba tecla a la onda expansiva; se ha elegido **G** (reasignable). Los
 controles se definen como acciones en `src/core/Input.js`.
+
+## Marca de la Gravedad
+
+**Cómo conseguirla**: en la Zona E del Campo de Pruebas, junto a la
+Encarnación de la Energía, hay una segunda Encarnación (abrigo gris, pelo
+canoso, junto a un muro de obra con escombros). Contacto (E) y voluntad
+(mantener E), igual que con la Energía. Al copiarla pasa a ser la marca activa.
+
+**Cambiar de marca**: V alterna entre las marcas copiadas; absorber una fuente
+de un elemento también activa su marca. Tab muestra las dos marcas, su pasiva,
+su nivel y su árbol, con el botón «Usar esta marca». La marca activa se
+guarda. Cada marca tiene su propia carga, nivel, experiencia y mejoras.
+
+**Recarga**: no se regenera; se absorbe (mantener E) de **escombros** y
+**bloques de hormigón**, repartidos por los dos mapas (plaza, calles,
+callejones y azoteas del Distrito; inicio y zonas del Campo).
+
+| Tecla | Habilidad | Coste | Efecto |
+| --- | --- | --- | --- |
+| Clic izq. | Disparo gravitatorio | 5 | **Un disparo por cargador** (recarga 0.9 s), 18 de daño; el enemigo (u objeto) alcanzado **flota 3 s** a 1.8 m del suelo, indefenso |
+| Q | Elevar rocas | 10 | En el suelo, una roca sale de la tierra y te levanta 2 m. En el aire, aparece otra bajo tus pies y te sostiene. **Hasta 3 seguidas** (se reinicia al pisar suelo firme); duran 12 s y luego se desmoronan. Son sólidas: sirven para subir a azoteas o como puesto de tiro y cobertura |
+| R | Atraer | 15 | Al enemigo más cercano a la mira (30 m): 14 de daño y **aturde 1 s**. Si flota, lo trae por el aire hasta tenerlo a distancia de golpe; si no, lo arrastra 7 m hacia ti |
+| G | Empujar | 18 | Cono de 110° y 10 m delante: 20 de daño y fuerte retroceso; los que flotan salen despedidos; también lanza objetos |
+| X / clic central | Granada de gravedad | 30 | Bola de energía con trayectoria parabólica; al tocar algo (o a los 2.5 s) crea una **burbuja de antigravedad** de 5.5 m durante 5 s: todo lo que queda dentro flota |
+| Espacio | Saltos de Gravedad | — | **Mantener** al saltar: salto más alto (≈3.2 m frente a 1.7 m). **Hasta 3 saltos** seguidos (uno desde el suelo y dos en el aire). **Mantener cayendo**: planeas (caída a 2.2 m/s y avance a 8.5 m/s) |
+| F | Golpe | 5 | Con carga, golpe elemental púrpura (como el de Energía) |
+
+**Pasivas** (funcionan con la marca poseída, esté activa o no):
+- **Gravedad — Estasis**: al bajar al **5 % de vida**, durante **4 s** las
+  balas y orbes enemigos se quedan flotando donde estén y luego se deshacen.
+  Una vez cada 30 s.
+- **Energía — Cortocircuito**: cada golpe de Energía (proyectil, descarga,
+  onda, rayo o golpe eléctrico) tiene un **5 %** de probabilidad de
+  **detener** al enemigo 1.5 s (aparece «Detenido»).
+
+**Mejoras de Gravedad** (Tab): Cuarta roca, Atracción férrea (+10 de daño y
++0.5 s de aturdimiento), Empuje violento (+10 de daño y más retroceso),
+Burbuja amplia (+1.5 m y +2 s) y Colapso (próximamente). Cada nivel suma +15
+de carga máxima, como en Energía.
+
+**Enemigos**: pueden **flotar** (sin moverse ni disparar, se mecen en el aire)
+y quedar **aturdidos** (chispas sobre la cabeza). Si mueren flotando, caen.
+
+Código: `src/systems/GravityPowerSystem.js` (habilidades),
+`src/powers/gravity/` (parámetros y rocas), estados nuevos en `src/ai/Enemy.js`
+(`float`, `stun`, `pullTo`), saltos en `src/physics/CharacterMotor.js`
+(`jumpAbilities`), estasis en `src/systems/ProjectileSystem.js` y marca activa
+en `src/systems/MarkSystem.js`.
 
 ## Etapa 7 — Pulido
 
@@ -494,6 +548,13 @@ contenedores y cajas (A1, A2).
     absorción; la geometría estática se fusiona y el Campo queda por debajo de
     400 llamadas de dibujo; las barandillas impiden caerse de una pasarela;
     volumen y resolución de render se guardan.
+  - Gravedad: se copia de su Encarnación y queda activa con las dos marcas;
+    el HUD muestra sus habilidades; V cambia de marca; Q levanta y encadena 3
+    rocas; el disparo hace flotar; atraer trae al enemigo flotando a 1.6 m y le
+    aturde; empujar lo aleja; la granada crea la burbuja y lo deja flotando;
+    mantener el salto llega a ≈3.2 m, se planea y hay 3 saltos; la estasis se
+    activa al 5 % de vida; la pasiva de Energía detiene al enemigo; los
+    escombros recargan la Gravedad y la activan.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.

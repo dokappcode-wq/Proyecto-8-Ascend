@@ -68,9 +68,35 @@ export class ProjectileSystem {
     return p;
   }
 
+  /**
+   * Estasis (pasiva de Gravedad): durante `duration` s los proyectiles
+   * enemigos se quedan flotando donde estén; al terminar se deshacen.
+   */
+  stasis(duration) {
+    this._stasis = Math.max(this._stasis ?? 0, duration);
+  }
+
+  get stasisActive() {
+    return (this._stasis ?? 0) > 0;
+  }
+
   update(dt) {
+    const wasStasis = this.stasisActive;
+    if (wasStasis) this._stasis = Math.max(0, this._stasis - dt);
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
+      if (p.faction === 'enemy' && wasStasis) {
+        if (!p.frozen) {
+          p.frozen = true;
+          p.obj.scale.setScalar(1.4);
+        }
+        p.obj.position.y = p.pos.y + Math.sin(performance.now() * 0.004 + i) * 0.04;
+        if (!this.stasisActive) {
+          this.vfx.particles.burst(p.pos, { count: 6, speed: 1.5, color: new THREE.Color('#c58bff'), size: 0.08, life: 0.4, gravity: 6 });
+          this._remove(i);
+        }
+        continue;
+      }
       const prev = { ...p.pos };
       const res = stepProjectile(p, dt, this.world, (o, d, t) => this.combat.raycastActors(o, d, t, { excludeFaction: p.faction, ignore: p.owner }));
       p.obj.position.set(p.pos.x, p.pos.y, p.pos.z);
@@ -97,6 +123,7 @@ export class ProjectileSystem {
   _onHit(p, res) {
     const owner = res.actor ?? res.collider?.owner;
     const target = owner && this.combat.targets.has(owner) ? owner : null;
+    p.onHit?.(target, res);
     if (target) {
       this.combat.applyDamage(target, p.damage, { point: res.point, dir: p.dir, knockback: p.knockback ?? 2, kind: p.kind, faction: p.faction, source: p.owner });
     }

@@ -102,8 +102,9 @@ export class PlayerCombat {
     g.player.model.root.rotation.x = 0;
     g.player.motor.respawn();
     g.player.spawnAt({ ...g.player.motor.spawnPoint, yaw: g.mapManager.current?.spawn?.yaw });
-    g.powers.energy.refill();
+    g.activePowers.energy.refill();
     g.powers.resetAbilities();
+    g.gravity?.resetAbilities();
     g.enemies.forgetTarget();
     g.events.emit('player:respawned', { afterDeath: true });
   }
@@ -154,18 +155,18 @@ export class PlayerCombat {
     }
     // Puños eléctricos visibles mientras dura el golpe elemental
     this._fists = Math.max(0, this._fists - dt * 2.2);
-    g.player.model.setFists(this._fists, g.powers.color);
+    g.player.model.setFists(this._fists, g.activePowers.color);
     if (this._fists > 0.05 && Math.random() < 0.5) {
       g.player.updateModelMatrices();
       const hand = g.player.handWorldPosition();
-      g.vfx.particles.burst(hand, { count: 2, speed: 2.5, color: new THREE.Color(g.powers.color), size: 0.06, life: 0.15 });
+      g.vfx.particles.burst(hand, { count: 2, speed: 2.5, color: new THREE.Color(g.activePowers.color), size: 0.06, life: 0.15 });
     }
   }
 
   /** ¿El golpe actual será elemental? Requiere la marca y energía suficiente. */
   canElemental() {
     const g = this.game;
-    return g.powers.available && g.powers.energy.canSpend(PLAYER_COMBAT.melee.elementalCost);
+    return g.activePowers.available && g.activePowers.energy.canSpend(PLAYER_COMBAT.melee.elementalCost);
   }
 
   _startMelee() {
@@ -174,7 +175,7 @@ export class PlayerCombat {
     this._meleeCd = c.cooldown;
     this._meleeElemental = this.canElemental();
     if (this._meleeElemental) {
-      g.powers.energy.spend(c.elementalCost);
+      g.activePowers.energy.spend(c.elementalCost);
       this._fists = 1;
       g.marks.pulse(0.45, 0.15);
       // Embestida hacia el enemigo más cercano delante
@@ -232,8 +233,8 @@ export class PlayerCombat {
   _lungeVfx() {
     const g = this.game;
     const p = g.player.motor.position;
-    g.vfx.afterimage(p, g.player.facing, g.powers.color);
-    g.vfx.particles.burst({ x: p.x, y: p.y + 1, z: p.z }, { count: 4, speed: 2, color: new THREE.Color(g.powers.color), size: 0.08, life: 0.25 });
+    g.vfx.afterimage(p, g.player.facing, g.activePowers.color);
+    g.vfx.particles.burst({ x: p.x, y: p.y + 1, z: p.z }, { count: 4, speed: 2, color: new THREE.Color(g.activePowers.color), size: 0.08, life: 0.25 });
   }
 
   _meleeHit() {
@@ -257,17 +258,17 @@ export class PlayerCombat {
       const cos = (dx * f.x + dz * f.z) / l;
       if (cos < Math.cos(THREE.MathUtils.degToRad(c.arc))) continue;
       const dir = { x: (dx / l) * 0.85, y: 0.35, z: (dz / l) * 0.85 };
-      g.combat.applyDamage(t, damage, { point: tc, dir, knockback, kind: energy ? 'melee-energia' : 'melee', faction: 'player', source: this });
+      g.combat.applyDamage(t, damage, { point: tc, dir, knockback, kind: energy ? `melee-${g.marks.activeFamily}` : 'melee', faction: 'player', source: this });
       hits++;
       if (energy) {
         g.player.updateModelMatrices();
-        g.vfx.lightning(g.player.handWorldPosition(), tc, g.powers.color, { width: 0.05, duration: 0.2, jitter: 0.2, branches: 2 });
+        g.vfx.lightning(g.player.handWorldPosition(), tc, g.activePowers.color, { width: 0.05, duration: 0.2, jitter: 0.2, branches: 2 });
       }
     }
     if (hits) {
       g.player.updateModelMatrices();
       const hand = g.player.handWorldPosition();
-      const color = energy ? g.powers.color : '#ffffff';
+      const color = energy ? g.activePowers.color : '#ffffff';
       g.vfx.impact(hand, null, color, energy ? 1.2 : 0.6);
       if (energy) g.marks.pulse(0.5, 0.1);
       g.cameraController.shake(0.15);

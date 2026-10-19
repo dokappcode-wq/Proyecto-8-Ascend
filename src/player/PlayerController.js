@@ -161,7 +161,7 @@ export class PlayerController {
     // Pasos fijos (≤ 1/60 s): el movimiento es igual a cualquier tasa de frames.
     const steps = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6));
     const sdt = dt / steps;
-    const agg = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null };
+    const agg = { jumped: false, landed: false, dodged: false, respawned: false, landingSpeed: 0, landingImmune: false, diveLanded: null, travelEnded: null, parkour: null, airJump: false };
     for (let i = 0; i < steps; i++) {
       this.motor.update(sdt, {
         speedScale,
@@ -171,6 +171,7 @@ export class PlayerController {
         jump: on && i === 0 && inp.wasPressed('jump'),
         dodge: on && i === 0 && inp.wasPressed('dodge'),
         drop: drop && i === 0,
+        jumpHeld: on && inp.isDown('jump'),
         noParkour: !on || this.aiming || !!this.cover,
         facingX: Math.sin(this.facing),
         facingZ: Math.cos(this.facing),
@@ -183,6 +184,7 @@ export class PlayerController {
       agg.diveLanded ??= e.diveLanded;
       agg.travelEnded ??= e.travelEnded;
       agg.parkour ??= e.parkour;
+      agg.airJump ||= e.airJump;
       if (e.landed) {
         agg.landed = true;
         agg.landingSpeed = Math.max(agg.landingSpeed, e.landingSpeed);
@@ -232,6 +234,11 @@ export class PlayerController {
     if (ev.dodged) this.events.emit('player:dodged');
     if (ev.respawned) this.events.emit('player:respawned');
     if (ev.parkour) this.events.emit('player:parkour', { kind: ev.parkour });
+    if (ev.airJump) this.events.emit('player:airjump');
+    if (this.motor.gliding !== this._wasGliding) {
+      this._wasGliding = this.motor.gliding;
+      this.events.emit(this.motor.gliding ? 'player:glide-start' : 'player:glide-end');
+    }
 
     this._aimWeight += ((aimLocked || this.lookTarget ? 1 : 0) - this._aimWeight) * (1 - Math.exp(-dt * 18));
     cam.setAim(this.aiming ? 1 : 0);
@@ -249,6 +256,7 @@ export class PlayerController {
       landed: ev.landed,
       landingSpeed: ev.landingSpeed,
       climb: this.motor.climbState,
+      gliding: this.motor.gliding,
       climbDistance: this.motor.climbDistance,
       mantleProgress: this.motor.mantleProgress,
     });

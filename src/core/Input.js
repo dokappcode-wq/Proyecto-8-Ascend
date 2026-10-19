@@ -20,7 +20,9 @@ export const DEFAULT_BINDINGS = Object.freeze({
   melee: ['KeyF'],
   special: ['KeyQ'], // Energía: dash energético
   charged: ['KeyR'], // Energía: descarga concentrada (mantener)
-  wave: ['KeyG'], // Energía: onda expansiva
+  wave: ['KeyG'], // Energía: onda expansiva · Gravedad: empujar
+  grenade: ['KeyX', 'Mouse1'], // Gravedad: granada de gravedad
+  switchMark: ['KeyV'], // cambiar de marca copiada
   powerMenu: ['Tab'],
   debug: ['F3'],
   debugMenu: ['F2', 'Backquote'],
@@ -55,6 +57,7 @@ export class Input {
     };
     this._onMouseDown = (e) => {
       const code = `Mouse${e.button}`;
+      if (e.button === 1) e.preventDefault(); // clic central: sin desplazamiento automático
       if (!this._down.has(code)) this._pressed.add(code);
       this._down.add(code);
     };

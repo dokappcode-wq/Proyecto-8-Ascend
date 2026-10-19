@@ -22,7 +22,9 @@ const CONTROL_ROWS = [
   ['Apuntar', ['aim'], true],
   ['Dash energético (apuntando + mantener: dash dirigido)', ['special'], true],
   ['Recargar (pulsar) · Descarga concentrada (mantener)', ['charged'], true],
-  ['Onda expansiva (en el aire: caída en rayo)', ['wave'], true],
+  ['Onda expansiva (en el aire: caída en rayo) · Gravedad: empujar', ['wave'], true],
+  ['Gravedad: granada de gravedad', ['grenade'], true],
+  ['Cambiar de marca', ['switchMark'], true],
   ['Pausa', null, true, 'Esc'],
   ['Menú de depuración', ['debugMenu'], true],
   ['Datos de depuración', ['debug'], true],
@@ -37,6 +39,14 @@ const CONTROL_ROWS = [
  */
 const ELEMENT_AMMO_ICONS = {
   energia: '<svg class="ammo-icon" viewBox="0 0 12 24" aria-hidden="true"><path d="M6 0 10 6H7.4L9.6 12H6.8L8.8 24 2 10.4h3L2.6 6H5z" fill="currentColor"/></svg>',
+  // Gravedad: núcleo con órbita y flecha hacia abajo
+  gravedad: '<svg class="ammo-icon grav" viewBox="0 0 16 24" aria-hidden="true"><ellipse cx="8" cy="9" rx="7" ry="3" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(-18 8 9)"/><circle cx="8" cy="9" r="2.6" fill="currentColor"/><path d="M8 14v8M5 19l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+};
+
+/** Nombres de las casillas de poder según la marca activa. */
+const FAMILY_SLOT_NAMES = {
+  energia: { projectile: 'Proyectil', dash: 'Dash', discharge: 'Descarga', wave: 'Onda' },
+  gravedad: { projectile: 'Disparo', dash: 'Rocas', discharge: 'Atraer', wave: 'Empujar', grenade: 'Granada' },
 };
 
 /** Casillas de habilidades del HUD. `power` = requiere la marca activa. */
@@ -45,6 +55,7 @@ const ABILITY_SLOTS = [
   { id: 'dash', action: 'special', name: 'Dash', power: true },
   { id: 'discharge', action: 'charged', name: 'Descarga', power: true },
   { id: 'wave', action: 'wave', name: 'Onda', power: true },
+  { id: 'grenade', action: 'grenade', name: 'Granada', power: true },
   { id: 'melee', action: 'melee', name: 'Golpe', power: false },
   { id: 'dodge', action: 'dodge', name: 'Esquiva', power: false },
   { id: 'sprint', action: 'sprint', name: 'Sprint', power: false },
@@ -207,10 +218,18 @@ export class UIManager {
     this.hud.powerAmmo.classList.toggle('hidden', !available);
     this.hud.crosshair.classList.toggle('show', available);
     for (const s of ABILITY_SLOTS) if (s.power) this._slots[s.id].el.classList.toggle('locked', !available);
+    const names = FAMILY_SLOT_NAMES[def?.id] ?? FAMILY_SLOT_NAMES.energia;
+    for (const s of ABILITY_SLOTS) {
+      if (!s.power) continue;
+      const slot = this._slots[s.id];
+      slot.el.querySelector('.name').textContent = names[s.id] ?? s.name;
+      slot.el.style.display = names[s.id] ? '' : 'none';
+    }
     if (available && def) {
       this._element = def.id;
       this.hud.powerIcon.src = markSymbolTexture(def.symbol, def.glowColor).image.toDataURL();
       this.hud.vitals.style.setProperty('--el', def.color);
+      this.hud.vitals.dataset.el = def.id;
       this._ammoKey = null; // redibuja los símbolos de munición
     }
     this._renderHint();
@@ -275,7 +294,10 @@ export class UIManager {
         const st = progression.state(def.id);
         const tree = progression.tree(def.id);
         const pct = tree ? (st.xp / tree.xpPerLevel) * 100 : 0;
-        html += `<div class="mark-card"><img src="${icon(def)}" alt="" /><div style="flex:1"><span class="tag">${viaDebug ? 'Concedida (depuración)' : 'Copiada'}</span><h4>${def.name}</h4>
+        const isActive = marks.activeFamily === def.id;
+        const use = isActive ? '<span class="tag active-tag">Activa</span>' : `<button class="menu-btn mini" data-action="set-mark" data-mark="${def.id}"><span class="btn-title">Usar esta marca</span></button>`;
+        html += `<div class="mark-card${isActive ? ' active' : ''}"><img src="${icon(def)}" alt="" /><div style="flex:1"><span class="tag">${viaDebug ? 'Concedida (depuración)' : 'Copiada'}</span> ${use}<h4>${def.name}</h4>
+          ${def.passive ? `<p class="passive"><b>Pasiva — ${escapeHtml(def.passive.name)}:</b> ${escapeHtml(def.passive.desc)}</p>` : ''}
           <p>Nivel ${st.level} · ${st.xp}/${tree?.xpPerLevel ?? '—'} EXP · <span class="points">${st.points} punto${st.points === 1 ? '' : 's'}</span></p>
           <div class="xp-bar"><div style="width:${pct.toFixed(1)}%"></div></div>
           <p>Se gana experiencia neutralizando enemigos con esta marca activa.</p></div></div>`;
@@ -285,7 +307,7 @@ export class UIManager {
       }
     }
     html += '</div><div>';
-    const active = copied.find((d) => marks.owns(d.id));
+    const active = copied.find((d) => d.id === marks.activeFamily) ?? copied.find((d) => marks.owns(d.id));
     if (!active) {
       html += '<p class="note">Aún no tienes marcas copiadas. Sus habilidades aparecerán aquí.</p>';
     } else {
@@ -440,9 +462,12 @@ export class UIManager {
   }
 
   _renderHint() {
-    const power = this._powerAvailable
-      ? ' · <b>E</b> (mantener) junto a farolas, armarios o máquinas: absorber energía · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> recargar (mantener: descarga) · <b>G</b> onda (en el aire: rayo)'
-      : '';
+    let power = '';
+    if (this._powerAvailable && this._element === 'gravedad') {
+      power = ' · <b>E</b> (mantener) junto a escombros o bloques de hormigón: absorber gravedad · <b>Clic izq.</b> disparo (hace flotar) · <b>Q</b> elevar roca (en el aire, otra: hasta 3) · <b>R</b> atraer · <b>G</b> empujar · <b>X</b> granada · <b>Espacio</b> mantener: más alto, hasta 3 saltos, cayendo: planear · <b>V</b> cambiar de marca';
+    } else if (this._powerAvailable) {
+      power = ' · <b>E</b> (mantener) junto a farolas, armarios o máquinas: absorber energía · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> recargar (mantener: descarga) · <b>G</b> onda (en el aire: rayo) · <b>V</b> cambiar de marca';
+    }
     this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Espacio</b> hacia un muro: escalar (<b>C</b> soltarse) · <b>Ctrl / Alt</b> esquivar · <b>C</b> agacharse / cubrirse · <b>F</b> golpe · <b>E</b> interactuar${power} · <b>Esc</b> pausa · <b>Tab</b> marcas · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
   }
 
@@ -550,6 +575,8 @@ export class UIManager {
       <section><h3>Marcas</h3><div class="dbg-row">
         ${btn('dbg-reset-acquisition', 'Reiniciar adquisición de Energía')}
         ${toggle('dbg-mark', 'Conceder Energía (atajo)', state.grantEnergy)}
+        ${toggle('dbg-mark-gravity', 'Conceder Gravedad (atajo)', state.grantGravity)}
+        ${btn('dbg-reset-gravity', 'Reiniciar adquisición de Gravedad')}
         ${toggle('dbg-maxmarks', 'Marcas al máximo', state.maxMarks)}
         ${btn('dbg-xp', '+60 EXP')}
         ${btn('dbg-points', '+1 punto de mejora')}

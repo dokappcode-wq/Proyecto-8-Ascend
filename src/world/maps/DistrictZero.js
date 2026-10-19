@@ -301,6 +301,19 @@ function energySources(ctx, byId) {
   roof(byId.B4, -4.5, -6, Math.PI / 2);
   roof(byId.B7, 4, -4, -Math.PI / 2);
   roof(byId.B1, -5, -5, 0);
+
+  // Gravedad: escombros y bloques de hormigón de obra (cosas pesadas)
+  add({ kind: 'concrete', x: -9, z: 17.6, yaw: 0, y: 0 });
+  add({ kind: 'concrete', x: 9, z: -17.6, yaw: Math.PI, y: 0 });
+  add({ kind: 'rubble', x: -17.6, z: -9, y: 0 });
+  add({ kind: 'rubble', x: 17.6, z: 9, y: 0 });
+  add({ kind: 'rubble', x: -27, z: 24, y: 0 });
+  add({ kind: 'concrete', x: 48, z: -18, yaw: Math.PI / 2, y: 0 });
+  const roofG = (b, ox, oz, kind) => add({ kind, x: b.x + ox, z: b.z + oz, y: b.h });
+  roofG(byId.B5, 4, -3, 'rubble');
+  roofG(byId.B3, 4, 5, 'rubble');
+  roofG(byId.B1, 6, -4, 'concrete');
+  roofG(byId.B6, -6, 3, 'rubble');
 }
 
 function streetProps(B, M, group, ctx) {

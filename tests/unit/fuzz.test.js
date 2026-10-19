@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CollisionWorld } from '../../src/physics/CollisionWorld.js';
 import { CharacterMotor } from '../../src/physics/CharacterMotor.js';
+import { GRAVITY_CONFIG } from '../../src/powers/gravity/gravityConfig.js';
 
 /** Generador pseudoaleatorio reproducible. */
 function rng(seed) {
@@ -56,6 +57,8 @@ test('estrés del motor: entradas aleatorias en mundos aleatorios sin atravesar 
     const r = rng(seed * 7919);
     const w = randomWorld(r);
     const m = new CharacterMotor(w, { parkour: true });
+    // La mitad de los mundos con los saltos de Gravedad (triple salto y planeo)
+    if (seed % 2) m.jumpAbilities = GRAVITY_CONFIG.jumps;
     m.setSpawn({ x: 0, y: 30, z: 0 });
     m.respawn();
     let input = {};
@@ -65,7 +68,7 @@ test('estrés del motor: entradas aleatorias en mundos aleatorios sin atravesar 
         const mv = r() < 0.85;
         input = {
           moveX: mv ? Math.cos(a) : 0, moveZ: mv ? Math.sin(a) : 0, sprint: r() < 0.5,
-          jump: r() < 0.3, dodge: r() < 0.08, drop: r() < 0.05, noParkour: r() < 0.1,
+          jump: r() < 0.3, jumpHeld: r() < 0.4, dodge: r() < 0.08, drop: r() < 0.05, noParkour: r() < 0.1,
         };
         if (r() < 0.05) m.startBurst({ x: Math.cos(a), z: Math.sin(a), speed: 30, duration: 0.2 });
         if (r() < 0.03) m.startTravel({ x: (r() - 0.5) * 60, y: r() * 10, z: (r() - 0.5) * 60 });
