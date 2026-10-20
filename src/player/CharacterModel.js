@@ -153,6 +153,21 @@ export class CharacterModel {
       hips.add(skirt);
     }
     this.anchors.chest = chest;
+    if (this.gear === 'heavy') {
+      // Agente reforzado: placa pectoral, hombreras y visor rojo
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.42, 0.3), mat(0x2a2f36, { metalness: 0.6, roughness: 0.4 }));
+      plate.position.set(0, 0.3, 0.02);
+      plate.castShadow = true;
+      chest.add(plate);
+      for (const sx of [-1, 1]) {
+        const pad = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.26), mat(0x2a2f36, { metalness: 0.6, roughness: 0.4 }));
+        pad.position.set(0.3 * sx, 0.55, 0);
+        chest.add(pad);
+      }
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.02), new THREE.MeshBasicMaterial({ color: 0xff3b3b, toneMapped: false }));
+      visor.position.set(0, 0.84, 0.15);
+      chest.add(visor);
+    }
     if (this.gear === 'shield') {
       // Escudo antidisturbios delante del cuerpo (un poco a la izquierda)
       const shield = new THREE.Group();

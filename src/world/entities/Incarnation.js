@@ -22,7 +22,7 @@ const PALETTES = {
 };
 
 export class Incarnation {
-  constructor(ctx, { x, y = 0, z, yaw = 0, markId = 'energia' }) {
+  constructor(ctx, { x, y = 0, z, yaw = 0, markId = 'energia', palette = null }) {
     this.ctx = ctx;
     this.markId = markId;
     this.def = MARKS[markId];
@@ -35,7 +35,7 @@ export class Incarnation {
     this._time = Math.random() * 10;
 
     // Cada Encarnación viste distinto (siempre ropa corriente)
-    this.model = new CharacterModel({ variant: 'incarnation', palette: PALETTES[markId] ?? null });
+    this.model = new CharacterModel({ variant: 'incarnation', palette: palette ?? PALETTES[markId] ?? null });
     this.model.root.position.set(x, y, z);
     this.model.root.rotation.y = yaw;
     ctx.group.add(this.model.root);

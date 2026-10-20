@@ -125,6 +125,19 @@ export function markSymbolTexture(symbol, color) {
     g.beginPath();
     g.arc(m, m + 6, 8, 0, Math.PI * 2);
     g.fill();
+  } else if (symbol === 'sangre') {
+    // Gota invertida atravesada por tres trazos (Marca de Sangre de Narbaiza)
+    g.beginPath();
+    g.moveTo(m, 12);
+    g.bezierCurveTo(m + 34, 52, m + 30, size - 20, m, size - 14);
+    g.bezierCurveTo(m - 30, size - 20, m - 34, 52, m, 12);
+    g.stroke();
+    for (const dy of [-10, 6, 22]) {
+      g.beginPath();
+      g.moveTo(m - 16, m + dy);
+      g.lineTo(m + 16, m + dy - 6);
+      g.stroke();
+    }
   } else {
     g.beginPath();
     g.arc(m, m, 40, 0, Math.PI * 2);

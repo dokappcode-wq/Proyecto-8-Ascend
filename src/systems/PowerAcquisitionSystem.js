@@ -46,12 +46,12 @@ export class PowerAcquisitionSystem {
   }
 
   get owned() {
-    return this.game.save.data.profile.marks;
+    return this.game.marks.profile.marks;
   }
 
   /** Registra una Encarnación del mapa como fuente (interacción con E). */
   registerSource(entity) {
-    this.game.interactions.add({
+    return this.game.interactions.add({
       getPosition: () => entity.position,
       radius: CFG.contactRange,
       enabled: () => this.state === 'idle',

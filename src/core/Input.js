@@ -44,6 +44,8 @@ export class Input {
     this.mouseDY = 0;
     this.pointerLocked = false;
     this.enabled = true;
+    /** Acciones bloqueadas (modo historia: tutoriales y cinemáticas). */
+    this.blocked = new Set();
 
     this._onKeyDown = (e) => {
       if (PREVENT.has(e.code)) e.preventDefault();
@@ -92,11 +94,17 @@ export class Input {
   }
 
   isDown(action) {
-    if (!this.enabled) return false;
+    if (!this.enabled || this.blocked.has(action)) return false;
     return (this.bindings[action] || []).some((c) => this._down.has(c));
   }
 
   wasPressed(action) {
+    if (!this.enabled || this.blocked.has(action)) return false;
+    return (this.bindings[action] || []).some((c) => this._pressed.has(c));
+  }
+
+  /** Como wasPressed, pero sin contar los bloqueos (el guion lee teclas propias). */
+  wasPressedRaw(action) {
     if (!this.enabled) return false;
     return (this.bindings[action] || []).some((c) => this._pressed.has(c));
   }

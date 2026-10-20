@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Input } from '../core/Input.js';
 import { markSymbolTexture } from '../player/markTextures.js';
 import { MARKS } from '../data/marks.js';
+import { checkpoint, STORY_MISSIONS } from '../story/storyData.js';
 
 /**
  * UIManager — menús (principal, pausa, ajustes, depuración, salir), HUD y
@@ -159,7 +160,10 @@ export class UIManager {
   }
 
   show(name) {
-    if (name === 'menu') this._renderMenuMissions();
+    if (name === 'menu') {
+      this._renderMenuMissions();
+      this._renderMenuStory();
+    }
     for (const [k, el] of Object.entries(this.screens)) el.classList.toggle('active', k === name);
     this.currentScreen = name;
     const firstBtn = name && this.screens[name]?.querySelector('.menu-btn');
@@ -356,7 +360,7 @@ export class UIManager {
           <p>Se gana experiencia neutralizando enemigos con esta marca activa.</p></div></div>`;
       } else {
         html += `<div class="mark-card locked"><img src="${icon(def)}" alt="" /><div><span class="tag">No adquirida</span><h4>${def.name}</h4>
-          <p>Cópiala por contacto con la Encarnación de la ${def.concept} (Campo de Pruebas, Zona E).</p></div></div>`;
+          <p>${def.id === 'energia' ? 'Se consigue en la Historia · Prólogo (contacto + voluntad).' : `Cópiala por contacto con la Encarnación de la ${def.concept} (Campo de Pruebas, Zona E).`}</p></div></div>`;
       }
     }
     html += '</div><div>';
@@ -643,10 +647,14 @@ export class UIManager {
         ${toggle('dbg-mark-wings', 'Conceder Alas (atajo)', state.grantWings)}
         ${btn('dbg-reset-wings', 'Reiniciar adquisición de Alas')}
         ${toggle('dbg-maxmarks', 'Marcas al máximo', state.maxMarks)}
+        ${toggle('dbg-zone-e', 'Zona E clásica (Encarnación de la Energía en el Campo)', state.classicZoneE)}
         ${btn('dbg-xp', '+60 EXP')}
         ${btn('dbg-points', '+1 punto de mejora')}
       </div>
-      <p class="note">Marca de Energía adquirida: ${state.acquired ? 'sí' : 'no'}. La forma normal de obtenerla es la estación de la Zona E (contacto + voluntad).</p></section>
+      <p class="note">Marca de Energía adquirida: ${state.acquired ? 'sí' : 'no'}. La forma normal de obtenerla es el Prólogo (Historia); la «Zona E clásica» la devuelve al Campo para practicar.</p></section>
+      ${state.story ? `<section><h3>Historia · punto de control ${escapeHtml(state.story.checkpoint)}${state.story.choice ? ` · elección: ${state.story.choice === 'KILL' ? 'matar' : 'perdonar'}` : ''}</h3><div class="dbg-row">
+        ${state.story.list.map((c) => btn('dbg-story-cp', `${c.id} · ${escapeHtml(c.title)}`, `data-cp="${c.id}"`)).join('')}
+      </div></section>` : ''}
       ${state.mission ? `<section><h3>Misión: ${escapeHtml(state.mission.name)} (${{ inactive: 'sin empezar', active: 'en curso', completed: 'completada' }[state.mission.state]})</h3><div class="dbg-row">
         ${btn('dbg-mission-reset', 'Reiniciar misión')}
       </div></section>` : ''}
@@ -747,6 +755,26 @@ export class UIManager {
       ...(st.xp ? [['Experiencia', `+${st.xp} EXP`]] : []),
     ];
     this.$('mission-stats').innerHTML = rows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
+  }
+
+  /** Botones de la historia: «Continuar» con el último punto de control o «Prólogo». */
+  _renderMenuStory() {
+    const st = this.save.data.story;
+    const title = this.$('menu-story-title');
+    if (!title) return;
+    const cont = !!st?.started && !st.completed;
+    const cp = cont ? checkpoint(st.checkpoint) : null;
+    title.textContent = cont ? 'Continuar historia' : 'Historia · Prólogo';
+    this.$('menu-story-sub').textContent = cont
+      ? `${STORY_MISSIONS[cp?.mission] ?? ''} · ${cp?.title ?? ''}`
+      : st?.completed ? 'Prólogo completado · volver a jugarlo' : 'La última noche en el pueblo costero';
+    this.$('menu-story-new').classList.toggle('show', cont);
+  }
+
+  /** En la historia, «Reiniciar» vuelve al último punto de control. */
+  setStoryPause(on) {
+    const t = this.screens.pause?.querySelector('[data-action="restart"] .btn-title');
+    if (t) t.textContent = on ? 'Reiniciar desde el punto de control' : 'Reiniciar mapa';
   }
 
   _renderMenuMissions() {

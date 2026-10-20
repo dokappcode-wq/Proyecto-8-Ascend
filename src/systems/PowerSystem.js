@@ -506,7 +506,9 @@ export class PowerSystem {
     if (!motor.grounded && this._airDashes >= this.cfg.dash.airDashes) return this._fail('dash');
     if (motor.isBusy) return;
     if (!a.canActivate(this.energy)) return this._fail('dash');
-    const d = g.player.moveIntent.lengthSq() > 0.01 ? g.player.moveIntent : g.player.facingVector();
+    let d = g.player.moveIntent.lengthSq() > 0.01 ? g.player.moveIntent : g.player.facingVector();
+    // Puente del prólogo: el dash en el aire se orienta hacia el círculo de aterrizaje
+    if (g.story?.dashAssist && !motor.grounded) d = g.story.assistDash(d);
     if (!motor.startBurst({ x: d.x, z: d.z, speed: this.cfg.dash.speed, duration: this.cfg.dash.duration, gravityScale: 0, exitFactor: 0.5 })) return;
     a.commit(this.energy);
     if (!motor.grounded) this._airDashes++;

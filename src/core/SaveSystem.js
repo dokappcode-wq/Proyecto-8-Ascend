@@ -1,3 +1,5 @@
+import { createStoryState } from '../story/StoryState.js';
+
 /**
  * SaveSystem — persistencia local del progreso y la configuración.
  *
@@ -49,7 +51,10 @@ export function createDefaultSave() {
       infiniteEnergy: false,
       maxMarks: false, // fuerza las marcas al máximo para revisar efectos
       invulnerable: false, // el jugador no recibe daño
+      classicZoneE: false, // la Encarnación de la Energía vuelve a la Zona E (práctica)
     },
+    // Modo historia: prólogo (ver story/StoryState.js)
+    story: createStoryState(),
   };
 }
 
@@ -64,6 +69,18 @@ function migrate(data) {
     data.stage = 4;
   }
   return data;
+}
+
+/** Estado de la historia guardado sobre el de por defecto (claves nuevas incluidas). */
+function mergeStory(base, saved) {
+  if (!saved || typeof saved !== 'object') return base;
+  return {
+    ...base,
+    ...saved,
+    flags: { ...base.flags, ...(saved.flags || {}) },
+    mission: { ...base.mission, ...(saved.mission || {}) },
+    snapshot: { ...base.snapshot, ...(saved.snapshot || {}) },
+  };
 }
 
 function memoryStorage() {
@@ -113,6 +130,7 @@ export class SaveSystem {
         settings: { ...base.settings, ...(parsed.settings || {}) },
         profile: { ...base.profile, ...(parsed.profile || {}) },
         debug: { ...base.debug, ...(parsed.debug || {}) },
+        story: mergeStory(base.story, parsed.story),
         stage: parsed.stage ?? 0, // los guardados anteriores no la tenían
       };
       return migrate(merged);

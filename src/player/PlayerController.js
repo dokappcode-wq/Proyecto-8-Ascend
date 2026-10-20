@@ -27,6 +27,11 @@ export class PlayerController {
     this.disabled = false;
     /** Punto hacia el que mira y extiende el brazo (contacto de adquisición). */
     this.lookTarget = null;
+    /**
+     * Piloto automático (cinemáticas de la historia): { x, z, sprint, radius }.
+     * Mueve al personaje hacia el punto aunque no tenga control; `done` al llegar.
+     */
+    this.autopilot = null;
     /** Cobertura actual: { nx, nz, height, high, anchor: {x,z}, peek } o null. */
     this.cover = null;
     /** 'none' | 'cover' | 'peek' (para el HUD). */
@@ -142,6 +147,16 @@ export class PlayerController {
       mx /= len;
       mz /= len;
     }
+    const ap = this.autopilot;
+    if (ap) {
+      const p = this.motor.position;
+      const dx = ap.x - p.x;
+      const dz = ap.z - p.z;
+      const d = Math.hypot(dx, dz);
+      ap.done = d <= (ap.radius ?? 0.35);
+      mx = ap.done ? 0 : dx / d;
+      mz = ap.done ? 0 : dz / d;
+    }
 
     // Agacharse / cobertura
     const m = this.motor;
@@ -173,7 +188,7 @@ export class PlayerController {
 
     this.moveIntent.set(mx, 0, mz);
     const aimLocked = this.aiming || this._faceAim > 0;
-    const sprint = on && inp.isDown('sprint') && Math.hypot(mx, mz) > 0 && iz >= 0 && !this.aiming && !m.crouched && !this.cover;
+    const sprint = (on && inp.isDown('sprint') && Math.hypot(mx, mz) > 0 && iz >= 0 && !this.aiming && !m.crouched && !this.cover) || (!!ap?.sprint && !ap.done);
     // Pasos fijos (≤ 1/60 s): el movimiento es igual a cualquier tasa de frames.
     const steps = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6));
     const sdt = dt / steps;

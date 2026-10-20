@@ -42,9 +42,62 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
 - **Combos, enemigos especiales y pulido** ✅: cuatro combos entre marcas,
   tres enemigos nuevos de la PDC (Blindado, Francotirador y Dron) con su zona
   de pruebas, rueda de marcas, poses de patinaje y vuelo y pasiva de las Alas.
+- **Etapa 8 — Modo historia (Prólogo)** ✅: los cinco capítulos del guion
+  (M01–M05) jugables de principio a fin en tres mapas nuevos (pueblo costero
+  de noche con la base de la PDC, el mismo pueblo de día y el valle con el
+  puente destruido), 29 puntos de control, sigilo, cinemáticas con
+  subtítulos, elección moral y menú final. La marca de la Energía se consigue
+  ahora en la historia (sustituye a la estación de la Zona E).
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
+
+## Historia · Prólogo
+
+**Cómo se juega**: menú principal → **Historia · Prólogo** (o **Continuar
+historia** si hay una partida empezada; **Nueva partida** la reinicia). Se
+guarda solo al llegar a cada punto de control (CP01…CP29); al morir, caer o
+ser descubierto se vuelve al último. En la pausa, *Reiniciar desde el punto de
+control*. Mantener **Intro** durante una cinemática la acelera (no se salta
+nada: todas las banderas se aplican igual).
+
+**Cambio de la Zona E**: la marca de la Energía ya no se copia en la Zona E del
+Campo de Pruebas; en su lugar hay un terminal dorado que abre el Prólogo, y al
+completarlo la Energía pasa al perfil del modo libre. Las Encarnaciones de
+Gravedad, Hilo, Temperatura y Alas siguen en la Zona E (aún no tienen
+capítulo). Para practicar la adquisición de la Energía como antes: F2 →
+*Zona E clásica*.
+
+Jon empieza **sin marcas**; la historia usa su propio perfil de marcas (no
+toca el del modo libre) y los poderes básicos, sin mejoras. Las habilidades se
+desbloquean según el guion: ninguna hasta el bosque, después el disparo, la
+descarga (R) y la onda (G) durante los drones, y el dash (Q) en el puente.
+
+| Misión | Mapa | Qué pasa | Puntos |
+| --- | --- | --- | --- |
+| **M01 · La última noche** | Pueblo de noche (lluvia, focos) | Reunión en los tejados con Iker y tutorial de parkour; acantilado; **sigilo** en el patio de la base (conos de visión, focos, agacharse, piedras para distraer, cambio de guardia); conducto; almacén y pasarela; cámara con las **cinco cartas** (cuatro sin identificar y la dorada); la carta concede el **Destino** (sin ataque); alarma, compuertas, huida contrarreloj por el balcón, el andamio y las azoteas; **tirolina** a la playa y desmayo | CP01–CP08 |
+| **M02 · La plaza** | Pueblo de día | Despertar (primer plano de la marca dorada), exploración, la PDC interroga a los vecinos; **Narbaiza** tortura a Martín con **Sangre**; Jon interviene ([F]) y queda a **1 PV** exactos; discusión con Iker en el callejón (la salud vuelve poco a poco) | CP09–CP10 |
+| **M03 · Cinco días** | Pueblo de día | Tarjetas DÍA 1…5; una tarea por día (reparar el puerto, rumores, la foto familiar, las patrullas desde el mirador) y el encargo de la abuela; charlas opcionales con la abuela y dos vecinos | CP11 (cada día) |
+| **M04 · La tormenta** | Pueblo de día | Mercado (comprar pan, patatas y pescado); la tercera compra desata la **tormenta**; la esfera eléctrica cae sobre la casa; la calle se corta y hay que ir por los tejados; la pérdida; la Encarnación («Normie»); **copia de la Energía** por contacto y voluntad (soltar cancela; la fuente conserva su poder); **MATAR / PERDONAR** (se guarda `KILL` o `SPARE` al instante; escenas distintas); esposas; autobús de presos | CP12–CP17 |
+| **M05 · El despertar** | Valle y puente | El convoy es atacado en el viaducto, el autobús vuelca y un destello de Energía se lleva a Jon; despertar en el bosque; ladera; el **escombro** solo se rompe disparando; recarga en un **generador**; **tres drones** de uno en uno (proyectil, R, G); el **puente destruido** con tres huecos de 8.5, 9.5 y 10.5 m (dash asistido hacia un círculo de aterrizaje y generadores antes de cada salto); **2 agentes + 1 dron**; **agente reforzado** y luego **2 agentes**; colina, la ciudad con cámara fija, Jon sale de plano con un dash y se abre el menú (`TutorialComplete`) | CP18–CP29 |
+
+**Sigilo**: cada guardia proyecta su cono en el suelo (blanco → amarillo →
+rojo según lo que te ha visto) y el indicador de arriba muestra el máximo.
+Agachado (C) te ven un 55 % más despacio y a menos distancia; tras un muro o
+una caja no te ven; de cerca te oyen si vas de pie; dentro de la luz de un foco
+te ven el doble de rápido. [F] lanza una piedra al punto que miras y el guardia
+más cercano va a investigar. En M01 no hay combate.
+
+**No se inventa canon** (puntos pendientes del guion): las otras cuatro cartas
+no se asignan a ninguna marca, no se muestra quién ataca el convoy, el destino
+de Iker queda abierto (desaparece tras el vuelco), y no se explica por qué
+Narbaiza quiere a Jon vivo ni qué consecuencias tiene la elección (solo se
+guarda). Las únicas frases añadidas son comentarios breves de vecinos en el
+montaje de los cinco días (rumores y patrullas, como pide el guion).
+
+**Depuración (F2)**: con la historia en marcha aparece *Historia · punto de
+control* con los 29 puntos para saltar a cualquiera (las banderas se ajustan a
+ese punto).
 
 ## Motor y por qué
 
@@ -104,6 +157,9 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Soltarse | C | ✅ |
 | Cambiar de marca copiada | V (pulsar: la siguiente; mantener: rueda de marcas) | ✅ |
 | Gravedad: granada | X o clic central | ✅ |
+| Historia · sigilo: lanzar una piedra para distraer | F | ✅ |
+| Historia · elegir (MATAR / PERDONAR) | 1 / 2 o clic | ✅ |
+| Historia · acelerar una cinemática | Mantener Intro | ✅ |
 
 La tecla **Alt** es alternativa a Ctrl para esquivar porque algunos navegadores
 reservan combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña); **C** pasa a
@@ -113,8 +169,8 @@ controles se definen como acciones en `src/core/Input.js`.
 
 ## Marca de la Gravedad
 
-**Cómo conseguirla**: en la Zona E del Campo de Pruebas, junto a la
-Encarnación de la Energía, hay una segunda Encarnación (abrigo gris, pelo
+**Cómo conseguirla**: en la Zona E del Campo de Pruebas, junto al terminal
+del Prólogo, hay una Encarnación (abrigo gris, pelo
 canoso, junto a un muro de obra con escombros). Contacto (E) y voluntad
 (mantener E), igual que con la Energía. Al copiarla pasa a ser la marca activa.
 
@@ -499,8 +555,10 @@ volver al menú. (Salud del jugador y enemigos: Etapa 3.)
 
 ## Etapa 4 — Sistema de marcas
 
-**Al empezar no tienes la marca de Energía.** Se obtiene en la **Zona E** del
-Campo de Pruebas (estación experimental):
+**Al empezar no tienes la marca de Energía.** Desde la Etapa 8 se obtiene
+jugando el **Prólogo** (Historia); al completarlo pasa al modo libre. La
+estación original de la **Zona E** sigue disponible con F2 → *Zona E clásica*
+(así es como la prueban los tests del modo libre):
 
 1. Acércate a la Encarnación de la Energía de prueba.
 2. **E** — contacto físico (la agarras del brazo).
@@ -544,7 +602,7 @@ el nivel 1; lo ganado llega lleno). Datos en `src/data/progression.js`.
 conceder Energía como atajo, +60 EXP y +1 punto.
 
 Los guardados de etapas anteriores se migran: se retira la Energía concedida
-por depuración, así que hay que copiarla en la Zona E.
+por depuración, así que hay que conseguirla en el Prólogo (o en la Zona E clásica).
 
 ## Agacharse, coberturas y golpe elemental
 
@@ -633,7 +691,7 @@ límites físicos. **Todas las azoteas son accesibles** sin escalada:
 escaleras de incendios (B1, B5, B6), pasarelas entre azoteas y cadenas de
 contenedores y cajas (A1, A2).
 
-## Qué se ha probado realmente (Etapas 1 a 7)
+## Qué se ha probado realmente (Etapas 1 a 8)
 
 - `npm test` — 60 tests unitarios: físicas (gravedad, velocidades, salto, muros,
   túnel a alta velocidad, escalones, rampas, techos, *coyote time*,
@@ -642,7 +700,13 @@ contenedores y cajas (A1, A2).
   multiplicador de velocidad, raycast), guardado,
   energía (gasto, regeneración, modo infinito), cargador y recarga, habilidades (coste y
   reutilización), daño directo y de área, y proyectiles (impacto en muros finos,
-  alcance, límites invisibles).
+  alcance, límites invisibles). Con las marcas, combos y la historia son 134;
+  `story.test.js` comprueba los 29 puntos de control y su tramo de guion, las
+  banderas de cada punto, qué poderes se permiten en cada tramo, el estado
+  (las banderas no retroceden, la elección solo admite KILL/SPARE, completar),
+  el guardado de la historia, el cálculo del sigilo y, **con el motor real**,
+  que ningún hueco del puente se cruza con un salto con carrera y los tres se
+  cruzan con salto + dash en el aire, y el dash asistido.
 - `npm run test:e2e` — en Chromium (render por software), con teclado y ratón:
   - Etapa 1: menú, ambos mapas, movimiento, sprint, salto, esquiva, pausa,
     reinicio, ajustes persistentes y rutas completas (las 10 azoteas del
@@ -733,11 +797,38 @@ contenedores y cajas (A1, A2).
     para el 90 % de frente pero no por detrás ni flotando; el dron recibe un
     25 % de los golpes y, atado, cae; el Distrito tiene sus tres unidades
     especiales.
+  - Zona E: sin la opción clásica no está la Encarnación de la Energía (sí las
+    otras cuatro); junto al terminal dorado aparece «Jugar el Prólogo» y E lo
+    abre; volver al menú recupera el perfil de marcas del modo libre.
+  - **Historia** (`tests/e2e/story.mjs`, diálogos a 8×): nueva partida en el
+    pueblo de noche sin marcas ni poderes; diálogo completo de la reunión y
+    CP01 guardado tras ella; en M01 no hay enemigos ni poderes y F lanza
+    piedras; de pie delante de un guardia salta «Te han descubierto» y se
+    recarga CP03 con Jon en el escondite; el cambio de guardia abre el
+    conducto; CP04 y CP05; E en la carta dorada concede el Destino sin
+    ningún poder ofensivo; alarma, compuertas, huida por la azotea, CP08,
+    tirolina, desmayo y paso al pueblo de día; Narbaiza deja a Jon a **1 PV
+    exactos** y CP10 se guarda con 1 PV; tarjetas de día y continuar en el
+    día guardado; las tres compras desatan la tormenta, cae la esfera, la
+    calle se bloquea y la casa queda en ruinas; soltar E antes de tiempo
+    cancela la copia y mantenerlo copia la Energía sin quitársela a la
+    Encarnación; la Energía sigue bloqueada hasta el bosque; PERDONAR y MATAR
+    (ambas ramas) tienen frases distintas, se guardan al instante y acaban en
+    CP17 y el autobús (ataque, vuelco, destello, CP18); el escombro no se
+    rompe a golpes y sí a disparos; el generador recarga; exactamente 3
+    drones, de uno en uno; R y G se desbloquean tras ellos y Q en el puente;
+    caer al cañón recarga CP23; **un salto real con teclado + dash cruza el
+    primer hueco**; 2 agentes + 1 dron; un reforzado y luego 2 agentes; CP28;
+    la colina, la ciudad, el dash final y el menú principal con
+    `TutorialComplete`, la Energía en el perfil libre y «Prólogo completado».
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
-  - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
+  - La batería tarda ~30 min con render por software (la historia, unos 3–5); `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.
 
-**No probado**: rendimiento en GPU real (las pruebas usan SwiftShader; el bloom
+**No probado** en la historia: recorrer el prólogo entero a mano (la prueba
+teletransporta a Jon entre los disparadores de cada tramo y mata a los
+enemigos por código salvo el escombro), su duración real y el equilibrio del
+sigilo con un jugador. **No probado** en general: rendimiento en GPU real (las pruebas usan SwiftShader; el bloom
 añade coste, se puede desactivar en Ajustes), la sensación de control con
 ratón físico ni cómo suena con altavoces reales (las pruebas comprueban que
 cada sonido se genera, no su calidad). Conviene una sesión de juego manual.
@@ -758,6 +849,14 @@ cada sonido se genera, no su calidad). Conviene una sesión de juego manual.
 - La rotación de los objetos físicos es solo visual (su colisión es una caja
   alineada); la Sobrecarga y el árbol de mejoras llegan con la progresión.
 - *Salir* no puede cerrar una pestaña del navegador; muestra una pantalla de despedida.
+- **Prólogo**: dura bastante menos que los 80–105 min del guion (las escenas
+  están condensadas y los recorridos son cortos); las cinemáticas usan los
+  modelos y poses provisionales (sin animaciones faciales ni de manos: las
+  esposas son una pose, Narbaiza no tiene animación propia); Iker no puede ser
+  detectado en el sigilo (sus movimientos están guionizados para no pasar por
+  zonas vigiladas); la huida de M01 tiene un temporizador de 150 s; los
+  personajes del guion no tienen colisión (atraviesan cajas si el jugador se
+  interpone). No hay música ni voces.
 
 ## Estructura
 

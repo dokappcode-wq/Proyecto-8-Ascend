@@ -21,11 +21,29 @@ export class MarkSystem {
     this._hold = 0;
     this._sustain = 0;
     this.level = 0;
+    /**
+     * Perfil del modo historia: { marks, activeMark }. Mientras existe, sustituye
+     * al perfil del modo libre (Jon empieza sin marcas y las gana en el guion)
+     * y no cuentan los atajos de depuración.
+     */
+    this.storyProfile = null;
+    this.refresh();
+  }
+
+  /** Perfil de marcas en uso (el de la historia o el del modo libre). */
+  get profile() {
+    return this.storyProfile ?? this.save.data.profile;
+  }
+
+  /** Activa (o quita, con null) el perfil de la historia. */
+  useStoryProfile(profile) {
+    this.storyProfile = profile;
     this.refresh();
   }
 
   owns(id) {
-    if (this.save.data.profile.marks.includes(id)) return true;
+    if (this.profile.marks.includes(id)) return true;
+    if (this.storyProfile) return false;
     const d = this.save.data.debug ?? {};
     return (id === 'energia' && !!d.grantEnergy) || (id === 'gravedad' && !!d.grantGravity) || (id === 'hilo' && !!d.grantThread) || (id === 'temperatura' && !!d.grantTemperature) || (id === 'alas' && !!d.grantWings);
   }
@@ -40,7 +58,7 @@ export class MarkSystem {
    * posee; si no, la primera marca copiada que tenga.
    */
   get activeFamily() {
-    const chosen = this.save.data.profile.activeMark;
+    const chosen = this.profile.activeMark;
     if (chosen && this.owns(chosen)) return chosen;
     return this.ownedCopies[0] ?? null;
   }
@@ -48,7 +66,7 @@ export class MarkSystem {
   /** Cambia la marca activa (si la posee). Devuelve true si cambió. */
   setActive(id) {
     if (!this.owns(id) || this.activeFamily === id) return false;
-    this.save.data.profile.activeMark = id;
+    this.profile.activeMark = id;
     this.save.save();
     this._pulse = Math.max(this._pulse, 0.7);
     this._hold = 0.25;
@@ -82,12 +100,15 @@ export class MarkSystem {
         this.visuals.delete(id);
       }
     }
+    // La marca del Destino forma parte del modelo: solo se ve si se posee
+    const dm = this.model.destinoMark;
+    if (dm) dm.plane.visible = dm.band.visible = this.owns('destino');
     this.events?.emit('marks:changed', { active: this.activeFamily });
   }
 
   /** Registra una marca adquirida y la guarda. */
   acquire(id) {
-    const marks = this.save.data.profile.marks;
+    const marks = this.profile.marks;
     if (!marks.includes(id)) marks.push(id);
     this.save.save();
     this.refresh();
@@ -95,7 +116,7 @@ export class MarkSystem {
 
   /** Quita una marca adquirida (depuración: reiniciar la adquisición). */
   revoke(id) {
-    const p = this.save.data.profile;
+    const p = this.profile;
     p.marks = p.marks.filter((m) => m !== id);
     this.save.save();
     this.refresh();
@@ -103,7 +124,7 @@ export class MarkSystem {
 
   /** ¿La posee de verdad (adquirida), sin contar el atajo de depuración? */
   acquired(id) {
-    return this.save.data.profile.marks.includes(id);
+    return this.profile.marks.includes(id);
   }
 
   setDebugGrant(id, value) {

@@ -16,6 +16,7 @@ import { spawn, execSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { storySection } from './story.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const out = path.join(root, 'tests/e2e/output');
@@ -72,6 +73,9 @@ try {
 
   // ---------------- Adquisición de la marca de Energía (Etapa 4) ----------------
   console.log('\n[adquisición]');
+  // La Energía se consigue en el Prólogo; para probar la estación de la Zona E
+  // se activa la «Zona E clásica» (depuración) antes de cargar el Campo.
+  await page.evaluate(() => { const a = window.__ascend; a.save.data.debug.classicZoneE = true; a.save.save(); });
   await page.click('[data-map="campo"]');
   await page.waitForFunction(() => window.__ascend.state === 'playing');
   await page.evaluate(() => {
@@ -1871,6 +1875,32 @@ try {
   const saved = await page.evaluate(() => window.__ascend.save.settings);
   check(saved.fov === 82 && saved.invertY === true, `Ajustes guardados tras recargar (FOV ${saved.fov}, invertir Y ${saved.invertY})`);
   check(saved.volumeMaster === 0.3 && saved.renderScale === 0.8, `Volumen y resolución de render guardados (${saved.volumeMaster}, ${saved.renderScale})`);
+
+  // ---------------- Zona E sin la opción clásica: terminal del Prólogo ----------------
+  console.log('\n[zona E → historia]');
+  await page.evaluate(() => { const a = window.__ascend; a.save.data.debug.classicZoneE = false; a.save.save(); });
+  await page.click('[data-map="campo"]');
+  await page.waitForFunction(() => window.__ascend.state === 'playing');
+  const zoneE = await page.evaluate(() => {
+    const a = window.__ascend;
+    return { energyNpc: a.mapManager.current.entities.some((e) => e.source?.markId === 'energia'), others: a.mapManager.current.entities.filter((e) => e.source).map((e) => e.source.markId).sort().join(',') };
+  });
+  check(!zoneE.energyNpc && zoneE.others === 'alas,gravedad,hilo,temperatura', `Zona E: la Encarnación de la Energía da paso al Prólogo; siguen las demás (${zoneE.others})`);
+  await page.evaluate(() => window.__ascend.player.spawnAt({ x: 15, y: 0.4, z: -60.4, yaw: Math.PI }));
+  await page.waitForFunction(() => /Prólogo/.test(document.getElementById('hud-prompt').textContent), null, { timeout: 8000 }).catch(() => {});
+  check(/Prólogo/.test(await page.textContent('#hud-prompt')), `Junto al terminal dorado: «${(await page.textContent('#hud-prompt')).trim()}»`);
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__ascend.story.active && window.__ascend.mapManager.current?.def.story, null, { timeout: 30000 }).catch(() => {});
+  check(await page.evaluate(() => window.__ascend.story.active && window.__ascend.mapManager.current.def.id === 'pueblo-noche'), 'E en el terminal abre el Prólogo');
+  await page.evaluate(() => window.__ascend.returnToMenu());
+  await page.waitForFunction(() => window.__ascend.state === 'menu');
+  check(await page.evaluate(() => !window.__ascend.story.active && window.__ascend.marks.storyProfile === null), 'Volver al menú sale de la historia (perfil de marcas del modo libre)');
+
+  // ---------------- Modo historia ----------------
+  console.log('\n[historia]');
+  await page.evaluate(() => { const a = window.__ascend; a.save.data.story = null; a.save.save(); });
+  await freshPage();
+  await storySection({ page, check, PORT, out });
 
   check(errors.length === 0, `Sin errores en consola${errors.length ? `: ${errors.join(' | ')}` : ''}`);
 } finally {

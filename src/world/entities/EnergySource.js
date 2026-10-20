@@ -13,6 +13,8 @@ export const SOURCE_KINDS = {
   lamp: { name: 'Farola', element: 'energia', capacity: 50, rechargeTime: 18 },
   cabinet: { name: 'Armario eléctrico', element: 'energia', capacity: 90, rechargeTime: 25 },
   vending: { name: 'Máquina expendedora', element: 'energia', capacity: 70, rechargeTime: 22 },
+  // Generador portátil (modo historia): mucha carga y se recupera enseguida
+  generator: { name: 'Generador', element: 'energia', capacity: 120, rechargeTime: 8 },
   // Gravedad: cosas pesadas
   rubble: { name: 'Escombros', element: 'gravedad', capacity: 80, rechargeTime: 24 },
   concrete: { name: 'Bloque de hormigón', element: 'gravedad', capacity: 60, rechargeTime: 20 },
@@ -135,6 +137,18 @@ export class EnergySource {
       add(new THREE.BoxGeometry(1.0, 0.02, 0.02), glow(0xffffff, 1.2), 0, 0.98, 0.3);
       this._drainLocal = new THREE.Vector3(0, 0.8, 0.3);
       this._size = { w: 1.4, d: 1.0, h: 1.0 };
+    } else if (kind === 'generator') {
+      // Generador de obra: carcasa amarilla, bobinas azules y un cable
+      const shell = new THREE.MeshStandardMaterial({ color: 0xc9a13a, roughness: 0.6, metalness: 0.3 });
+      add(new THREE.BoxGeometry(1.2, 0.9, 0.8), shell, 0, 0.55, 0);
+      add(new THREE.BoxGeometry(1.3, 0.1, 0.9), dark, 0, 0.05, 0);
+      for (const x of [-0.3, 0.3]) {
+        const coil = add(new THREE.CylinderGeometry(0.12, 0.12, 0.32, 10), glow(0x6fc3ff, 2.2), x, 1.15, 0);
+        coil.castShadow = false;
+      }
+      add(new THREE.BoxGeometry(0.5, 0.25, 0.04), dark, 0, 0.6, 0.42);
+      this._drainLocal = new THREE.Vector3(0, 1.2, 0.2);
+      this._size = { w: 1.3, d: 0.9, h: 1.3 };
     } else if (kind === 'icebox') {
       // Arcón congelador de tienda con escarcha turquesa en la junta
       const white = new THREE.MeshStandardMaterial({ color: 0xe4e8ea, roughness: 0.45, metalness: 0.1 });

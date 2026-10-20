@@ -318,3 +318,49 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 .combo-banner span { font: 500 14px Inter, sans-serif; color: #f2f4f8; }
 .combo-banner.show { animation: combo-pop 1.8s ease-out forwards; }
 @keyframes combo-pop { 0% { opacity: 0; transform: translate(-50%, 0) scale(.7); } 10% { opacity: 1; transform: translate(-50%, 0) scale(1.08); } 20% { transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -12px) scale(1); } }
+
+/* ======================= Modo historia ======================= */
+.story-bars .bar { position: fixed; left: 0; right: 0; height: 0; background: #000; transition: height .6s ease; z-index: 7; pointer-events: none; }
+.story-bars .bar.top { top: 0; }
+.story-bars .bar.bottom { bottom: 0; }
+.story-bars.show .bar { height: 11vh; }
+.story-sub { position: fixed; left: 50%; bottom: 15vh; transform: translateX(-50%); max-width: min(900px, 86vw); text-align: center; font: 500 19px/1.4 Inter, sans-serif; color: #f2f5f9; text-shadow: 0 2px 6px #000, 0 0 2px #000; background: rgba(5,8,13,.45); padding: 8px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 8; }
+.story-sub.show { opacity: 1; }
+.story-sub b { font-family: Rajdhani, sans-serif; font-weight: 700; letter-spacing: .04em; margin-right: 4px; }
+.story-obj { position: absolute; top: 18px; right: 22px; min-width: 240px; max-width: 340px; padding: 10px 14px; border-left: 3px solid #f2c45a; background: linear-gradient(90deg, rgba(8,12,20,.72), rgba(8,12,20,.2)); color: #e6edf5; opacity: 0; transform: translateX(10px); transition: opacity .3s, transform .3s; pointer-events: none; }
+.story-obj.show { opacity: 1; transform: none; }
+.story-obj .o-mission { font: 700 12px Rajdhani, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #f2c45a; }
+.story-obj .o-text { font: 600 17px Rajdhani, sans-serif; margin-top: 2px; }
+.story-obj .o-extra { font: 500 13px Inter, sans-serif; color: #b9c6d6; margin-top: 3px; }
+.story-obj .o-timer { font: 700 22px Rajdhani, sans-serif; color: #ff6a5a; margin-top: 4px; }
+.story-tut { position: absolute; left: 22px; top: 40%; max-width: 300px; padding: 10px 14px; background: rgba(10,16,26,.78); border: 1px solid rgba(159,208,255,.35); border-radius: 8px; color: #dfe9f5; opacity: 0; transform: translateX(-10px); transition: opacity .25s, transform .25s; pointer-events: none; }
+.story-tut.show { opacity: 1; transform: none; }
+.story-tut .t-title { font: 700 13px Rajdhani, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #9fd0ff; }
+.story-tut .t-text { font: 500 14px/1.45 Inter, sans-serif; margin-top: 4px; }
+.story-tut kbd, .story-choice kbd { display: inline-block; min-width: 18px; padding: 0 5px; margin: 0 2px; border: 1px solid rgba(255,255,255,.5); border-bottom-width: 2px; border-radius: 4px; font: 700 12px Rajdhani, sans-serif; text-align: center; color: #fff; background: rgba(255,255,255,.08); }
+.story-detect { position: absolute; left: 50%; top: 13%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; color: #ffd36a; opacity: 0; transition: opacity .15s; pointer-events: none; }
+.story-detect.show { opacity: 1; }
+.story-detect.alert { color: #ff4a3a; }
+.story-detect svg { width: 46px; height: 28px; filter: drop-shadow(0 0 6px currentColor); }
+.story-detect .meter { width: 90px; height: 5px; background: rgba(0,0,0,.6); border-radius: 3px; overflow: hidden; }
+.story-detect .fill { height: 100%; width: 0; background: currentColor; }
+.story-day { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; opacity: 0; transition: opacity .6s; z-index: 30; background: rgba(0,0,0,.35); }
+.story-day.show { opacity: 1; }
+.story-day .d-title { font: 700 64px Rajdhani, sans-serif; letter-spacing: .3em; color: #f2f5f9; text-shadow: 0 4px 18px #000; }
+.story-day .d-sub { font: 500 18px Inter, sans-serif; color: #c9d6e6; margin-top: 6px; }
+.story-fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .6s; z-index: 29; display: flex; align-items: center; justify-content: center; }
+.story-fade span { font: 600 22px Rajdhani, sans-serif; letter-spacing: .2em; color: #c9d6e6; text-transform: uppercase; }
+.story-choice { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: rgba(0,0,0,.72); z-index: 31; }
+.story-choice.show { display: flex; }
+.story-choice .c-title { font: 700 30px Rajdhani, sans-serif; letter-spacing: .12em; color: #f2f5f9; text-align: center; padding: 0 16px; }
+.story-choice .c-opts { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+.story-choice .c-opt { width: 260px; padding: 18px; display: flex; flex-direction: column; gap: 8px; align-items: center; border: 1px solid rgba(255,255,255,.3); border-radius: 10px; background: rgba(20,28,40,.85); color: #e6edf5; cursor: pointer; font: 500 14px Inter, sans-serif; }
+.story-choice .c-opt b { font: 700 26px Rajdhani, sans-serif; letter-spacing: .14em; color: #9fd0ff; }
+.story-choice .c-opt.danger b { color: #ff6a5a; }
+.story-choice .c-opt:hover { border-color: #f2c45a; }
+.story-choice .c-note { font: 500 13px Inter, sans-serif; color: #9fb0c4; }
+.story-sub.off, .story-obj.off, .story-tut.off, .story-detect.off, .story-bars.off { display: none; }
+.menu-btn.story .btn-title { color: #f2c45a; }
+.story-flash { position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: 30; }
+.menu-btn.story-new { display: none; }
+.menu-btn.story-new.show { display: flex; }

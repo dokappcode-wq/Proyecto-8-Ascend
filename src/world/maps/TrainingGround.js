@@ -399,6 +399,20 @@ function buildZoneD(B, M, ctx) {
   });
 }
 
+/** Terminal dorado de la Zona E que lleva al Prólogo (Historia). */
+function storyTerminal(B, M, ctx, x, z) {
+  const gold = new THREE.MeshStandardMaterial({ color: 0x2a2418, emissive: 0xffc35a, emissiveIntensity: 1.2 });
+  B.block({ x, z, w: 1, d: 0.7, y: 0.06, h: 1.1, mat: M.metal });
+  B.block({ x, z: z + 0.2, w: 0.9, d: 0.08, y: 1.16, h: 0.6, mat: gold, collide: false });
+  B.sign(['PRÓLOGO', 'La marca de la Energía se consigue en la historia'], { x, y: 2.6, z: z + 0.45, w: 2.8, h: 0.9, facing: 0, opts: { width: 700, height: 220 } });
+  ctx.interactions.add({
+    position: { x, y: 1, z: z + 0.8 },
+    radius: 2.2,
+    label: () => (ctx.save?.data.story?.completed ? 'Prólogo completado — volver a jugarlo' : ctx.save?.data.story?.started ? 'Continuar el Prólogo (Historia)' : 'Jugar el Prólogo: consigue la marca de la Energía'),
+    onInteract: () => ctx.events.emit('story:request', {}),
+  });
+}
+
 /**
  * ZONA E — Estación experimental de adquisición: plataforma circular con
  * pilones y una Encarnación de la Energía de prueba (fuente original).
@@ -413,14 +427,21 @@ function buildZoneE(B, M, ctx) {
   B.block({ x: x0 + 2.2, z: z0 - 4, w: 2.4, d: 0.6, y: 0.06, h: 0.45, mat: wood });
   B.block({ x: x0 + 2.2, z: z0 - 4.3, w: 2.4, d: 0.1, y: 0.5, h: 0.5, mat: wood, collide: false });
   ctx.energySources.register(ctx.addEntity(new EnergySource(ctx, { kind: 'lamp', x: x0 + 4.2, z: z0 - 4.6 })));
-  B.sign(['ZONA E — ADQUISICIÓN DE MARCAS', 'Encarnaciones: Energía, Gravedad, Hilo, Temperatura y Alas · Contacto + voluntad'], {
+  B.sign(['ZONA E — ADQUISICIÓN DE MARCAS', 'Energía: Prólogo (Historia) · Encarnaciones: Gravedad, Hilo, Temperatura y Alas · Contacto + voluntad'], {
     x: x0, y: 3.4, z: z0 + 13, w: 9, h: 1.9, facing: 0, opts: { width: 1024, height: 220 },
   });
   B.block({ x: x0, z: z0 + 12.95, w: 0.2, d: 0.2, h: 2.4, mat: M.metal, collide: false });
   B.floorText(['1. Acércate · 2. E: contacto', '3. Mantén E: voluntad'], { x: x0, z: z0 + 6, w: 8, h: 3 });
 
-  const npc = ctx.addEntity(new Incarnation(ctx, { x: x0, y: 0.06, z: z0 - 2, yaw: 0, markId: 'energia' }));
-  ctx.acquisition.registerSource(npc);
+  // La marca de la Energía se consigue en el Prólogo: en su sitio hay un
+  // terminal que lo empieza. La «Zona E clásica» (depuración) devuelve la
+  // Encarnación para practicar la adquisición.
+  if (ctx.save?.data.debug?.classicZoneE) {
+    const npc = ctx.addEntity(new Incarnation(ctx, { x: x0, y: 0.06, z: z0 - 2, yaw: 0, markId: 'energia' }));
+    ctx.acquisition.registerSource(npc);
+  } else {
+    storyTerminal(B, M, ctx, x0, z0 - 2);
+  }
 
   // Encarnación de la Gravedad: sentada junto a un muro de obra con escombros
   const gx = x0 + 8;

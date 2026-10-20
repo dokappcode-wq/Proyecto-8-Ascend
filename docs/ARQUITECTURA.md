@@ -26,7 +26,18 @@ src/
 │   ├── textures.js             Texturas procedurales
 │   └── maps/
 │       ├── TrainingGround.js   Mapa 1 — Campo de Pruebas
-│       └── DistrictZero.js     Mapa 2 — Distrito Cero
+│       ├── DistrictZero.js     Mapa 2 — Distrito Cero
+│       ├── Village.js          Historia — pueblo costero de noche (base PDC) y de día
+│       └── Forest.js           Historia — valle, viaducto, bosque, puente destruido y colina
+├── story/                      Modo historia (prólogo)
+│   ├── storyData.js            Fases, misiones y los 29 puntos de control (sin Three.js)
+│   ├── StoryState.js           Estado persistente: punto, banderas, misión (sin Three.js)
+│   ├── stealthMath.js          Cálculo de la detección del sigilo (sin Three.js)
+│   ├── StoryDirector.js        Ejecuta el guion por tramos, guarda, recarga, sigilo, UI
+│   ├── prologue.js             El guion M01–M05: un tramo por punto de control
+│   ├── StoryUI.js              Subtítulos, objetivos, tutoriales, detección, elección
+│   ├── actors.js               Personajes (Npc), guardias de sigilo y focos
+│   └── props.js                Compuertas, tirolina, escombro, lluvia, cartas, autobús…
 ├── ai/
 │   ├── EnemyBrain.js           Máquina de estados de la IA (sin Three.js)
 │   ├── Enemy.js                Cuerpo, percepción, navegación y arma de un enemigo
@@ -366,3 +377,52 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   su punto de la zona en un tiempo fijo; al caer daña a quien está cerca.
 - `WingsVisual`: un InstancedMesh por ala (`count` = plumas que quedan) y otro
   para la espada; plegadas en reposo, abiertas y batiendo al volar.
+
+## Modo historia (Etapa 8)
+
+**Flujo.** `GameManager.startStory(fresh)` → `StoryDirector.prepare()` (perfil
+de marcas propio de la historia: `MarkSystem.useStoryProfile`) →
+`StoryDirector.enter(cp)`: monta el mapa del punto de control con
+`GameManager._loadMap` (el mismo que usa `startMap`), coloca a Jon en el punto
+`at` que devuelve el mapa (`build()` → `story.points`), restaura salud y
+carga del guardado y arranca el tramo (`beat`) de ese punto.
+
+**Tramos.** `prologue.js` exporta `BEATS`: una función `async (S, { cp,
+entered })` por punto de control. El director los encadena: cuando un tramo
+termina, guarda el siguiente punto (`reach`) y, si cambia de mapa, lo monta con
+un fundido. Las ayudas `S` (clase `Script`) esperan siempre en **tiempo de
+juego** (`until`, `wait`, `say`, `interact`, `walkTo`, `choice`…) y lanzan
+`StoryAbort` si el tramo se cancela: así una detección, una caída o volver al
+menú cortan el guion en cualquier punto sin dejar promesas colgadas.
+
+**Recargar** un punto de control vuelve a montar el mapa entero: las
+patrullas, compuertas, escombros y enemigos vuelven a su estado inicial sin
+código de reinicio específico. Cada tramo deja el mundo como lo necesita al
+empezar (casa en ruinas desde CP15, tormenta CP13–CP17, alarma desde CP06…),
+así que funciona igual llegando desde el anterior que cargándolo directamente.
+
+**Guardado.** `save.data.story` (`StoryState`): punto, `flags` (`HasDestinyMark`,
+`HasEnergyMark`, `ActiveMark`, `TutorialComplete`, `EnergyEncounterChoice`),
+`mission` (día, compras, documentos, progreso dentro del tramo) y `snapshot`
+(salud y carga). Solo se escribe al llegar a un punto de control (y la
+elección moral, en el momento). Las banderas nunca retroceden.
+
+**Control.** `controlsLocked` desactiva al jugador (cinemáticas);
+`Input.blocked` bloquea por acción los poderes que el guion aún no ha enseñado
+(`allowedPowers` + `S.allow`). `PlayerController.autopilot` mueve a Jon solo
+(carrera hacia Narbaiza, colina final). `CameraController.setShot` fija planos
+y travellings. El dash asistido (`StoryDirector.assistDash`) orienta el dash en
+el aire hacia el círculo de aterrizaje cuando Jon está junto a un hueco.
+
+**Sigilo.** Puro cálculo en `stealthMath.js` (`detectionRate`, `stepMeter`);
+el director lo aplica a cada `StealthGuard` (posición, mirada, alcance, cono)
+con rayos de línea de visión que ignoran vallas y farolas
+(`cameraBlocking: false`) y suma la luz de los `Searchlight`.
+
+**Personajes.** `Npc` (actors.js) usa el mismo `CharacterModel` que el
+jugador, con poses (de rodillas, tumbado, esposado, colgado…), rutas con saltos
+en arco y marcas visuales (la Sangre de Narbaiza). Se crean en el grupo del
+mapa y se liberan con él. La Encarnación de la Energía es la `Incarnation` del
+Campo con otra ropa, registrada en `PowerAcquisitionSystem`, así que la copia
+sigue exactamente las reglas canónicas (contacto + voluntad; la fuente
+conserva su marca).

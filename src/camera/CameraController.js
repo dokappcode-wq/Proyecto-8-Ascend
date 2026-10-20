@@ -35,6 +35,44 @@ export class CameraController {
     this._fovBoost = 0;
     this._dir = new THREE.Vector3();
     this._initialized = false;
+    /**
+     * Plano de cinemática (modo historia): { from:{pos,look}, to:{pos,look}, t, dur }.
+     * Mientras hay uno, la cámara no sigue al jugador.
+     */
+    this.shot = null;
+    this._lookV = new THREE.Vector3();
+  }
+
+  /**
+   * Fija la cámara en un plano. Con `to` y `dur` se mueve suavemente de un
+   * encuadre a otro (travelling). `null` devuelve el control a la cámara normal.
+   */
+  setShot(from, to = null, dur = 0) {
+    if (!from) {
+      this.shot = null;
+      this._initialized = false;
+      return;
+    }
+    const v = (p) => new THREE.Vector3(p.x, p.y, p.z);
+    this.shot = { from: { pos: v(from.pos), look: v(from.look) }, to: to ? { pos: v(to.pos), look: v(to.look) } : null, t: 0, dur: Math.max(0.001, dur) };
+  }
+
+  _updateShot(dt) {
+    const s = this.shot;
+    s.t += dt;
+    const k = s.to ? smooth(Math.min(1, s.t / s.dur)) : 0;
+    const pos = s.to ? this._dir.copy(s.from.pos).lerp(s.to.pos, k) : s.from.pos;
+    const look = s.to ? this._lookV.copy(s.from.look).lerp(s.to.look, k) : s.from.look;
+    this.camera.position.copy(pos);
+    this.camera.lookAt(look);
+    this.shoulderOrigin.copy(look);
+    if (this._trauma > 0) {
+      const t = this._trauma * this._trauma;
+      const tt = this._time * 40;
+      this.camera.rotation.x += Math.sin(tt * 1.3) * 0.03 * t;
+      this.camera.rotation.z += Math.sin(tt * 2.1 + 2) * 0.02 * t;
+      this._trauma = Math.max(0, this._trauma - dt * 1.8);
+    }
   }
 
   reset(yaw = 0) {
@@ -74,6 +112,7 @@ export class CameraController {
 
   update(dt, target, sprinting) {
     this._time += dt;
+    if (this.shot) return this._updateShot(dt);
     this._aim += (this._aimTarget - this._aim) * (1 - Math.exp(-dt * 14));
     this._parkour += (this._parkourTarget - this._parkour) * (1 - Math.exp(-dt * 5));
     const pk = this._parkour * (1 - this._aim);
@@ -147,4 +186,9 @@ export class CameraController {
       this.camera.updateProjectionMatrix();
     }
   }
+}
+
+/** Suavizado de entrada y salida (0..1 → 0..1). */
+function smooth(k) {
+  return k * k * (3 - 2 * k);
 }

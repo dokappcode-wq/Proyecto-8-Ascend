@@ -53,7 +53,7 @@ export class MapManager {
     const result = def.build(ctx);
     // Rendimiento: la geometría estática se fusiona por material
     this.lastMerge = mergeStatic(group);
-    this.current = { def, group, entities, spawn: result.spawn, sun: result.sun ?? null };
+    this.current = { def, group, entities, spawn: result.spawn, sun: result.sun ?? null, story: result.story ?? null };
     this.events.emit('map:loaded', { id, name: def.name });
     return this.current;
   }
@@ -77,7 +77,8 @@ export class MapManager {
     for (const e of this.current.entities) {
       if (!e.lodRoot) continue;
       const p = e.lodRoot.position;
-      e.lodRoot.visible = Math.hypot(p.x - eye.x, p.y - eye.y, p.z - eye.z) < e.lodDistance;
+      // `hidden`: la entidad está oculta a propósito (el guion), no por distancia
+      e.lodRoot.visible = !e.hidden && Math.hypot(p.x - eye.x, p.y - eye.y, p.z - eye.z) < e.lodDistance;
     }
   }
 

@@ -44,6 +44,54 @@ export const ENEMY_TYPES = Object.freeze({
     },
   },
   /**
+   * Agente reforzado (prólogo): armadura pesada, mucha salud y ráfagas de
+   * fusil. Sin escudo: no es un Blindado.
+   */
+  reforzado: {
+    id: 'reforzado',
+    name: 'Agente reforzado',
+    variant: 'pdc',
+    gear: 'heavy',
+    faction: 'pdc',
+    health: 220,
+    walkSpeed: 2,
+    runSpeed: 3.8,
+    strafeSpeed: 2.2,
+    viewRange: 30,
+    fov: 120,
+    hearRange: 22,
+    heavyHit: 45,
+    brain: { reactionTime: 0.8, loseSightTime: 2, searchTime: 8, staggerTime: 0.4, attackRange: 26, preferredMin: 7, preferredMax: 14 },
+    weapon: {
+      kind: 'bullet', damage: 7, speed: 95, range: 40, radius: 0.05, color: '#ff9d5c',
+      cadence: 0.12, magazineSize: 6, reloadTime: 2.2, spread: 0.04, knockback: 1,
+    },
+  },
+  /** Dron del tutorial (prólogo): poca salud, lento, avisa con un láser antes de cada disparo. */
+  dronTutorial: {
+    id: 'dronTutorial',
+    name: 'Dron PDC',
+    model: 'drone',
+    faction: 'pdc',
+    health: 24,
+    walkSpeed: 3,
+    runSpeed: 4,
+    strafeSpeed: 3,
+    viewRange: 30,
+    fov: 360,
+    hearRange: 22,
+    heavyHit: 15,
+    height: 0.6,
+    radius: 0.45,
+    meleeMul: 0.25,
+    flying: { hover: 3.8, response: 2.5 },
+    brain: { reactionTime: 0.9, loseSightTime: 2, searchTime: 6, staggerTime: 0.5, attackRange: 24, preferredMin: 8, preferredMax: 14 },
+    weapon: {
+      kind: 'bullet', damage: 3, speed: 60, range: 30, radius: 0.05, color: '#7fd8ff',
+      cadence: 1.4, magazineSize: 3, reloadTime: 2.5, spread: 0.12, knockback: 0.2, aimTime: 0.7, lockTime: 0.35,
+    },
+  },
+  /**
    * Blindado: escudo antidisturbios delante. Por delante solo le llega el 10 %
    * del daño; hay que rodearlo, atacarlo desde arriba (tormenta, lluvia,
    * estela) o quitarle el apoyo (flotar, lanzar, atar, congelar).

@@ -34,6 +34,8 @@ import { MissionSystem } from '../systems/MissionSystem.js';
 import { AudioSystem } from '../audio/AudioSystem.js';
 import { Progression } from '../powers/Progression.js';
 import { PROGRESSION } from '../data/progression.js';
+import { StoryDirector } from '../story/StoryDirector.js';
+import { CHECKPOINTS } from '../story/storyData.js';
 
 /**
  * GameManager — estado general del juego y bucle principal.
@@ -111,6 +113,8 @@ export class GameManager {
     this.audio = new AudioSystem(this.save.settings);
     this.audio.attach(this);
     this.progression = new Progression(this.save.data.profile);
+    /** Modo historia (prólogo). */
+    this.story = new StoryDirector(this);
     /** Aleatoriedad del juego (las pruebas pueden sustituirla). */
     this.rng = Math.random;
     this._time = 0;
@@ -148,12 +152,18 @@ export class GameManager {
     return [this.powers, this.gravity, this.thread, this.temperature, this.wings];
   }
 
+  /** Progresión en uso: la del modo libre o la propia del prólogo (poderes básicos). */
+  get activeProgression() {
+    return this.story?.active ? this.story.progression : this.progression;
+  }
+
   _applyModifiers() {
-    this.powers.applyModifiers(this.progression.modifiers('energia'));
-    this.gravity.applyModifiers(this.progression.modifiers('gravedad'));
-    this.thread.applyModifiers(this.progression.modifiers('hilo'));
-    this.temperature.applyModifiers(this.progression.modifiers('temperatura'));
-    this.wings.applyModifiers(this.progression.modifiers('alas'));
+    const prog = this.activeProgression;
+    this.powers.applyModifiers(prog.modifiers('energia'));
+    this.gravity.applyModifiers(prog.modifiers('gravedad'));
+    this.thread.applyModifiers(prog.modifiers('hilo'));
+    this.temperature.applyModifiers(prog.modifiers('temperatura'));
+    this.wings.applyModifiers(prog.modifiers('alas'));
   }
 
   /** Ajustes que dependen de la marca activa: saltos de Gravedad, HUD. */
@@ -174,49 +184,71 @@ export class GameManager {
   async startMap(id) {
     const def = this.mapManager.maps.get(id);
     if (!def) return;
+    if (this.story.active) this.story.stop();
     this.input.clear();
     await this.ui.fade(`Cargando ${def.name}…`, () => {
-      this._clearTransient();
-      this.playerCombat.dead = false;
-      this.playerCombat.restore();
-      this.player.model.root.rotation.x = 0;
-      this.acquisition.cancel();
-      const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain });
-      this.playerCombat.attach();
-      this.player.object3d.visible = true;
-      this.player.spawn(map.spawn);
-      this.powers.resetAbilities();
-      this.powers.energy.refill();
-      this.gravity.resetAbilities();
-      this.gravity.energy.refill();
-      this.thread.resetAbilities();
-      this.thread.energy.refill();
-      this.temperature.resetAbilities();
-      this.temperature.energy.refill();
-      this.wings.resetAbilities();
-      this.wings.energy.refill();
-      this.marks.reset();
-      if (map.sun) map.sun.castShadow = this.save.settings.shadows;
-      this.ui.hideAll();
-      this.ui.setHudVisible(true);
-      this.ui.setMapName(def.name, def.description);
-      this.ui.setWaypoints(def.waypoints ?? []);
-      this._onMarkChanged();
-      this.ui.showDeath(false);
+      this._loadMap(id);
       if (id === 'campo' && !this.marks.activeFamily) {
-        setTimeout(() => this.ui.toast('Sin poderes todavía', 'Ve a la Zona E para copiar la marca de la Energía', 4000), 3000);
+        setTimeout(() => this.ui.toast('Sin poderes todavía', 'Juega el Prólogo (Historia) para conseguir la marca de la Energía', 4000), 3000);
       }
-      this.state = 'playing';
-      this.audio.setPaused(false);
       this.save.data.lastMap = id;
       this.save.save();
-      this._clock.update();
     });
     this.ui.toast(def.name, def.description);
     this.input.requestPointerLock();
   }
 
+  /**
+   * Monta un mapa y deja al jugador listo en su punto de aparición (sin
+   * fundido ni avisos). Lo usan startMap y el modo historia.
+   */
+  _loadMap(id) {
+    const def = this.mapManager.maps.get(id);
+    this._clearTransient();
+    this.playerCombat.dead = false;
+    this.playerCombat.restore();
+    this.player.model.root.rotation.x = 0;
+    this.player.autopilot = null;
+    this.acquisition.cancel();
+    const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain, save: this.save });
+    this.playerCombat.attach();
+    this.player.object3d.visible = true;
+    this.player.spawn(map.spawn);
+    this._applyModifiers();
+    for (const fam of this.families) {
+      fam.resetAbilities();
+      fam.energy.refill();
+    }
+    this.marks.reset();
+    if (map.sun) map.sun.castShadow = this.save.settings.shadows;
+    this.ui.hideAll();
+    this.ui.setHudVisible(true);
+    this.ui.setMapName(def.name, def.description);
+    this.ui.setWaypoints(def.waypoints ?? []);
+    this._onMarkChanged();
+    this.ui.showDeath(false);
+    this.state = 'playing';
+    this.audio.setPaused(false);
+    this._clock.update();
+    return map;
+  }
+
+  /** Historia · Prólogo: nueva partida o continuar desde el último punto de control. */
+  async startStory(fresh = false) {
+    this.input.clear();
+    const cp = this.story.prepare(fresh);
+    await this.ui.fade(cp.index === 0 ? '' : `Prólogo · ${cp.title}`, () => {
+      this.story.enter(cp.id);
+    });
+    this.input.requestPointerLock();
+  }
+
   restartMap() {
+    if (this.story.active) {
+      this.resume();
+      this.story.reload();
+      return;
+    }
     const id = this.mapManager.current?.def.id;
     if (id) this.startMap(id);
   }
@@ -224,6 +256,10 @@ export class GameManager {
   async returnToMenu() {
     this.input.exitPointerLock();
     await this.ui.fade('', () => {
+      if (this.story.active) {
+        this.story.stop();
+        this._applyModifiers();
+      }
       this._clearTransient();
       this.mapManager.unload();
       this.player.object3d.visible = false;
@@ -249,6 +285,7 @@ export class GameManager {
     this.input.clear();
     this.input.exitPointerLock();
     this.audio.setPaused(true);
+    this.ui.setStoryPause(this.story.active);
     this.ui.show(screen);
   }
 
@@ -266,7 +303,8 @@ export class GameManager {
   _wireEvents() {
     document.addEventListener('pointerlockchange', () => {
       // El navegador libera el puntero con Esc: se interpreta como pausa.
-      if (!document.pointerLockElement && this.state === 'playing') this.pause();
+      // (Salvo en la pantalla de elección de la historia, que necesita el ratón.)
+      if (!document.pointerLockElement && this.state === 'playing' && !this.story.modal) this.pause();
     });
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape') {
@@ -294,8 +332,10 @@ export class GameManager {
       if (e.code === 'KeyH') this.ui.toggleHint();
     });
     this.canvas.addEventListener('click', () => {
-      if (this.state === 'playing') this.input.requestPointerLock();
+      if (this.state === 'playing' && !this.story.modal) this.input.requestPointerLock();
     });
+    // La Zona E del Campo lleva al Prólogo
+    this.events.on('story:request', () => this.startStory(false));
     this.events.on('player:respawned', (e) => {
       if (e?.afterDeath) this.ui.showDeath(false);
       else this.ui.toast('Reaparición', 'Has caído fuera del mapa', 1600);
@@ -403,6 +443,7 @@ export class GameManager {
 
   /** Experiencia para la familia de poderes activa (solo si se posee la marca). */
   _awardXp(source) {
+    if (this.story.active) return; // el prólogo no da experiencia al modo libre
     const mark = this.marks.activeFamily;
     if (!mark) return;
     const amount = PROGRESSION[mark]?.xpRewards?.[source] ?? 0;
@@ -424,7 +465,7 @@ export class GameManager {
   }
 
   _marksState() {
-    return { profile: this.save.data.profile, progression: this.progression, marks: this.marks };
+    return { profile: this.marks.profile, progression: this.activeProgression, marks: this.marks };
   }
 
   _openDebug() {
@@ -434,13 +475,29 @@ export class GameManager {
 
   _debugState() {
     const d = this.save.data.debug;
-    return { mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, grantGravity: d.grantGravity, grantThread: d.grantThread, grantTemperature: d.grantTemperature, grantWings: d.grantWings, gravityAcquired: this.marks.acquired('gravedad'), active: this.marks.activeFamily, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
+    const st = this.save.data.story;
+    return { story: this.story.active ? { checkpoint: st.checkpoint, list: CHECKPOINTS, choice: st.flags.EnergyEncounterChoice } : null, classicZoneE: !!d.classicZoneE, mission: this.missions.mission ? { name: this.missions.mission.def.name, state: this.missions.mission.state } : null, pdc: this.factions.enabled ? this.factions.pdcLevel.name : null, grantEnergy: d.grantEnergy, grantGravity: d.grantGravity, grantThread: d.grantThread, grantTemperature: d.grantTemperature, grantWings: d.grantWings, gravityAcquired: this.marks.acquired('gravedad'), active: this.marks.activeFamily, acquired: this.marks.acquired('energia'), infiniteEnergy: d.infiniteEnergy, maxMarks: d.maxMarks, invulnerable: d.invulnerable, enemies: this.enemies.alive.length };
   }
 
   _onUiAction(action, data) {
     switch (action) {
       case 'play':
         this.startMap(data.map);
+        break;
+      case 'story':
+        this.startStory(false);
+        break;
+      case 'story-new':
+        this.startStory(true);
+        break;
+      case 'dbg-story-cp':
+        this.resume();
+        this.story.jumpTo(data.cp);
+        return;
+      case 'dbg-zone-e':
+        this.save.data.debug.classicZoneE = !this.save.data.debug.classicZoneE;
+        this.save.save();
+        this.ui.toast('Zona E clásica', this.save.data.debug.classicZoneE ? 'La Encarnación de la Energía vuelve al Campo (al recargarlo)' : 'La Energía se consigue en el Prólogo', 2200);
         break;
       case 'resume':
         this.resume();
@@ -727,7 +784,7 @@ export class GameManager {
 
     if (this.state === 'playing') {
       if (this.input.wasPressed('debug')) this.ui.toggleDebug();
-      this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active;
+      this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active || this.story.controlsLocked;
       this.player.update(dt);
       this.playerCombat.update(dt);
       this.powers.update(dt);
@@ -741,6 +798,7 @@ export class GameManager {
       this.enemies.update(dt);
       this.factions.update(dt);
       this.missions.update(dt);
+      this.story.update(dt);
       this.projectiles.update(dt);
       this.mapManager.update(dt);
       this.mapManager.cull(this.camera.position);

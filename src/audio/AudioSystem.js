@@ -242,7 +242,14 @@ export class AudioSystem {
     ev.on('faction:changed', (c) => {
       if (c.to === 'hostile') this.play('radio', { bus: 'ui' });
     });
-    ev.on('map:loaded', ({ id }) => this.setAmbience(id === 'distrito' ? 'city' : 'field'));
+    ev.on('map:loaded', ({ id }) => this.setAmbience(g.mapManager.maps.get(id)?.ambience ?? (id === 'distrito' ? 'city' : 'field')));
+    // Modo historia: efectos y sonidos continuos del guion
+    ev.on('story:sfx', ({ name, pos }) => this.play(name, pos ? { pos } : { bus: 'ui' }));
+    ev.on('story:loop', ({ name, on }) => (on ? this.loop(name) : this.stopLoop(name)));
+    ev.on('story:detected', () => this.play('detected', { bus: 'ui' }));
+    ev.on('story:line', ({ speaker }) => {
+      if (/RADIO/.test(speaker)) this.play('radio', { bus: 'ui' });
+    });
     ev.on('map:unloaded', () => {
       this.setAmbience(null);
       for (const k of [...this._loops.keys()]) this.stopLoop(k);
@@ -497,6 +504,39 @@ const SFX = {
   missionComplete: (a, o, t) => {
     [523, 659, 784, 1046].forEach((f, i) => tone(a, o, t + i * 0.12, i === 3 ? 0.6 : 0.16, { type: 'triangle', freq: f, peak: 0.15 }));
   },
+  // Modo historia
+  cardHum: (a, o, t) => {
+    for (const f of [392, 587, 784]) tone(a, o, t, 2.2, { freq: f, peak: 0.05, attack: 0.6 });
+    noise(a, o, t, 2, { type: 'highpass', freq: 6000, peak: 0.04, attack: 0.8 });
+  },
+  shutter: (a, o, t) => {
+    noise(a, o, t, 0.8, { type: 'lowpass', freq: 500, freq2: 200, peak: 0.3, attack: 0.05, buffer: 'brown' });
+    tone(a, o, t + 0.75, 0.15, { type: 'square', freq: 120, peak: 0.12, lp: 600 });
+  },
+  zipline: (a, o, t) => noise(a, o, t, 3.8, { type: 'bandpass', freq: 2600, freq2: 1400, q: 3, peak: 0.12, attack: 0.2 }),
+  sangre: (a, o, t) => {
+    tone(a, o, t, 1.6, { type: 'sawtooth', freq: 70, freq2: 55, peak: 0.12, lp: 500 });
+    noise(a, o, t, 1.4, { type: 'bandpass', freq: 900, q: 4, peak: 0.08, attack: 0.1 });
+  },
+  repair: (a, o, t) => {
+    for (let i = 0; i < 4; i++) noise(a, o, t + i * 0.42, 0.08, { type: 'bandpass', freq: 1200, q: 2, peak: 0.3 });
+  },
+  buy: (a, o, t) => {
+    tone(a, o, t, 0.08, { type: 'triangle', freq: 988, peak: 0.1 });
+    tone(a, o, t + 0.09, 0.14, { type: 'triangle', freq: 1319, peak: 0.1 });
+  },
+  sphere: (a, o, t) => {
+    tone(a, o, t, 2.2, { type: 'sawtooth', freq: 180, freq2: 60, peak: 0.12, lp: 1200 });
+    noise(a, o, t, 2.2, { type: 'highpass', freq: 3500, peak: 0.08, attack: 0.3 });
+  },
+  explosion: (a, o, t) => {
+    noise(a, o, t, 1.8, { type: 'lowpass', freq: 600, freq2: 60, peak: 0.6, attack: 0.01, buffer: 'brown' });
+    noise(a, o, t, 0.4, { type: 'bandpass', freq: 1500, q: 0.8, peak: 0.3 });
+  },
+  teleport: (a, o, t) => {
+    tone(a, o, t, 0.9, { type: 'sine', freq: 300, freq2: 2400, peak: 0.12 });
+    noise(a, o, t, 0.9, { type: 'highpass', freq: 5000, peak: 0.1, attack: 0.05 });
+  },
   acquired: (a, o, t) => {
     for (const f of [523, 659, 784, 1046]) tone(a, o, t, 1.2, { freq: f, peak: 0.07, attack: 0.25 });
     noise(a, o, t, 0.8, { type: 'highpass', freq: 5000, peak: 0.05, attack: 0.2 });
@@ -554,6 +594,64 @@ const LOOPS = {
     n.start();
     return { sources: [o, n] };
   },
+};
+
+// Modo historia: alarma de la base, lluvia y tormenta
+LOOPS.alarm = (a, out) => {
+  const ctx = a.ctx;
+  const o = ctx.createOscillator();
+  o.type = 'square';
+  o.frequency.value = 620;
+  const lfo = ctx.createOscillator();
+  lfo.type = 'square';
+  lfo.frequency.value = 1.6;
+  const lg = ctx.createGain();
+  lg.gain.value = 160;
+  lfo.connect(lg).connect(o.frequency);
+  const f = ctx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 1800;
+  const g = ctx.createGain();
+  g.gain.value = 0.035;
+  o.connect(f).connect(g).connect(out);
+  o.start();
+  lfo.start();
+  return { sources: [o, lfo] };
+};
+LOOPS.rain = (a, out) => {
+  const ctx = a.ctx;
+  const n = ctx.createBufferSource();
+  n.buffer = a.white;
+  n.loop = true;
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 2600;
+  f.Q.value = 0.5;
+  const g = ctx.createGain();
+  g.gain.value = 0.07;
+  n.connect(f).connect(g).connect(out);
+  n.start();
+  return { sources: [n] };
+};
+LOOPS.storm = (a, out) => {
+  const ctx = a.ctx;
+  const n = ctx.createBufferSource();
+  n.buffer = a.brown;
+  n.loop = true;
+  const f = ctx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 160;
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.13;
+  const lg = ctx.createGain();
+  lg.gain.value = 0.12;
+  const g = ctx.createGain();
+  g.gain.value = 0.22;
+  lfo.connect(lg).connect(g.gain);
+  n.connect(f).connect(g).connect(out);
+  n.start();
+  lfo.start();
+  return { sources: [n, lfo] };
 };
 
 LOOPS.glide = (a, out) => {
@@ -633,6 +731,42 @@ LOOPS.jet = (a, out) => {
   return { sources: [n] };
 };
 
+/** Olas: ruido grave cuyo volumen sube y baja (y lluvia suave si `rain`). */
+function waves(a, out, level, rain) {
+  const ctx = a.ctx;
+  const n = ctx.createBufferSource();
+  n.buffer = a.brown;
+  n.loop = true;
+  const f = ctx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 700;
+  const g = ctx.createGain();
+  g.gain.value = level;
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.11;
+  const lg = ctx.createGain();
+  lg.gain.value = level * 0.8;
+  lfo.connect(lg).connect(g.gain);
+  n.connect(f).connect(g).connect(out);
+  const sources = [n, lfo];
+  if (rain > 0) {
+    const r = ctx.createBufferSource();
+    r.buffer = a.white;
+    r.loop = true;
+    const rf = ctx.createBiquadFilter();
+    rf.type = 'highpass';
+    rf.frequency.value = 3000;
+    const rg = ctx.createGain();
+    rg.gain.value = rain;
+    r.connect(rf).connect(rg).connect(out);
+    r.start();
+    sources.push(r);
+  }
+  n.start();
+  lfo.start();
+  return { sources };
+}
+
 /** Ambiente de cada mapa. */
 const AMBIENCE = {
   // Ciudad: rumor grave del tráfico lejano y zumbido eléctrico suave
@@ -655,6 +789,41 @@ const AMBIENCE = {
     n.start();
     hum.start();
     return { sources: [n, hum] };
+  },
+  // Pueblo costero: olas que rompen despacio (de noche, con el rumor de la lluvia)
+  'village-night': (a, out) => waves(a, out, 0.2, 0.05),
+  'village-day': (a, out) => waves(a, out, 0.16, 0),
+  // Bosque: viento entre los pinos y el río del cañón al fondo
+  forest: (a, out) => {
+    const ctx = a.ctx;
+    const n = ctx.createBufferSource();
+    n.buffer = a.white;
+    n.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 700;
+    f.Q.value = 0.5;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.07;
+    const lg = ctx.createGain();
+    lg.gain.value = 300;
+    lfo.connect(lg).connect(f.frequency);
+    const g = ctx.createGain();
+    g.gain.value = 0.09;
+    n.connect(f).connect(g).connect(out);
+    const r = ctx.createBufferSource();
+    r.buffer = a.brown;
+    r.loop = true;
+    const rf = ctx.createBiquadFilter();
+    rf.type = 'lowpass';
+    rf.frequency.value = 500;
+    const rg = ctx.createGain();
+    rg.gain.value = 0.12;
+    r.connect(rf).connect(rg).connect(out);
+    n.start();
+    lfo.start();
+    r.start();
+    return { sources: [n, lfo, r] };
   },
   // Campo de pruebas: viento que sube y baja
   field: (a, out) => {

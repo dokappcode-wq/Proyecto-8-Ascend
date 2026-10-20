@@ -96,6 +96,7 @@ export class PlayerCombat {
   _die(cause) {
     this.dead = true;
     this._deadTime = 0;
+    this._storyNotified = false;
     this.game.events.emit('player:died', { cause });
   }
 
@@ -119,6 +120,12 @@ export class PlayerCombat {
     this.health.reset(0);
   }
 
+  /** Fija la salud (escenas del guion: el general deja a Jon a 1 PV). */
+  setHealth(v) {
+    this.health.value = Math.max(0, Math.min(this.health.max, v));
+    this.health._sinceHit = 0;
+  }
+
   update(dt) {
     const g = this.game;
     this.health.godMode = !!g.save.data.debug?.invulnerable;
@@ -128,7 +135,15 @@ export class PlayerCombat {
       this._deadTime += dt;
       // Caída del cuerpo
       g.player.model.root.rotation.x = -Math.min(1, this._deadTime * 2.5) * (Math.PI / 2) * 0.95;
-      if (this._deadTime >= PLAYER_COMBAT.respawnTime) this.respawn();
+      if (this._deadTime >= PLAYER_COMBAT.respawnTime) {
+        // En la historia se vuelve al último punto de control
+        if (g.story?.active) {
+          if (!this._storyNotified) {
+            this._storyNotified = true;
+            g.story.onPlayerDied();
+          }
+        } else this.respawn();
+      }
       return;
     }
 
