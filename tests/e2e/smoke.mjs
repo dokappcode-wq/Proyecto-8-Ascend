@@ -330,11 +330,13 @@ try {
     const a = window.__ascend;
     return {
       enemies: a.enemies.list.filter((e) => e.tag === 'distrito').map((e) => e.type.id).sort().join(','),
+      special: a.enemies.list.filter((e) => e.tag === 'distrito-esp').map((e) => e.type.id).sort().join(','),
       pdc: a.factions.pdcLevel.id, mission: a.missions.mission?.state,
       panel: document.getElementById('hud-mission').textContent, faction: document.getElementById('hud-faction').textContent,
     };
   });
   check(s6D0.enemies === 'acolyte,pdc,pdc', `El barrio tiene una patrulla PDC y un Acólito (${s6D0.enemies})`);
+  check(s6D0.special === 'blindado,dron,francotirador', `Unidades especiales de la PDC en el barrio (${s6D0.special})`);
   check(s6D0.pdc === 'calm' && /Tranquila/.test(s6D0.faction), `La PDC empieza tranquila (${s6D0.pdc})`);
   check(s6D0.mission === 'inactive' && /teléfono público/i.test(s6D0.panel), 'La misión espera a activarse en el teléfono público');
   // Delante de un agente: le ve pero no ataca
@@ -404,7 +406,7 @@ try {
   await page.waitForFunction(() => window.__ascend.missions.mission.detected, null, { timeout: 8000 }).catch(() => {});
   check(await q(() => window.__ascend.missions.mission.detected && /Detectado/i.test(document.getElementById('hud-mission').textContent)), 'Los enemigos de la misión detectan al jugador (aviso y estado en el HUD)');
   await q(() => { const a = window.__ascend; for (const e of a.enemies.list.filter((x) => x.tag === 'mision-pdc')) a.combat.applyDamage(e, 999, { faction: 'player' }); });
-  await page.waitForTimeout(400);
+  await page.waitForFunction(() => /3\/3/.test(document.getElementById('hud-mission').textContent), null, { timeout: 8000 }).catch(() => {});
   check(/3\/3/.test(await q(() => document.getElementById('hud-mission').textContent)), 'Neutralizar la patrulla completa su objetivo (3/3)');
   check(await q(() => window.__ascend.missions.mission.state === 'active'), 'La misión sigue hasta neutralizar también al Acólito');
   await q(() => { const a = window.__ascend; const e = a.enemies.list.find((x) => x.tag === 'mision-acolito'); a.combat.applyDamage(e, 999, { faction: 'player' }); });
@@ -1226,8 +1228,9 @@ try {
   check(/Hilos/.test(hAcq.slots) && /Balanceo/.test(hAcq.slots) && /Atar/.test(hAcq.slots) && /Lanzar/.test(hAcq.slots) && /Atraer/.test(hAcq.slots), `El HUD muestra las habilidades del Hilo (${hAcq.slots})`);
   const cyc = [];
   for (let k = 0; k < 3; k++) {
+    const before = await g(() => window.__ascend.marks.activeFamily);
     await page.keyboard.press('KeyV');
-    await page.waitForTimeout(250);
+    await page.waitForFunction((b) => window.__ascend.marks.activeFamily !== b, before, { timeout: 5000 }).catch(() => {});
     cyc.push(await g(() => window.__ascend.marks.activeFamily));
   }
   check(cyc.join(',') === 'energia,gravedad,hilo', `V recorre las tres marcas (${cyc.join(' → ')})`);
@@ -1347,8 +1350,9 @@ try {
   check(tAcq.icons === 'ifififififif'.slice(0, 10), `10 balas en el HUD, alternando hielo y fuego (${tAcq.icons})`);
   const tCyc = [];
   for (let k = 0; k < 4; k++) {
+    const before = await g(() => window.__ascend.marks.activeFamily);
     await page.keyboard.press('KeyV');
-    await page.waitForTimeout(250);
+    await page.waitForFunction((b) => window.__ascend.marks.activeFamily !== b, before, { timeout: 5000 }).catch(() => {});
     tCyc.push(await g(() => window.__ascend.marks.activeFamily));
   }
   check(tCyc.join(',') === 'energia,gravedad,hilo,temperatura', `V recorre las cuatro marcas (${tCyc.join(' → ')})`);
@@ -1484,6 +1488,7 @@ try {
   check(tRun.run && tRun.rise > 2 && tRun.tiles >= 3, `Shift patinando: avanza por el aire sobre un camino de hielo (sube ${tRun.rise.toFixed(1)} m, ${tRun.tiles} placas)`);
   check(!tLand.run && tLand.grounded && tLand.y > 2, `Al soltar Shift se queda de pie sobre el hielo (y=${tLand.y.toFixed(2)})`);
   await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => !window.__ascend.temperature.skating, null, { timeout: 5000 }).catch(() => {});
   check(!(await g(() => window.__ascend.temperature.skating || !!window.__ascend.player.motor.skate)), 'Q de nuevo deja de patinar');
   // Fuente de la Temperatura: arcón congelador junto al inicio
   await g(() => { const a = window.__ascend; a.temperature.clear(); a.temperature.energy.value = 20; a.marks.setActive('energia'); a.player.spawnAt({ x: 7, y: 0.3, z: 23.4, yaw: 0 }); });
@@ -1520,8 +1525,9 @@ try {
   check(wAcq.icons === 10 && /^100\/100$/.test(wAcq.ammo) && wAcq.wings, `100 plumas (${wAcq.ammo}, ${wAcq.icons} símbolos de 10) y alas visibles en la espalda`);
   const wCyc = [];
   for (let k = 0; k < 5; k++) {
+    const before = await g(() => window.__ascend.marks.activeFamily);
     await page.keyboard.press('KeyV');
-    await page.waitForTimeout(250);
+    await page.waitForFunction((b) => window.__ascend.marks.activeFamily !== b, before, { timeout: 5000 }).catch(() => {});
     wCyc.push(await g(() => window.__ascend.marks.activeFamily));
   }
   check(wCyc.join(',') === 'energia,gravedad,hilo,temperatura,alas', `V recorre las cinco marcas (${wCyc.join(' → ')})`);
@@ -1672,6 +1678,173 @@ try {
   const wDrain = await g(() => ({ e: window.__ascend.wings.energy.value, active: window.__ascend.marks.activeFamily }));
   check(/absorber plumas/i.test(wPrompt) && wDrain.e > 40 && wDrain.active === 'alas', `Absorber de un montón de cojines recupera plumas y activa las Alas (${wDrain.e.toFixed(0)})`);
   await g(() => { const a = window.__ascend; a._applyModifiers(); a.save.data.debug.invulnerable = false; a.marks.setActive('energia'); a.save.save(); });
+
+  // ---------------- Pulido: poses, rueda de marcas y pasiva de las Alas ----------------
+  console.log('\n[pulido de marcas]');
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.save.data.debug.invulnerable = true; a.playerCombat.restore(); a.marks.setActive('temperatura'); a.temperature.resetAbilities(); a.temperature.energy.refill(); a.player.spawnAt({ x: -24, y: 0.3, z: 34, yaw: Math.PI }); a.cameraController.yaw = 0; a.cameraController.pitch = 0; });
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => window.__ascend.temperature.skating, null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyW');
+  const pSkate = await g(() => { const a = window.__ascend; for (let i = 0; i < 40; i++) { a.player.update(1 / 60); a.input.endFrame(); } return a.player.model._skateW ?? 0; });
+  await page.keyboard.up('KeyW');
+  await page.screenshot({ path: path.join(out, 'polish-01-skate.png') });
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => !window.__ascend.temperature.skating, null, { timeout: 5000 }).catch(() => {});
+  check(pSkate > 0.5, `Pose propia de patinaje (peso ${pSkate.toFixed(2)})`);
+  await g(() => { const a = window.__ascend; a.marks.setActive('alas'); a.wings.resetAbilities(); a.wings.energy.refill(); a.player.spawnAt({ x: -24, y: 0.3, z: 34, yaw: Math.PI }); a.cameraController.yaw = 0; a.cameraController.pitch = 0.2; });
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => window.__ascend.wings.flying, null, { timeout: 5000 }).catch(() => {});
+  await page.keyboard.down('KeyW');
+  const pFly = await g(() => { const a = window.__ascend; for (let i = 0; i < 60; i++) { a.wings.update(1 / 60); a.player.update(1 / 60); a.input.endFrame(); } return { w: a.player.model._flyW ?? 0, lean: a.player.model.hips.rotation.x }; });
+  await page.keyboard.up('KeyW');
+  await page.screenshot({ path: path.join(out, 'polish-02-fly.png') });
+  await page.keyboard.press('KeyQ');
+  await page.waitForFunction(() => !window.__ascend.wings.flying, null, { timeout: 5000 }).catch(() => {});
+  check(pFly.w > 0.5 && pFly.lean > 0.3, `Pose propia de vuelo: el cuerpo se inclina hacia delante (${pFly.lean.toFixed(2)} rad)`);
+  // Rueda de marcas: mantener V, elegir con el ratón y soltar
+  await page.waitForFunction(() => window.__ascend.player.motor.grounded, null, { timeout: 10000 }).catch(() => {});
+  await page.keyboard.down('KeyV');
+  await page.waitForFunction(() => document.getElementById('mark-wheel').classList.contains('show'), null, { timeout: 8000 }).catch(() => {});
+  const pWheel = await g(() => {
+    const a = window.__ascend;
+    const w = a._wheel;
+    if (w) w.v = { x: 0, y: -100 }; // ratón hacia arriba: primer sector (Energía)
+    return { open: !!w?.open, slots: document.querySelectorAll('#mark-wheel .wheel-slot').length };
+  });
+  await page.waitForFunction(() => document.querySelector('#mark-wheel .wheel-slot.pick'), null, { timeout: 5000 }).catch(() => {});
+  await page.screenshot({ path: path.join(out, 'polish-03-wheel.png') });
+  const pPick = await g(() => document.querySelector('#mark-wheel .wheel-slot.pick span')?.textContent);
+  await page.keyboard.up('KeyV');
+  await page.waitForFunction(() => !document.getElementById('mark-wheel').classList.contains('show'), null, { timeout: 5000 }).catch(() => {});
+  const pAfter = await g(() => window.__ascend.marks.activeFamily);
+  check(pWheel.open && pWheel.slots === 5 && pPick === 'Energía', `Mantener V abre la rueda con las cinco marcas y el ratón señala una (${pPick})`);
+  check(pAfter === 'energia', `Al soltar V se activa la marca señalada (${pAfter})`);
+  // Pasiva de las Alas: las plumas absorben el 20 % del daño
+  const pPlum = await g(() => {
+    const a = window.__ascend;
+    a.save.data.debug.invulnerable = false;
+    a.playerCombat.health.godMode = false;
+    a.playerCombat.restore();
+    a.wings.energy.value = 100;
+    const h0 = a.playerCombat.health.value;
+    a.playerCombat.takeDamage(30, { kind: 'prueba' });
+    const r = { lost: h0 - a.playerCombat.health.value, feathers: a.wings.energy.value };
+    a.playerCombat.restore();
+    a.save.data.debug.invulnerable = true;
+    return r;
+  });
+  check(Math.abs(pPlum.lost - 24) < 0.01 && Math.abs(pPlum.feathers - 94) < 0.01, `Pasiva Plumaje: de 30 de daño, 6 los absorben las plumas (${pPlum.lost} recibido, quedan ${pPlum.feathers})`);
+
+  // ---------------- Combos entre marcas ----------------
+  console.log('\n[combos]');
+  await g(() => {
+    const a = window.__ascend;
+    a.enemies.clear();
+    a.player.spawnAt({ x: -24, y: 0.3, z: 30, yaw: Math.PI });
+    window.__ce = a.enemies.spawn('pdc', { x: -24, y: 0.2, z: 22, yaw: 0, tag: 'c', patrol: [{ x: -24, z: 22 }] });
+    window.__ce.health.max = window.__ce.health.value = 2000;
+    window.__ce2 = a.enemies.spawn('pdc', { x: -21, y: 0.2, z: 21, yaw: 0, tag: 'c', patrol: [{ x: -21, z: 21 }] });
+    window.__ce2.health.max = window.__ce2.health.value = 2000;
+    window.__ce2.bind(60);
+    window.__cDmg = {};
+    a.events.on('combat:damage', (d) => { window.__cDmg[d.kind] = (window.__cDmg[d.kind] ?? 0) + d.amount; });
+  });
+  // Los contadores son de toda la partida (otras pruebas ya provocan combos): se miden diferencias
+  const c0 = await g(() => ({ ...window.__ascend.combos.counts }));
+  const comboN = async (id) => (await g((id) => window.__ascend.combos.counts[id] ?? 0, id)) - (c0[id] ?? 0);
+  // Combustión: fuego (Temperatura) sobre un enemigo que flota (Gravedad)
+  await g(() => { const a = window.__ascend; a.marks.setActive('temperatura'); a.temperature.resetAbilities(); a.temperature.energy.refill(); window.__ce.float(6, 1.8); });
+  await page.waitForTimeout(400);
+  await g(() => { const a = window.__ascend; window.__aimAt(window.__ce.center); a.temperature.nextHand = 'L'; a.temperature._fire(); });
+  await page.waitForFunction((n) => (window.__ascend.combos.counts.combustion ?? 0) > n, c0.combustion ?? 0, { timeout: 10000 }).catch(() => {});
+  const cBanner = await g(() => document.getElementById('combo-banner').textContent);
+  await page.screenshot({ path: path.join(out, 'combo-01-combustion.png') });
+  check((await comboN('combustion')) === 1 && /Combustión/.test(cBanner) && (await g(() => !window.__ce.floating && (window.__cDmg['combo-combustion'] ?? 0) > 0)), `Combustión: fuego sobre un enemigo que flota explota (aviso «${cBanner.slice(0, 18)}…»)`);
+  // Escarcha: hielo sobre un enemigo que flota → congelado
+  // Espera de 1 s de juego entre combos sobre el mismo enemigo
+  const tC = await g(() => window.__ascend._time);
+  await page.waitForFunction((t) => window.__ascend._time > t + 1.2, tC, { timeout: 20000 }).catch(() => {});
+  await g(() => { window.__ce.float(6, 1.8); });
+  await page.waitForTimeout(400);
+  await g(() => { const a = window.__ascend; a.temperature.abilities.projectile.reset(); window.__aimAt(window.__ce.center); a.temperature.nextHand = 'R'; a.temperature._fire(); });
+  await page.waitForFunction(() => window.__ce.frozen, null, { timeout: 10000 }).catch(() => {});
+  await page.screenshot({ path: path.join(out, 'combo-02-frozen.png') });
+  check((await comboN('escarcha')) === 1 && (await g(() => window.__ce.frozen && window.__ce.stunned)), 'Escarcha: hielo sobre un enemigo que flota lo congela');
+  // Descarga en cadena: tormenta sobre un enemigo atado → salta al de al lado
+  await g(() => { const a = window.__ascend; const e = window.__ce2.position; a.player.spawnAt({ x: e.x, y: 0.3, z: e.z + 3, yaw: Math.PI }); a.temperature.abilities.grenade.reset(); window.__cDmg['combo-cadena'] = 0; });
+  await page.keyboard.press('KeyX');
+  await page.waitForFunction((n) => (window.__ascend.combos.counts.cadena ?? 0) > n, c0.cadena ?? 0, { timeout: 20000 }).catch(() => {});
+  check((await comboN('cadena')) >= 1 && (await g(() => (window.__cDmg['combo-cadena'] ?? 0) >= 30)), `Descarga en cadena: la tormenta sobre un enemigo atado salta al de al lado (${await g(() => window.__cDmg['combo-cadena'] ?? 0)} de daño)`);
+  // Plumas ardientes: lluvia de plumas sobre un enemigo que arde
+  await g(() => { const a = window.__ascend; a.temperature.clear(); a.marks.setActive('alas'); a.wings.resetAbilities(); a.wings.energy.refill(); window.__ce.burn(a.temperature.cfg.burn); a.player.spawnAt({ x: -24, y: 0.3, z: 32, yaw: Math.PI }); });
+  await page.waitForTimeout(300);
+  await g(() => window.__aimAt({ x: window.__ce.position.x, y: 0.2, z: window.__ce.position.z }));
+  await page.keyboard.press('KeyG');
+  await page.waitForFunction((n) => (window.__ascend.combos.counts.plumas ?? 0) > n, c0.plumas ?? 0, { timeout: 20000 }).catch(() => {});
+  check((await comboN('plumas')) >= 1 && (await g(() => (window.__cDmg['combo-plumas'] ?? 0) > 0)), 'Plumas ardientes: la lluvia sobre un enemigo que arde hace daño extra');
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.wings.clear(); });
+
+  // ---------------- Enemigos especiales (Zona G) ----------------
+  console.log('\n[enemigos especiales]');
+  await g(() => { const a = window.__ascend; a.marks.setActive('energia'); a.powers.resetAbilities(); a.player.spawnAt({ x: -48, y: 0.3, z: 27, yaw: 0 }); });
+  await page.waitForTimeout(300);
+  check(await g(() => window.__ascend.enemies.list.filter((e) => e.tag === 'zonaG').length === 0), 'La Zona G no tiene enemigos hasta que se entra');
+  await g(() => window.__ascend.player.spawnAt({ x: -50, y: 0.3, z: 34, yaw: 0 }));
+  await page.waitForFunction(() => window.__ascend.enemies.list.filter((e) => e.tag === 'zonaG').length === 4, null, { timeout: 8000 }).catch(() => {});
+  const gTypes = await g(() => window.__ascend.enemies.list.filter((e) => e.tag === 'zonaG').map((e) => e.type.id).sort().join(','));
+  check(gTypes === 'blindado,dron,dron,francotirador', `Al entrar aparecen el Blindado, dos drones y el francotirador (${gTypes})`);
+  // Francotirador: apunta con el láser antes de disparar
+  await g(() => {
+    const a = window.__ascend;
+    window.__snip = { aim: null, fire: null };
+    a.events.on('enemy:aiming', (e) => { if (e.enemy.type.id === 'francotirador' && window.__snip.aim === null) window.__snip.aim = a._time; });
+    a.events.on('enemy:fired', (e) => { if (e.enemy.type.id === 'francotirador' && window.__snip.aim !== null && window.__snip.fire === null) window.__snip.fire = a._time; });
+  });
+  await page.waitForFunction(() => window.__ascend.enemies.list.some((e) => e.type.id === 'francotirador' && e._laser?.visible), null, { timeout: 30000 }).catch(() => {});
+  await page.screenshot({ path: path.join(out, 'enemies-01-sniper.png') });
+  await page.waitForFunction(() => window.__snip.fire !== null, null, { timeout: 30000 }).catch(() => {});
+  const gSnip = await g(() => window.__snip);
+  check(gSnip.aim !== null && gSnip.fire !== null && gSnip.fire - gSnip.aim >= 1.1, `El francotirador apunta con un láser ${gSnip.fire !== null ? (gSnip.fire - gSnip.aim).toFixed(1) : '?'} s antes de disparar`);
+  // Drones: vuelan sobre el suelo
+  await page.waitForTimeout(1500);
+  const gDr = await g(() => window.__ascend.enemies.list.filter((e) => e.type.id === 'dron').map((e) => { const p = e.position; return p.y - window.__ascend.world.groundHeight(p.x, p.z, 0.3, p.y + 0.5); }));
+  await page.screenshot({ path: path.join(out, 'enemies-02-drones.png') });
+  check(gDr.length === 2 && gDr.every((h) => h > 2.5), `Los drones vuelan a ${gDr.map((h) => h.toFixed(1)).join(' y ')} m del suelo`);
+  // Blindado: escudo delante
+  const gShield = await g(() => {
+    const a = window.__ascend;
+    const e = a.enemies.list.find((x) => x.type.id === 'blindado');
+    e.health.max = e.health.value = 1000;
+    const p = e.position;
+    const hit = (dx, dz) => {
+      a.player.motor.teleport({ x: p.x + dx, y: p.y + 0.1, z: p.z + dz });
+      e.facing = 0; // mira hacia +z
+      return a.combat.applyDamage(e, 40, { kind: 'bolt', faction: 'player', source: a.playerCombat });
+    };
+    const front = hit(0, 6);
+    const back = hit(0, -6);
+    e.float(3, 1.5);
+    const floating = hit(0, 6);
+    return { front, back, floating };
+  });
+  check(gShield.front === 4 && gShield.back === 40, `Blindado: de frente el escudo para el 90 % (${gShield.front}); por detrás recibe todo (${gShield.back})`);
+  check(gShield.floating === 40, `Blindado: flotando, el escudo ya no le protege (${gShield.floating})`);
+  // Dron: resiste el cuerpo a cuerpo; atado, cae
+  const gDrone = await g(() => {
+    const a = window.__ascend;
+    const d = a.enemies.list.find((x) => x.type.id === 'dron');
+    d.health.max = d.health.value = 500;
+    const melee = a.combat.applyDamage(d, 40, { kind: 'melee-energia', faction: 'player', source: a.playerCombat });
+    const shot = a.combat.applyDamage(d, 40, { kind: 'bolt', faction: 'player', source: a.playerCombat });
+    d.bind(5);
+    window.__drone = d;
+    return { melee, shot };
+  });
+  await page.waitForFunction(() => { const d = window.__drone; const p = d.position; return p.y - window.__ascend.world.groundHeight(p.x, p.z, 0.3, p.y + 0.5) < 0.3; }, null, { timeout: 10000 }).catch(() => {});
+  const gFall = await g(() => { const p = window.__drone.position; return p.y - window.__ascend.world.groundHeight(p.x, p.z, 0.3, p.y + 0.5); });
+  check(gDrone.melee === 10 && gDrone.shot === 40, `Dron: el golpe le hace un 25 % (${gDrone.melee}); el disparo, todo (${gDrone.shot})`);
+  check(gFall < 0.3, `Dron atado: deja de volar y cae al suelo (${gFall.toFixed(2)} m)`);
+  await g(() => { const a = window.__ascend; a.enemies.clear(); a.mapManager.resetEntities(); a.save.data.debug.invulnerable = false; a.marks.setActive('energia'); a.save.save(); });
 
   // Reiniciar mapa desde la pausa
   await page.evaluate(() => window.__ascend.player.motor.teleport({ x: 30, y: 0.3, z: 30 }));

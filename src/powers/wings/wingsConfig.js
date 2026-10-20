@@ -31,6 +31,8 @@ export const WINGS_CONFIG = Object.freeze({
     cost: 50, cooldown: 6, range: 24, radius: 4.5, feathers: 30, damage: 4, hitRadius: 1.6,
     airTime: 0.7, groundTime: 1.5, apex: 12,
   },
+  /** Pasiva (Plumaje): las plumas absorben el 20 % del daño recibido (1 pluma por punto). */
+  passive: { absorb: 0.2, feathersPerPoint: 1 },
   /** Habilidad 3 (X): escudo de plumas delante; aguanta un ataque. */
   shield: {
     id: 'escudo', name: 'Escudo de plumas', action: 'grenade',

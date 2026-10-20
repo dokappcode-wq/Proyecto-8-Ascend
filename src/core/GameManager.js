@@ -20,7 +20,9 @@ import { PowerSystem } from '../systems/PowerSystem.js';
 import { GravityPowerSystem } from '../systems/GravityPowerSystem.js';
 import { ThreadPowerSystem } from '../systems/ThreadPowerSystem.js';
 import { TemperaturePowerSystem } from '../systems/TemperaturePowerSystem.js';
-import { WingsPowerSystem } from '../systems/WingsPowerSystem.js';
+import { WingsPowerSystem, plumageAbsorb } from '../systems/WingsPowerSystem.js';
+import { wheelPick, clampWheel } from '../ui/markWheel.js';
+import { ComboSystem } from '../systems/ComboSystem.js';
 import { MARKS } from '../data/marks.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { PlayerCombat } from '../systems/PlayerCombat.js';
@@ -86,6 +88,7 @@ export class GameManager {
     this.thread = new ThreadPowerSystem(this);
     this.temperature = new TemperaturePowerSystem(this);
     this.wings = new WingsPowerSystem(this);
+    this.combos = new ComboSystem(this);
     this.enemies = new EnemySystem({ scene: this.scene, world: this.world, combat: this.combat, projectiles: this.projectiles, vfx: this.vfx, events: this.events });
     this.playerCombat = new PlayerCombat(this);
     this.enemies.player = this.playerCombat;
@@ -358,6 +361,28 @@ export class GameManager {
       if (!t.burn(this.temperature.cfg.burn)) return;
       this.ui.damageNumber({ x: t.center.x, y: t.center.y + 0.6, z: t.center.z }, 'Quemado', false, 'passive');
       this.events.emit('passive:temperature', { target: t });
+    });
+    // Escudo del Blindado: avisa de que el golpe se ha parado (como mucho cada 0.4 s)
+    this.events.on('enemy:blocked', (e) => {
+      if (this._time - (this._blockedMsg ?? -1) < 0.4) return;
+      this._blockedMsg = this._time;
+      const c = e.point;
+      this.ui.damageNumber({ x: c.x, y: c.y + 0.5, z: c.z }, 'Bloqueado', false, 'passive');
+    });
+    // Pasiva de las Alas: las plumas absorben parte del daño recibido
+    this.playerCombat.damageFilters.push((amount, info) => {
+      if (!this.marks.owns('alas') || amount <= 0) return amount;
+      const w = this.wings;
+      const r = plumageAbsorb(amount, w.energy.value, w.cfg.passive);
+      if (r.feathers <= 0) return amount;
+      w.energy.value = Math.max(0, w.energy.value - r.feathers);
+      w.energy._sinceSpend = 0;
+      if (r.feathers >= 1) {
+        const p = this.player.motor.position;
+        this.vfx.particles.burst({ x: p.x, y: p.y + 1.3, z: p.z }, { count: Math.min(12, 2 + Math.round(r.feathers)), speed: 2.5, color: new THREE.Color('#fff0f6'), size: 0.1, life: 0.6, drag: 2, gravity: 2 });
+      }
+      this.events.emit('passive:wings', { absorbed: r.feathers, kind: info.kind });
+      return r.taken;
     });
     // Pasiva de la Gravedad: al bajar del 5 % de vida, las balas enemigas flotan 4 s
     this.events.on('player:damaged', (d) => {
@@ -646,18 +671,65 @@ export class GameManager {
     this.vfx.setViewportHeight(h * this.renderer.getPixelRatio());
   }
 
+  /**
+   * V: pulsación corta = siguiente marca; mantener = rueda de marcas (el ratón
+   * elige el sector y al soltar se activa). Devuelve el paso de tiempo de juego.
+   */
+  _updateMarkWheel(dt) {
+    const input = this.input;
+    const can = !this.playerCombat.dead && !this.acquisition.active && !this.drain.active;
+    if (input.wasPressed('switchMark') && can) {
+      // Una pulsación anterior aún sin resolver (fotogramas lentos) cuenta como cambio
+      if (this._wheel && !this._wheel.open) this.marks.cycle();
+      this._wheel = { t: 0, open: false, v: { x: 0, y: 0 }, pick: -1 };
+    }
+    const w = this._wheel;
+    if (!w) return dt;
+    const owned = this.marks.ownedCopies;
+    if (input.isDown('switchMark') && can) {
+      w.t += dt;
+      if (!w.open && w.t >= 0.22 && owned.length > 1) {
+        w.open = true;
+        this.player.lookLocked = true;
+        this.ui.showMarkWheel(owned.map((id) => MARKS[id]), this.marks.activeFamily);
+      }
+      if (w.open) {
+        w.v.x += input.mouseDX;
+        w.v.y += input.mouseDY;
+        clampWheel(w.v);
+        w.pick = wheelPick(w.v.x, w.v.y, owned.length);
+        this.ui.highlightMarkWheel(w.pick);
+        return dt * 0.3;
+      }
+      return dt;
+    }
+    // Suelta V
+    if (w.open) {
+      // Sin señalar ninguna, cuenta como pulsación (siguiente marca)
+      if (w.pick >= 0) this.marks.setActive(owned[w.pick]);
+      else if (can) this.marks.cycle();
+      this.ui.hideMarkWheel();
+      this.player.lookLocked = false;
+    } else if (can) {
+      this.marks.cycle();
+    }
+    this._wheel = null;
+    return dt;
+  }
+
   _frame() {
     this._clock.update();
-    const dt = Math.min(this._clock.getDelta(), 0.1);
+    const realDt = Math.min(this._clock.getDelta(), 0.1);
+    if (realDt > 0) this._fps += (1 / realDt - this._fps) * 0.05;
+    // Con la rueda de marcas abierta, el tiempo va más lento
+    const dt = this.state === 'playing' ? this._updateMarkWheel(realDt) : realDt;
     if (this.state === 'playing') this._time += dt;
-    if (dt > 0) this._fps += (1 / dt - this._fps) * 0.05;
 
     if (this.state === 'playing') {
       if (this.input.wasPressed('debug')) this.ui.toggleDebug();
       this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active;
       this.player.update(dt);
       this.playerCombat.update(dt);
-      if (this.input.wasPressed('switchMark') && !this.playerCombat.dead && !this.acquisition.active && !this.drain.active) this.marks.cycle();
       this.powers.update(dt);
       this.gravity.update(dt);
       this.thread.update(dt);

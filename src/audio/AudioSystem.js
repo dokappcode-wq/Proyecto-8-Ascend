@@ -216,6 +216,9 @@ export class AudioSystem {
     ev.on('passive:temperature', (e) => this.play('sizzle', { pos: at(e.target?.position), volume: 0.7 }));
     ev.on('temperature:bolt', (e) => this.play('crack', { pos: e.point, throttle: 0.1 }));
     ev.on('temperature:ice-run', () => this.play('flame', { pos: me(), volume: 0.8 }));
+    ev.on('enemy:aiming', (e) => this.play('laser', { pos: at(e.enemy?.position, 1.6), volume: 1 }));
+    ev.on('enemy:blocked', (e) => this.play('clank', { pos: e.point, throttle: 0.1 }));
+    ev.on('combo', (e) => this.play('combo', { pos: at(e.target?.position), volume: 1 }));
     ev.on('wings:shield-broken', () => this.play('flutter', { pos: me(), volume: 1 }));
     ev.on('wings:shield-hit', () => this.play('hit', { pos: me() }));
     ev.on('passive:energy', (e) => this.play('punchZap', { pos: at(e.target?.position), volume: 0.7 }));
@@ -448,6 +451,19 @@ const SFX = {
     noise(a, o, t + 0.05, 0.1, { type: 'highpass', freq: 2500, peak: 0.25 });
   },
   crack: (a, o, t) => noise(a, o, t, 0.12, { type: 'highpass', freq: 1800, peak: 0.3, attack: 0.001 }),
+  // Enemigos
+  laser: (a, o, t) => tone(a, o, t, 1.2, { type: 'sine', freq: 1500, freq2: 2400, peak: 0.07 }),
+  clank: (a, o, t) => {
+    tone(a, o, t, 0.12, { type: 'square', freq: 820, freq2: 610, peak: 0.08, lp: 3000 });
+    noise(a, o, t, 0.05, { type: 'highpass', freq: 3000, peak: 0.2 });
+  },
+  // Combos entre marcas
+  combo: (a, o, t) => {
+    tone(a, o, t, 0.18, { type: 'triangle', freq: 523, peak: 0.12 });
+    tone(a, o, t + 0.08, 0.18, { type: 'triangle', freq: 784, peak: 0.12 });
+    tone(a, o, t + 0.16, 0.3, { type: 'triangle', freq: 1046, peak: 0.12 });
+    noise(a, o, t, 0.4, { type: 'lowpass', freq: 600, freq2: 120, peak: 0.35, buffer: 'brown' });
+  },
   // Alas
   feather: (a, o, t) => noise(a, o, t, 0.08, { type: 'bandpass', freq: 3200, freq2: 1800, q: 2, peak: 0.14 }),
   flap: (a, o, t) => {

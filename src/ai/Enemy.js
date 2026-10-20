@@ -5,12 +5,16 @@ import { Health } from '../combat/Health.js';
 import { Magazine } from '../powers/Magazine.js';
 import { EnemyBrain, STATE_NAMES } from './EnemyBrain.js';
 import { BurnStatus } from '../powers/temperature/BurnStatus.js';
+import { DroneModel } from './DroneModel.js';
+import { enemyDamage } from './enemyTypes.js';
 
 const DT_STEP = 1 / 60;
 const tmp = new THREE.Vector3();
 const FLOAT_COLOR = new THREE.Color('#c58bff');
 const STUN_COLOR = new THREE.Color('#9fd0ff');
 const BURN_COLOR = new THREE.Color('#ff8a2a');
+const LASER_MAT = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff3b3b').multiplyScalar(1.8), transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+const LASER_GEO = new THREE.CylinderGeometry(0.012, 0.012, 1, 5, 1, true).translate(0, 0.5, 0).rotateX(Math.PI / 2);
 
 /**
  * Enemy — actor enemigo: cuerpo físico (CharacterMotor), modelo animado,
@@ -28,8 +32,12 @@ export class Enemy {
     this.type = type;
     this.tag = o.tag ?? null;
     this.faction = 'enemy';
-    this.radius = 0.42;
-    this.motor = new CharacterMotor(sys.world, { walkSpeed: type.runSpeed, sprintSpeed: type.runSpeed });
+    this.radius = type.radius ?? 0.42;
+    /** Altura del cuerpo (el dron es pequeño). */
+    this.height = type.height ?? 1.8;
+    const motorCfg = { walkSpeed: type.runSpeed, sprintSpeed: type.runSpeed };
+    if (type.height) Object.assign(motorCfg, { height: type.height, radius: Math.min(0.38, this.radius), crouchHeight: type.height });
+    this.motor = new CharacterMotor(sys.world, motorCfg);
     this.motor.teleport({ x: o.x, y: o.y ?? 0.2, z: o.z });
     this.facing = o.yaw ?? 0;
     this.health = new Health({ max: type.health });
@@ -65,7 +73,11 @@ export class Enemy {
     this._bound = 0;
     this.intent = { move: 'patrol' };
 
-    this.model = new CharacterModel({ variant: type.variant, glow: type.glow });
+    this.model = type.model === 'drone' ? new DroneModel() : new CharacterModel({ variant: type.variant, glow: type.glow, gear: type.gear });
+    /** Francotirador: segundos apuntando con el láser (y punto fijado al final). */
+    this._aim = 0;
+    this._aimLock = null;
+    this._laser = null;
     this.root = new THREE.Group();
     this.root.add(this.model.root);
     sys.group.add(this.root);
@@ -101,12 +113,17 @@ export class Enemy {
 
   get center() {
     const p = this.motor.position;
-    return { x: p.x, y: p.y + 1.0, z: p.z };
+    return { x: p.x, y: p.y + this.height * 0.55, z: p.z };
   }
 
   capsule() {
     const p = this.motor.position;
-    return { x: p.x, y: p.y, z: p.z, r: this.radius, h: 1.8 };
+    return { x: p.x, y: p.y, z: p.z, r: this.radius, h: this.height };
+  }
+
+  /** Sin defensa: el escudo del Blindado no le protege (flota, aturdido, en el aire…). */
+  get vulnerable() {
+    return !!this._float || this._stun > 0 || !this.motor.grounded;
   }
 
   get stateName() {
@@ -114,6 +131,17 @@ export class Enemy {
   }
 
   takeDamage(amount, info = {}) {
+    // Escudo frontal (Blindado) y resistencia al cuerpo a cuerpo (Dron)
+    if (this.type.shield || this.type.meleeMul !== undefined) {
+      const from = info.source?.position ?? this.sys.player?.position ?? null;
+      const r = enemyDamage(this.type, amount, { kind: info.kind, facing: this.facing, self: this.motor.position, from, vulnerable: this.vulnerable });
+      amount = r.amount;
+      if (r.blocked) {
+        this.sys.events.emit('enemy:blocked', { enemy: this, point: info.point ?? this.center });
+        const c = this.center;
+        this.sys.vfx.particles.burst({ x: c.x + Math.sin(this.facing) * 0.45, y: c.y, z: c.z + Math.cos(this.facing) * 0.45 }, { count: 6, speed: 3, color: STUN_COLOR, size: 0.07, life: 0.25 });
+      }
+    }
     const dealt = this.health.damage(amount);
     if (dealt <= 0) return 0;
     this._flash = 1;
@@ -211,6 +239,28 @@ export class Enemy {
     }
   }
 
+  /** Congelado (combo Escarcha): inmóvil `t` segundos dentro de una capa de hielo. */
+  freeze(t) {
+    if (!this.alive) return;
+    if (this._float) this._endFloat();
+    this._stun = Math.max(this._stun, t);
+    this._frozen = Math.max(this._frozen ?? 0, t);
+    if (!this._iceMesh) {
+      this._iceMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.5, 0.55, 2, 7, 1),
+        new THREE.MeshStandardMaterial({ color: 0xbff7f2, emissive: 0x1a6f6a, roughness: 0.15, transparent: true, opacity: 0.55, flatShading: true }),
+      );
+      this._iceMesh.position.y = 0.95;
+      this.root.add(this._iceMesh);
+    }
+    this._iceMesh.visible = true;
+    this.sys.events.emit('enemy:frozen', { enemy: this, time: t });
+  }
+
+  get frozen() {
+    return (this._frozen ?? 0) > 0;
+  }
+
   get bound() {
     return (this._bound ?? 0) > 0;
   }
@@ -249,12 +299,19 @@ export class Enemy {
   /** Flotando o aturdido: sin percepción, IA ni disparos. */
   _updateControlled(dt) {
     const m = this.motor;
+    // Un dron aturdido, atado o congelado deja de volar y cae
+    m.fly = null;
+    this._setLaser(null);
     const p = m.position;
     const w = this.sys.world;
     this._stun = Math.max(0, this._stun - dt);
     if (this._bound > 0) {
       this._bound = Math.max(0, this._bound - dt);
       if (this._bound === 0 && this._bindMesh) this._bindMesh.visible = false;
+    }
+    if (this._frozen > 0) {
+      this._frozen = Math.max(0, this._frozen - dt);
+      if (this._frozen === 0 && this._iceMesh) this._iceMesh.visible = false;
     }
     const f = this._float;
     if (f) {
@@ -324,6 +381,15 @@ export class Enemy {
 
   _die() {
     this._deadTime = 0;
+    this._setLaser(null);
+    if (this.type.flying) {
+      // El dron cae al suelo echando chispas
+      const p = this.motor.position;
+      const g = this.sys.world.groundHeight(p.x, p.z, 0.3, p.y + 0.5);
+      this.sys.vfx.particles.burst(this.center, { count: 16, speed: 4, color: new THREE.Color('#ffcf6a'), size: 0.08, life: 0.5, gravity: 8 });
+      if (Number.isFinite(g)) p.y = g;
+      this.motor.fly = null;
+    }
     if (this._float) {
       // Cae al suelo
       const p = this.motor.position;
@@ -334,6 +400,8 @@ export class Enemy {
     this._stun = 0;
     this._bound = 0;
     this._burn?.clear();
+    this._frozen = 0;
+    if (this._iceMesh) this._iceMesh.visible = false;
     if (this._bindMesh) this._bindMesh.visible = false;
     this.brain.update(0, { dead: true }); // estado: neutralizado
     this.sys.events.emit('enemy:neutralized', { enemy: this, type: this.type.id, tag: this.tag });
@@ -356,7 +424,7 @@ export class Enemy {
       const cos = (fx * dx + fz * dz) / (d || 1);
       if (cos < Math.cos(THREE.MathUtils.degToRad(this.type.fov / 2))) return false;
     }
-    return this._lineOfSight({ x: p.x, y: p.y + 1.6, z: p.z }, t);
+    return this._lineOfSight({ x: p.x, y: p.y + this.height * 0.9, z: p.z }, t);
   }
 
   /** Altura actual del objetivo (más baja si está agachado o a cubierto). */
@@ -552,10 +620,24 @@ export class Enemy {
         break;
     }
 
+    if (this.type.stationary) {
+      mx = 0;
+      mz = 0;
+    }
+    // Vuelo (dron): mantiene la altura sobre el suelo
+    let flyY = 0;
+    if (this.type.flying) {
+      const fl = this.type.flying;
+      this.motor.fly = { speed, response: fl.response };
+      const gy = this.sys.world.groundHeight(p.x, p.z, 0.3, p.y + 0.5);
+      const want = (Number.isFinite(gy) ? gy : 0) + fl.hover;
+      flyY = Math.max(-1, Math.min(1, (want - p.y) * 0.8));
+    }
+
     // Atascos: salta obstáculos bajos y, si sigue bloqueado, rodea.
     const wants = Math.hypot(mx, mz) > 0.1;
     let jump = false;
-    if (wants && this.motor.grounded && this.motor.horizontalSpeed < speed * 0.3) this._stuck += dt;
+    if (wants && (this.motor.grounded || this.type.flying) && this.motor.horizontalSpeed < speed * 0.3) this._stuck += dt;
     else this._stuck = Math.max(0, this._stuck - dt);
     if (this._stuck > 0.35 && this._stuck < 0.5) jump = true;
     if (this._stuck > 1.0) {
@@ -589,12 +671,13 @@ export class Enemy {
     const sdt = dt / steps;
     const scale = speed / this.motor.cfg.walkSpeed;
     for (let i = 0; i < steps; i++) {
-      this.motor.update(sdt, { moveX: mx, moveZ: mz, sprint: false, jump: jump && i === 0, dodge: false, speedScale: scale });
+      this.motor.update(sdt, { moveX: mx, moveZ: mz, flyY, sprint: false, jump: jump && i === 0 && !this.type.flying, dodge: false, speedScale: scale });
       this._checkFall();
     }
 
     // --- Disparo ---
-    if (intent.fire && tp) this._tryFire(tp);
+    if (intent.fire && tp) this._tryFire(tp, dt);
+    else this._aimReset();
 
     // --- Animación ---
     const v = this.motor.velocity;
@@ -613,35 +696,79 @@ export class Enemy {
     this._sync();
   }
 
-  _tryFire(tp) {
+  _aimReset() {
+    this._aim = 0;
+    this._aimLock = null;
+    this._setLaser(null);
+  }
+
+  /** Láser del francotirador desde el cañón hasta `to` (null lo oculta). */
+  _setLaser(from, to) {
+    if (!from) {
+      if (this._laser) this._laser.visible = false;
+      return;
+    }
+    if (!this._laser) {
+      this._laser = new THREE.Mesh(LASER_GEO, LASER_MAT);
+      this._laser.frustumCulled = false;
+      this.sys.group.add(this._laser);
+    }
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dz = to.z - from.z;
+    const len = Math.hypot(dx, dy, dz);
+    this._laser.visible = true;
+    this._laser.position.set(from.x, from.y, from.z);
+    this._laser.scale.set(1, 1, len);
+    this._laser.lookAt(to.x, to.y, to.z);
+  }
+
+  _tryFire(tp, dt = 0) {
     const w = this.type.weapon;
-    if (this._fireCd > 0 || !this.magazine.canFire) return;
+    if (this._fireCd > 0 || !this.magazine.canFire) return this._aimReset();
     const p = this.motor.position;
     // Solo dispara si está más o menos de cara al objetivo
     const want = Math.atan2(tp.x - p.x, tp.z - p.z);
     let d = want - this.facing;
     d = Math.atan2(Math.sin(d), Math.cos(d));
-    if (Math.abs(d) > 0.45) return;
-    if (!this._canSee) return;
+    if (Math.abs(d) > 0.45) return this._aimReset();
+    if (!this._canSee) return this._aimReset();
 
     this.root.updateMatrixWorld(true);
     const muzzle = (this.model.anchors.muzzle ?? this.model.anchors.wristR).getWorldPosition(tmp);
     const origin = { x: muzzle.x, y: muzzle.y, z: muzzle.z };
-    const target = { x: tp.x, y: tp.y + this._targetHeight() * 0.6, z: tp.z };
-    let dx = target.x - origin.x;
-    let dy = target.y - origin.y;
-    let dz = target.z - origin.z;
-    const len = Math.hypot(dx, dy, dz) || 1;
-    // Dispersión: menos precisión a más distancia
+    let target = { x: tp.x, y: tp.y + this._targetHeight() * 0.6, z: tp.z };
+    // Francotirador: apunta con el láser antes de disparar; el último instante el punto queda fijo
+    if (w.aimTime) {
+      this._aim += dt;
+      if (this._aim >= w.aimTime - (w.lockTime ?? 0) && !this._aimLock) this._aimLock = target;
+      if (this._aimLock) target = this._aimLock;
+      this._setLaser(origin, target);
+      if (this._aim < w.aimTime) {
+        if (this._aim - dt <= 0) this.sys.events.emit('enemy:aiming', { enemy: this });
+        return;
+      }
+      this._aimReset();
+    }
+    let dx0 = target.x - origin.x;
+    let dy0 = target.y - origin.y;
+    let dz0 = target.z - origin.z;
+    const len = Math.hypot(dx0, dy0, dz0) || 1;
+    dx0 /= len;
+    dy0 /= len;
+    dz0 /= len;
+    // Dispersión: menos precisión a más distancia (la escopeta lanza varios perdigones)
     const spread = w.spread * (0.6 + len / 20);
-    dx = dx / len + (Math.random() - 0.5) * 2 * spread;
-    dy = dy / len + (Math.random() - 0.5) * 2 * spread * 0.6;
-    dz = dz / len + (Math.random() - 0.5) * 2 * spread;
-    const l2 = Math.hypot(dx, dy, dz);
-    this.sys.projectiles.spawn({
-      origin, dir: { x: dx / l2, y: dy / l2, z: dz / l2 }, speed: w.speed, range: w.range, radius: w.radius,
-      damage: w.damage, color: w.color, kind: w.kind, faction: 'enemy', owner: this, knockback: w.knockback,
-    });
+    for (let k = 0; k < (w.pellets ?? 1); k++) {
+      const dx = dx0 + (Math.random() - 0.5) * 2 * spread;
+      const dy = dy0 + (Math.random() - 0.5) * 2 * spread * 0.6;
+      const dz = dz0 + (Math.random() - 0.5) * 2 * spread;
+      const l2 = Math.hypot(dx, dy, dz);
+      this.sys.projectiles.spawn({
+        origin, dir: { x: dx / l2, y: dy / l2, z: dz / l2 }, speed: w.speed, range: w.range, radius: w.radius,
+        damage: w.damage, color: w.color, kind: w.kind, faction: 'enemy', owner: this, knockback: w.knockback,
+      });
+    }
     this.magazine.consume();
     this.sys.events.emit('enemy:fired', { kind: w.kind, pos: origin, enemy: this });
     this._fireCd = w.cadence * (0.85 + Math.random() * 0.3);
@@ -665,7 +792,7 @@ export class Enemy {
     const p = this.motor.position;
     this.root.position.set(p.x, p.y, p.z);
     this.root.rotation.y = this.facing;
-    this.bar.position.set(p.x, p.y + 2.25, p.z);
+    this.bar.position.set(p.x, p.y + this.height + 0.45, p.z);
     const st = this.brain.state;
     const show = st !== 'patrol' || this.watching || this.health.value < this.health.max;
     this.bar.visible = show && this.alive;
@@ -698,6 +825,7 @@ export class Enemy {
   dispose() {
     this.sys.combat.unregister(this);
     this.sys.group.remove(this.root);
+    if (this._laser) this.sys.group.remove(this._laser);
     this.sys.group.remove(this.bar);
     this.barTex.dispose();
     this.bar.material.dispose();

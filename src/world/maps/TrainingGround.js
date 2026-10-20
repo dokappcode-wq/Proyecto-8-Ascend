@@ -36,6 +36,7 @@ export default {
     { id: 'D', name: 'Zona D — Combate', x: -15, y: 0.2, z: -41, yaw: Math.PI },
     { id: 'E', name: 'Zona E — Adquisición de marcas', x: 15, y: 0.2, z: -48, yaw: Math.PI },
     { id: 'F', name: 'Zona F — Efectos visuales', x: 45, y: 0.2, z: -48, yaw: Math.PI },
+    { id: 'G', name: 'Zona G — Enemigos especiales', x: -48, y: 0.2, z: 27, yaw: 0 },
   ],
 
   build(ctx) {
@@ -77,7 +78,7 @@ export default {
 
     // --- Núcleo central / punto de aparición ---
     B.block({ x: 0, z: 18, w: 10, d: 10, h: 0.25, mat: M.dark });
-    B.sign(['CAMPO DE PRUEBAS', 'Oeste: Zona A — Movimiento · Este: Zona B — Recorridos', 'Norte: E Adquisición de marcas (empieza aquí) · C Poderes · D Combate · F Efectos'], { x: 0, y: 3.2, z: 10, w: 9, h: 2.6, facing: 0, opts: { width: 1024, height: 300 } });
+    B.sign(['CAMPO DE PRUEBAS', 'Oeste: Zona A — Movimiento · Este: Zona B — Recorridos', 'Norte: E Adquisición de marcas (empieza aquí) · C Poderes · D Combate · F Efectos · Sudoeste: G Enemigos especiales'], { x: 0, y: 3.2, z: 10, w: 9, h: 2.6, facing: 0, opts: { width: 1024, height: 300 } });
     B.block({ x: 0, z: 10.05, w: 9.4, d: 0.1, y: 0, h: 1.9, mat: M.metal, collide: false });
 
     buildZoneA(B, M);
@@ -87,6 +88,7 @@ export default {
     buildZoneE(B, M, ctx);
     buildEnergySources(ctx);
     buildZoneF(B, M, ctx);
+    buildZoneG(B, M, ctx);
 
     return {
       spawn: { x: 0, y: 0.3, z: 18, yaw: Math.PI },
@@ -94,6 +96,60 @@ export default {
     };
   },
 };
+
+/**
+ * ZONA G — Enemigos especiales: un Blindado (escudo delante), dos drones y un
+ * francotirador en una torre. El encuentro empieza al pisar la zona (así no
+ * molesta en el resto del Campo) y se reinicia en el panel de la entrada.
+ */
+function buildZoneG(B, M, ctx) {
+  const x0 = -55;
+  const z0 = 46;
+  B.block({ x: x0, z: z0, w: 30, d: 30, h: 0.06, mat: M.pad, cast: false });
+  B.sign(['ZONA G — ENEMIGOS ESPECIALES', 'Blindado: rodéalo o atácalo desde arriba · Dron: no le llegan bien los golpes · Francotirador: sal del láser'], {
+    x: x0, y: 3.4, z: z0 - 15.5, w: 11, h: 2.4, facing: Math.PI, opts: { width: 1200, height: 240 },
+  });
+  B.block({ x: x0, z: z0 - 15.45, w: 0.2, d: 0.2, h: 2.2, mat: M.metal, collide: false });
+  // Torre del francotirador (se puede escalar) y coberturas bajas
+  B.block({ x: x0 - 8, z: z0 + 8, w: 3, d: 3, h: 7, mat: M.dark });
+  for (const [x, z, w, d] of [[x0 + 3, z0 - 6, 3.5, 0.6], [x0 - 4, z0 - 2, 0.6, 3], [x0 + 7, z0 + 1, 3, 0.6], [x0 - 1, z0 + 6, 3.5, 0.6]]) {
+    B.block({ x, z, w, d, h: 1.2, mat: M.white });
+  }
+  const spawn = () => {
+    ctx.enemies.clear('zonaG');
+    ctx.enemies.spawn('blindado', { x: x0, y: 0.1, z: z0 + 2, yaw: Math.PI, tag: 'zonaG', patrol: [{ x: x0 - 3, z: z0 + 2 }, { x: x0 + 3, z: z0 + 2 }] });
+    ctx.enemies.spawn('dron', { x: x0 + 6, y: 4, z: z0 + 6, yaw: Math.PI, tag: 'zonaG', patrol: [{ x: x0 + 6, z: z0 + 6 }, { x: x0 + 6, z: z0 - 4 }] });
+    ctx.enemies.spawn('dron', { x: x0 - 6, y: 4, z: z0 - 6, yaw: Math.PI, tag: 'zonaG', patrol: [{ x: x0 - 6, z: z0 - 6 }, { x: x0 - 8, z: z0 + 2 }] });
+    ctx.enemies.spawn('francotirador', { x: x0 - 8, y: 7.1, z: z0 + 8, yaw: Math.PI, tag: 'zonaG' });
+  };
+  // Empieza al entrar en la zona
+  const zone = {
+    started: false,
+    update() {
+      const p = ctx.enemies.player?.position;
+      if (this.started || !p) return;
+      if (Math.abs(p.x - x0) < 15 && Math.abs(p.z - z0) < 15) {
+        this.started = true;
+        spawn();
+        ctx.events.emit('encounter:start', { zone: 'G' });
+      }
+    },
+    reset() {
+      this.started = false;
+      ctx.enemies.clear('zonaG');
+    },
+  };
+  ctx.addEntity(zone);
+  ctx.interactions.add({
+    position: { x: x0 + 4, y: 0.5, z: z0 - 15 }, radius: 2.2, label: 'Reiniciar encuentro (Zona G)',
+    onInteract: () => {
+      zone.started = true;
+      spawn();
+      ctx.events.emit('encounter:reset', { zone: 'G' });
+    },
+  });
+  B.block({ x: x0 + 4, z: z0 - 15.2, w: 0.8, d: 0.4, h: 1.1, mat: M.stripe });
+}
 
 /** ZONA A — Movimiento: rampas, escaleras, plataformas, obstáculos, saltos. */
 function buildZoneA(B, M) {

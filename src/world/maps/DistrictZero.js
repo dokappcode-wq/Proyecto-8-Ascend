@@ -207,8 +207,9 @@ function roadMarkings(B, M) {
 
 /**
  * Población del barrio: una patrulla PDC de dos agentes recorre la calle
- * norte (tranquila hasta que el jugador la provoque) y un Acólito vigila la
- * azotea de B3 (hostil siempre). Se regeneran al reiniciar el escenario.
+ * norte (tranquila hasta que el jugador la provoque), un Acólito vigila la
+ * azotea de B3 (hostil siempre) y hay unidades especiales de la PDC
+ * (Blindado, dron y francotirador). Se regeneran al reiniciar el escenario.
  */
 function ambientEnemies(ctx, byId) {
   const north = [{ x: 18, z: 21 }, { x: -18, z: 21 }];
@@ -219,6 +220,17 @@ function ambientEnemies(ctx, byId) {
     ctx.enemies.spawn('pdc', { x: 16.5, y: 0.2, z: 21, yaw: -Math.PI / 2, tag: 'distrito', patrol: north });
     ctx.enemies.spawn('acolyte', { x: b3.x - 4, y: b3.h + 0.1, z: b3.z - 2, yaw: Math.PI / 2, tag: 'distrito', patrol: [{ x: b3.x - 5, z: b3.z - 2 }, { x: b3.x + 5, z: b3.z - 2 }] });
   };
+  // Unidades especiales de la PDC: un Blindado en la calle este, un dron sobre
+  // la calle oeste y un francotirador en la azotea de B5
+  const b5 = byId.B5;
+  const special = () => {
+    ctx.enemies.clear('distrito-esp');
+    ctx.enemies.spawn('blindado', { x: 24, y: 0.2, z: -10, yaw: 0, tag: 'distrito-esp', patrol: [{ x: 24, z: -12 }, { x: 24, z: 12 }] });
+    ctx.enemies.spawn('dron', { x: -21, y: 4, z: -8, yaw: 0, tag: 'distrito-esp', patrol: [{ x: -21, z: -10 }, { x: -21, z: 10 }] });
+    ctx.enemies.spawn('francotirador', { x: b5.x - b5.w / 2 + 2, y: b5.h + 0.1, z: b5.z - b5.d / 2 + 2, yaw: Math.atan2(-1, -1), tag: 'distrito-esp' });
+  };
+  special();
+  ctx.addEntity({ reset: special });
   spawn();
   ctx.addEntity({ reset: spawn });
 }

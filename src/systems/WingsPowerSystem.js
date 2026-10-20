@@ -31,6 +31,16 @@ export function swordStats(cfg, level, bonusAdd = 0) {
 }
 
 /**
+ * Pasiva Plumaje: parte del daño la absorben las plumas, mientras queden.
+ * Devuelve { taken, feathers } (daño que se recibe y plumas que se gastan). Pura.
+ */
+export function plumageAbsorb(amount, feathers, cfg) {
+  const want = amount * cfg.absorb;
+  const absorbed = Math.min(want, feathers / cfg.feathersPerPoint);
+  return { taken: amount - absorbed, feathers: absorbed * cfg.feathersPerPoint };
+}
+
+/**
  * WingsPowerSystem — familia Alas. Misma interfaz que PowerSystem.
  *
  * Las plumas son la carga y la munición a la vez (`energy`): 100, se

@@ -203,6 +203,43 @@ export class UIManager {
     this.waypoints = list;
   }
 
+  // ---------------------------------------------------------------- Rueda de marcas
+  /** Muestra la rueda con las marcas copiadas (la primera arriba, en sentido horario). */
+  showMarkWheel(defs, activeId) {
+    const el = this.$('mark-wheel');
+    const R = 120;
+    el.innerHTML = defs.map((d, i) => {
+      const a = (i / defs.length) * Math.PI * 2;
+      const x = Math.sin(a) * R;
+      const y = -Math.cos(a) * R;
+      const img = markSymbolTexture(d.symbol, d.glowColor).image.toDataURL();
+      return `<div class="wheel-slot${d.id === activeId ? ' current' : ''}" data-i="${i}" style="--el:${d.color};transform:translate(calc(-50% + ${x.toFixed(0)}px), calc(-50% + ${y.toFixed(0)}px))"><img src="${img}" alt="" /><span>${escapeHtml(d.concept)}</span></div>`;
+    }).join('') + '<div class="wheel-hint">Mueve el ratón y suelta V</div>';
+    el.classList.add('show');
+    this._wheelPick = -2;
+  }
+
+  highlightMarkWheel(i) {
+    if (i === this._wheelPick) return;
+    this._wheelPick = i;
+    for (const s of this.$('mark-wheel').querySelectorAll('.wheel-slot')) s.classList.toggle('pick', Number(s.dataset.i) === i);
+  }
+
+  hideMarkWheel() {
+    this.$('mark-wheel').classList.remove('show');
+  }
+
+  /** Aviso grande y breve de combo entre marcas. */
+  combo(name, desc) {
+    const el = this.$('combo-banner');
+    el.innerHTML = `<b>¡Combo! ${escapeHtml(name)}</b><span>${escapeHtml(desc)}</span>`;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    clearTimeout(this._comboT);
+    this._comboT = setTimeout(() => el.classList.remove('show'), 1800);
+  }
+
   toast(title, subtitle = '', ms = 2600) {
     const t = this.hud.toast;
     t.innerHTML = `${escapeHtml(title)}${subtitle ? `<small>${escapeHtml(subtitle)}</small>` : ''}`;
@@ -480,15 +517,15 @@ export class UIManager {
   _renderHint() {
     let power = '';
     if (this._powerAvailable && this._element === 'alas') {
-      power = ' · Las plumas se regeneran solas (<b>E</b> junto a palomares o cojines: más rápido) · <b>Clic izq.</b> plumas (1 por disparo) · <b>Q</b> volar (más plumas, más rápido; <b>Espacio</b> sube, <b>C</b> baja) · <b>R</b> espada de plumas (mantén: más grande) · <b>G</b> lluvia de plumas · <b>X</b> escudo de plumas · <b>V</b> cambiar de marca';
+      power = ' · Las plumas se regeneran solas (<b>E</b> junto a palomares o cojines: más rápido) · <b>Clic izq.</b> plumas (1 por disparo) · <b>Q</b> volar (más plumas, más rápido; <b>Espacio</b> sube, <b>C</b> baja) · <b>R</b> espada de plumas (mantén: más grande) · <b>G</b> lluvia de plumas · <b>X</b> escudo de plumas · <b>V</b> cambiar de marca (mantener: rueda)';
     } else if (this._powerAvailable && this._element === 'temperatura') {
-      power = ' · <b>E</b> (mantener) junto a arcones congeladores o bidones con fuego: absorber temperatura · <b>Clic izq.</b> hielo y fuego (alternos) · <b>Q</b> patinar (contra una pared: patinas por ella) · <b>Shift</b> patinando: fuego atrás y camino de hielo por el aire · <b>R</b> muro de hielo · <b>G</b> estela de fuego · <b>X</b> fuego frío · <b>V</b> cambiar de marca';
+      power = ' · <b>E</b> (mantener) junto a arcones congeladores o bidones con fuego: absorber temperatura · <b>Clic izq.</b> hielo y fuego (alternos) · <b>Q</b> patinar (contra una pared: patinas por ella) · <b>Shift</b> patinando: fuego atrás y camino de hielo por el aire · <b>R</b> muro de hielo · <b>G</b> estela de fuego · <b>X</b> fuego frío · <b>V</b> cambiar de marca (mantener: rueda)';
     } else if (this._powerAvailable && this._element === 'hilo') {
-      power = ' · <b>E</b> (mantener) junto a tendederos o rollos de tela: absorber hilo · <b>Clic izq.</b> hilos (el puño debe volver) · <b>Q</b> (mantener) balancearse · <b>R</b> atar · <b>G</b> lanzar · <b>X</b> atraerse · <b>F</b> cadena · <b>Espacio</b> mantener: salto alto · <b>V</b> cambiar de marca';
+      power = ' · <b>E</b> (mantener) junto a tendederos o rollos de tela: absorber hilo · <b>Clic izq.</b> hilos (el puño debe volver) · <b>Q</b> (mantener) balancearse · <b>R</b> atar · <b>G</b> lanzar · <b>X</b> atraerse · <b>F</b> cadena · <b>Espacio</b> mantener: salto alto · <b>V</b> cambiar de marca (mantener: rueda)';
     } else if (this._powerAvailable && this._element === 'gravedad') {
-      power = ' · <b>E</b> (mantener) junto a escombros o bloques de hormigón: absorber gravedad · <b>Clic izq.</b> disparo (hace flotar) · <b>Q</b> elevar roca (en el aire, otra: hasta 3) · <b>R</b> atraer · <b>G</b> empujar · <b>X</b> granada · <b>Espacio</b> mantener: más alto, hasta 3 saltos, cayendo: planear · <b>V</b> cambiar de marca';
+      power = ' · <b>E</b> (mantener) junto a escombros o bloques de hormigón: absorber gravedad · <b>Clic izq.</b> disparo (hace flotar) · <b>Q</b> elevar roca (en el aire, otra: hasta 3) · <b>R</b> atraer · <b>G</b> empujar · <b>X</b> granada · <b>Espacio</b> mantener: más alto, hasta 3 saltos, cayendo: planear · <b>V</b> cambiar de marca (mantener: rueda)';
     } else if (this._powerAvailable) {
-      power = ' · <b>E</b> (mantener) junto a farolas, armarios o máquinas: absorber energía · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> recargar (mantener: descarga) · <b>G</b> onda (en el aire: rayo) · <b>V</b> cambiar de marca';
+      power = ' · <b>E</b> (mantener) junto a farolas, armarios o máquinas: absorber energía · <b>Clic izq.</b> proyectil · <b>Clic der.</b> apuntar · <b>Q</b> dash (apuntando y manteniendo: dash dirigido) · <b>R</b> recargar (mantener: descarga) · <b>G</b> onda (en el aire: rayo) · <b>V</b> cambiar de marca (mantener: rueda)';
     }
     this.hud.hint.innerHTML = `<b>WASD</b> moverse · <b>Espacio</b> saltar · <b>Shift</b> sprint · <b>Espacio</b> hacia un muro: escalar (<b>C</b> soltarse) · <b>Ctrl / Alt</b> esquivar · <b>C</b> agacharse / cubrirse · <b>F</b> golpe · <b>E</b> interactuar${power} · <b>Esc</b> pausa · <b>Tab</b> marcas · <b>F2</b> depuración · <b>H</b> ocultar ayuda`;
   }

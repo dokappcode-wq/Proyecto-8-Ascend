@@ -122,7 +122,7 @@ export class PlayerController {
   update(dt) {
     const inp = this.input;
     const cam = this.cameraController;
-    cam.applyMouse(inp.mouseDX, inp.mouseDY);
+    if (!this.lookLocked) cam.applyMouse(inp.mouseDX, inp.mouseDY);
 
     // Movimiento relativo a la cámara.
     const f = cam.forward(this._fwd);
@@ -273,7 +273,9 @@ export class PlayerController {
       landed: ev.landed,
       landingSpeed: ev.landingSpeed,
       climb: this.motor.climbState,
-      gliding: this.motor.gliding || (!!this.motor.fly && !this.motor.grounded),
+      gliding: this.motor.gliding,
+      flying: !!this.motor.fly && !this.motor.grounded,
+      skating: !!this.motor.skate && (this.motor.grounded || this.motor.isWallRiding),
       swinging: this.motor.isSwinging,
       climbDistance: this.motor.climbDistance,
       mantleProgress: this.motor.mantleProgress,

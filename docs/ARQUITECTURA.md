@@ -313,6 +313,39 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   alejada de la cámara (la izquierda de la Temperatura) convergían detrás del
   enemigo y lo rozaban.
 
+## Combos, enemigos especiales y pulido
+
+- **Combos**: `powers/combos.js` decide, a partir del tipo de daño y del
+  estado del objetivo (flota, atado, arde), si hay combo (`detectCombo`). El
+  `ComboSystem` escucha `combat:damage`, aplica el efecto y lleva una espera
+  por enemigo (WeakMap). Los daños de combo son `combo-*` y no encadenan otro.
+  `Enemy.freeze` (Escarcha) es un aturdimiento con capa de hielo.
+- **Enemigos especiales**: siguen siendo `Enemy` con datos distintos en
+  `enemyTypes.js`:
+  - `shield` → `enemyDamage` reduce el daño que llega por delante (arco y
+    multiplicador), salvo daños desde arriba/suelo y si está `vulnerable`
+    (flota, aturdido o sin apoyo).
+  - `meleeMul` → el dron recibe menos de los golpes.
+  - `stationary` → el francotirador no se mueve.
+  - `weapon.aimTime/lockTime` → apunta con un láser (una malla) y fija el
+    punto al final.
+  - `weapon.pellets` → escopeta.
+  - `flying` → el dron usa el modo vuelo del `CharacterMotor` (`fly`, el mismo
+    del jugador con Alas) y una altura objetivo sobre el suelo. Al quedar
+    controlado (`_updateControlled`) se quita `fly` y cae con la física normal.
+  - `model: 'drone'` usa `DroneModel` (misma interfaz que `CharacterModel`), y
+    `height`/`radius` cambian el cuerpo físico, el centro y la cápsula.
+  - `gear` añade el escudo o el rifle al modelo de la PDC.
+- **Zona G**: entidad del mapa con `update` que lanza el encuentro al pisar la
+  zona y `reset` para el menú de depuración.
+- **Rueda de marcas**: `ui/markWheel.js` (puro: sector por dirección del ratón
+  acumulado). `GameManager._updateMarkWheel` distingue pulsación y
+  mantenimiento de V, bloquea la cámara (`player.lookLocked`) y devuelve el
+  paso de tiempo de juego (×0.3 con la rueda abierta).
+- **Pasivas que reducen daño**: `PlayerCombat.damageFilters` (Plumaje).
+- **Poses**: `skating` y `flying` en `CharacterModel.animate`; el vuelo
+  inclina la cadera (`hips.rotation.x`).
+
 ## Alas
 
 - `WingsPowerSystem`: las plumas son la `EnergyPool` (con regeneración, la

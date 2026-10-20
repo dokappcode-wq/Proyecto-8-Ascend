@@ -33,6 +33,8 @@ export class PlayerCombat {
     this.dead = false;
     this._deadTime = 0;
     this._meleeCd = 0;
+    /** Funciones (daño, info) → daño que aplican las pasivas antes de recibirlo. */
+    this.damageFilters = [];
     this._meleePending = -1;
     this._meleeElemental = false;
     this._lunge = null; // { target }
@@ -71,6 +73,8 @@ export class PlayerCombat {
 
   takeDamage(amount, info = {}) {
     if (this.dead) return 0;
+    // Pasivas que reducen el daño (Alas: las plumas absorben parte)
+    for (const f of this.damageFilters) amount = f(amount, info);
     const dealt = this.health.damage(amount);
     if (dealt <= 0) return 0;
     const g = this.game;

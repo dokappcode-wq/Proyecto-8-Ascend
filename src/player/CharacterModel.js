@@ -31,8 +31,10 @@ const PALETTES = {
 
 export class CharacterModel {
   /** @param {object} [o] { variant: 'protagonist' | 'pdc' | 'acolyte', glow: color del Acólito } */
-  constructor({ variant = 'protagonist', glow = 0xb45cff, palette = null } = {}) {
+  constructor({ variant = 'protagonist', glow = 0xb45cff, palette = null, gear = null } = {}) {
     this.variant = variant;
+    /** Equipo extra de la PDC: 'shield' (escudo antidisturbios) o 'rifle' (francotirador). */
+    this.gear = gear;
     this.paletteOverride = palette;
     this.glowColor = glow;
     this.root = new THREE.Group();
@@ -151,6 +153,22 @@ export class CharacterModel {
       hips.add(skirt);
     }
     this.anchors.chest = chest;
+    if (this.gear === 'shield') {
+      // Escudo antidisturbios delante del cuerpo (un poco a la izquierda)
+      const shield = new THREE.Group();
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.15, 0.05), mat(0x2b3442, { metalness: 0.5, roughness: 0.45 }));
+      plate.castShadow = true;
+      shield.add(plate);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.052), new THREE.MeshStandardMaterial({ color: 0x9fd0ff, emissive: 0x1d4a6a, roughness: 0.2, transparent: true, opacity: 0.8 }));
+      visor.position.y = 0.32;
+      shield.add(visor);
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.05, 0.055), mat(0xe0a53a, { emissive: 0x3a2400 }));
+      stripe.position.y = -0.3;
+      shield.add(stripe);
+      shield.position.set(0.1, 0.05, 0.34);
+      chest.add(shield);
+      this.shieldMesh = shield;
+    }
 
     // --- Cabeza ---
     const neck = new THREE.Group();
@@ -227,16 +245,26 @@ export class CharacterModel {
       if (V === 'pdc' && side === 'R') {
         // Arma reglamentaria (alineada con el antebrazo; apunta al levantar el brazo)
         const gun = new THREE.Group();
-        const body = box(0.06, 0.45, 0.09, mat(0x15181c, { metalness: 0.6, roughness: 0.4 }));
-        body.position.y = -0.2;
+        const rifle = this.gear === 'rifle';
+        const body = box(0.06, rifle ? 0.95 : 0.45, 0.09, mat(0x15181c, { metalness: 0.6, roughness: 0.4 }));
+        body.position.y = rifle ? -0.42 : -0.2;
         gun.add(body);
+        if (rifle) {
+          // Mira telescópica con la lente roja
+          const scope = box(0.05, 0.22, 0.05, mat(0x2a2f36, { metalness: 0.7, roughness: 0.3 }));
+          scope.position.set(0, -0.32, 0.075);
+          gun.add(scope);
+          const lens = box(0.04, 0.01, 0.04, new THREE.MeshBasicMaterial({ color: 0xff3b3b, toneMapped: false }));
+          lens.position.set(0, -0.435, 0.075);
+          gun.add(lens);
+        }
         const grip = box(0.05, 0.05, 0.12, mat(0x15181c));
         grip.position.set(0, -0.06, -0.08);
         gun.add(grip);
         gun.position.z = 0.03;
         wrist.add(gun);
         this.anchors.muzzle = new THREE.Object3D();
-        this.anchors.muzzle.position.set(0, -0.44, 0.03);
+        this.anchors.muzzle.position.set(0, this.gear === 'rifle' ? -0.92 : -0.44, 0.03);
         wrist.add(this.anchors.muzzle);
       }
 
@@ -472,6 +500,44 @@ export class CharacterModel {
       mix(R.knee, 'x', 0.35);
     }
 
+    // Patinaje (Temperatura): rodillas flexionadas, zancadas largas y brazos abiertos
+    this._skateW = (this._skateW ?? 0) + ((s.skating ? 1 : 0) - (this._skateW ?? 0)) * k(10);
+    if (this._skateW > 0.001) {
+      const sw = this._skateW;
+      const mix = (obj, axis, v) => (obj.rotation[axis] += (v - obj.rotation[axis]) * sw);
+      // Impulso lateral lento (una pierna empuja hacia atrás mientras la otra desliza)
+      const stroke = Math.sin(this._time * 3.2) * Math.min(1, speed / 6);
+      mix(L.hip, 'x', -0.55 + stroke * 0.5);
+      mix(R.hip, 'x', -0.55 - stroke * 0.5);
+      mix(L.knee, 'x', 0.9 - stroke * 0.3);
+      mix(R.knee, 'x', 0.9 + stroke * 0.3);
+      mix(A.L.shoulder, 'z', 0.55 + stroke * 0.25);
+      mix(A.R.shoulder, 'z', -0.55 + stroke * 0.25);
+      mix(A.L.shoulder, 'x', 0.3 * stroke);
+      mix(A.R.shoulder, 'x', -0.3 * stroke);
+    }
+
+    // Vuelo (Alas): cuerpo inclinado hacia delante, piernas estiradas y brazos atrás
+    this._flyW = (this._flyW ?? 0) + ((s.flying ? 1 : 0) - (this._flyW ?? 0)) * k(8);
+    if (this._flyW > 0.001) {
+      const fw = this._flyW;
+      const mix = (obj, axis, v) => (obj.rotation[axis] += (v - obj.rotation[axis]) * fw);
+      const lean = Math.min(1, speed / 12);
+      mix(A.L.shoulder, 'x', 0.5);
+      mix(A.R.shoulder, 'x', 0.5);
+      mix(A.L.shoulder, 'z', 0.3);
+      mix(A.R.shoulder, 'z', -0.3);
+      mix(A.L.elbow, 'x', -0.2);
+      mix(A.R.elbow, 'x', -0.2);
+      mix(L.hip, 'x', 0.05 + Math.sin(this._time * 2) * 0.08);
+      mix(R.hip, 'x', 0.15 - Math.sin(this._time * 2) * 0.08);
+      mix(L.knee, 'x', 0.2);
+      mix(R.knee, 'x', 0.35);
+      this.hips.rotation.x = fw * (0.25 + 0.85 * lean);
+    } else {
+      this.hips.rotation.x = 0;
+    }
+
     // Parkour: trepar, colgar, subir a una cornisa y saltar obstáculos
     if (s.climb) this._climbPose = s.climb;
     this._climbW += ((s.climb ? 1 : 0) - this._climbW) * k(s.climb ? 22 : 10);
@@ -538,7 +604,7 @@ export class CharacterModel {
     this.chest.rotation.x = this._lean - Math.sin(this._hit * Math.PI) * 0.35;
     const breathe = Math.sin(this._time * 2.2) * 0.012 * (1 - moving);
     const bob = Math.abs(Math.cos(ph)) * 0.05 * moving * ground;
-    this.hips.position.y = 0.95 + bob + breathe - this._land * 0.25 - this._dodge * 0.18;
+    this.hips.position.y = 0.95 + bob + breathe - this._land * 0.25 - this._dodge * 0.18 - (this._skateW ?? 0) * 0.14;
     this.neck.rotation.x = -this._lean * 0.6;
 
     // Agachado: cadera baja, rodillas flexionadas, torso inclinado

@@ -39,6 +39,9 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
 - **Marca de las Alas** ✅: quinta marca (rosa): 100 plumas que son munición y
   carga y se regeneran; vuelo (más rápido cuantas más plumas), espada de
   plumas que crece, lluvia de plumas y escudo de plumas.
+- **Combos, enemigos especiales y pulido** ✅: cuatro combos entre marcas,
+  tres enemigos nuevos de la PDC (Blindado, Francotirador y Dron) con su zona
+  de pruebas, rueda de marcas, poses de patinaje y vuelo y pasiva de las Alas.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -99,7 +102,7 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Impulso hacia arriba en la pared | Espacio | ✅ |
 | Salto hacia atrás desde la pared | S + Espacio | ✅ |
 | Soltarse | C | ✅ |
-| Cambiar de marca copiada | V | ✅ |
+| Cambiar de marca copiada | V (pulsar: la siguiente; mantener: rueda de marcas) | ✅ |
 | Gravedad: granada | X o clic central | ✅ |
 
 La tecla **Alt** es alternativa a Ctrl para esquivar porque algunos navegadores
@@ -235,7 +238,8 @@ cojines**. En el HUD, cada símbolo de pluma son 10.
 | G | Lluvia de plumas | 50 | Sobre la zona que señalas (4.5 m de radio): **desde el aire** las plumas caen desde tu posición; **desde el suelo** suben y luego caen. Cada pluma que cae cerca de un enemigo le hace 4 de daño |
 | X / clic central | Escudo de plumas | 10 | Un muro de plumas delante que **aguanta un ataque** (la primera bala que lo toca) y se deshace |
 
-**Pasiva**: ninguna (la marca no la define).
+**Pasiva — Plumaje**: tus plumas absorben el **20 % del daño** que recibes
+(1 pluma por punto absorbido), mientras te queden.
 
 **Mejoras**: Muda rápida (+50 % de regeneración), Alas fuertes (+5 m/s de
 vuelo), Filo de pluma (+10 % con la espada), Escudo doble (aguanta un ataque
@@ -244,6 +248,50 @@ más) y Vendaval (próximamente).
 Código: `src/systems/WingsPowerSystem.js`, `src/powers/wings/`, alas y espada
 en `src/player/WingsVisual.js` (InstancedMesh: una llamada de dibujo por ala)
 y vuelo en `src/physics/CharacterMotor.js` (`fly`).
+
+## Rueda de marcas
+
+**Pulsa V** para pasar a la siguiente marca, como antes. **Mantén V** y se
+abre una rueda con todas tus marcas copiadas; el tiempo va más despacio
+(30 %) y la cámara deja de girar: mueve el ratón hacia una marca y **suelta V**
+para activarla. Si sueltas sin señalar ninguna, pasa a la siguiente, como
+una pulsación.
+
+## Combos entre marcas
+
+Un ataque de una marca sobre un enemigo afectado por otra provoca un combo
+(aviso dorado en pantalla y sonido propio). Cada enemigo tiene 1 s de espera
+entre combos.
+
+| Combo | Cómo | Efecto |
+| --- | --- | --- |
+| **Combustión** | Fuego (disparo de fuego o estela) sobre un enemigo que **flota** (Gravedad) | Explota: 30 de daño en 3.5 m y los lanza; deja de flotar |
+| **Descarga en cadena** | Tormenta o Energía (proyectil, descarga, rayo, golpe eléctrico) sobre un enemigo **atado** (Hilo) | La descarga salta a los 3 enemigos más cercanos (9 m): 15 de daño y 1.2 s de aturdimiento a cada uno |
+| **Plumas ardientes** | Lluvia de plumas sobre un enemigo que **arde** | Cada pluma que le cae hace el doble de daño |
+| **Escarcha** | Disparo de hielo sobre un enemigo que **flota o está atado** | Se congela 3 s (capa de hielo, inmóvil) y recibe 15 de daño |
+
+Pisar la estela de fuego ahora también **prende** al enemigo (quemadura), así
+que la estela prepara las Plumas ardientes.
+
+Código: reglas puras en `src/powers/combos.js` y efectos en
+`src/systems/ComboSystem.js`.
+
+## Enemigos especiales de la PDC
+
+| Enemigo | Salud | Cómo es | Cómo vencerlo |
+| --- | --- | --- | --- |
+| **Blindado** | 150 | Lento, con escudo antidisturbios y escopeta (5 perdigones, corto alcance). Se acerca a 3–7 m | **De frente solo recibe el 10 %** del daño («Bloqueado»). Rodéalo, atácalo desde arriba (tormenta, lluvia, estela, quemadura) o quítale el apoyo: flotando, en el aire, atado, aturdido o congelado no se cubre |
+| **Francotirador** | 60 | Quieto en alto, ve a 65 m. **Apunta 1.3 s con un láser rojo** (con pitido) antes de disparar 28 de daño; el último 0.3 s el punto queda fijo | Sal del láser o rompe la línea de visión mientras apunta; sube hasta él |
+| **Dron** | 45 | Vuela a 4.5 m del suelo y dispara ráfagas | **Los golpes cuerpo a cuerpo solo le hacen un 25 %**. Dispárale, o átalo, aturdélo o congélalo: deja de volar y cae |
+
+**Dónde**: en la nueva **Zona G — Enemigos especiales** del Campo (sudoeste;
+punto de viaje «G»): un Blindado, dos drones y un francotirador en una torre.
+El encuentro empieza al pisar la zona y se reinicia en el panel de la
+entrada. En el Distrito Cero hay un Blindado en la calle este, un dron sobre
+la calle oeste y un francotirador en la azotea de B5.
+
+Código: datos y regla de daño (`enemyDamage`) en `src/ai/enemyTypes.js`,
+comportamiento en `src/ai/Enemy.js` y el dron en `src/ai/DroneModel.js`.
 
 ## Etapa 7 — Pulido
 
@@ -674,6 +722,17 @@ contenedores y cajas (A1, A2).
     suelo y desde el aire; el vuelo sube mirando arriba y con 10 plumas va a
     menos del 60 % de la velocidad; el escudo cuesta 10, para la primera bala
     y deja pasar la segunda; los cojines recuperan plumas.
+  - Pulido: hay pose propia de patinaje y de vuelo (el cuerpo se inclina);
+    mantener V abre la rueda con cinco marcas, el ratón señala una y al
+    soltar se activa; la pasiva Plumaje absorbe 6 de 30 de daño con 6 plumas.
+  - Combos: Combustión, Escarcha, Descarga en cadena y Plumas ardientes se
+    provocan con los poderes reales y muestran el aviso.
+  - Enemigos especiales: la Zona G empieza vacía y al entrar aparecen el
+    Blindado, dos drones y el francotirador; el francotirador apunta con el
+    láser ≈1.3 s antes de disparar; los drones vuelan a ≈4.5 m; el escudo
+    para el 90 % de frente pero no por detrás ni flotando; el dron recibe un
+    25 % de los golpes y, atado, cae; el Distrito tiene sus tres unidades
+    especiales.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~25 min con render por software; `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.

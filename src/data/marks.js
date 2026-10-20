@@ -89,6 +89,7 @@ export const MARKS = Object.freeze({
     abilities: ['plumas', 'vuelo', 'espada', 'lluvia', 'escudo'],
     // Brazo derecho, la más alta del antebrazo (por encima del Hilo)
     bodyPattern: { side: 'R', seed: 41, wristOffset: 0.25, layer: 1.2, regions: ['wrist', 'forearm', 'upperArm', 'shoulder'] },
+    passive: { name: 'Plumaje', desc: 'Tus plumas absorben el 20 % del daño que recibes (1 pluma por punto), mientras te queden.' },
   },
 });
 

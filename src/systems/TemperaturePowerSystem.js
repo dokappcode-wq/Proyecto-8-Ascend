@@ -519,6 +519,7 @@ export class TemperaturePowerSystem {
           const near = TemperaturePowerSystem.distToPolyline(tr.pts, t.position.x, t.position.z);
           if (near.d > tr.width / 2 + (t.radius ?? 0.4) || Math.abs(t.position.y - near.y) > 1.5) continue;
           g.combat.applyDamage(t, dmg, { kind: 'estela', faction: 'player', source: g.playerCombat });
+          t.burn?.(this.cfg.burn); // pisar la estela prende al enemigo
         }
       }
       if (tr.t >= tr.life) {
