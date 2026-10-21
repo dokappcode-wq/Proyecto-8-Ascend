@@ -9,7 +9,7 @@ src/
 │   ├── Input.js                Teclado/ratón con acciones reasignables
 │   └── SaveSystem.js           Guardado versionado (ajustes, controles, perfil)
 ├── physics/
-│   ├── CollisionWorld.js       Cajas y rampas estáticas, consultas y raycast (sin Three.js)
+│   ├── CollisionWorld.js       Cajas, rampas y terreno con relieve; consultas y raycast (sin Three.js)
 │   ├── CharacterMotor.js       Controlador cinemático del personaje (sin Three.js)
 │   └── Parkour.js              Consultas de escalada, cornisas y obstáculos (sin Three.js)
 ├── player/
@@ -27,6 +27,15 @@ src/
 │   ├── textures.js             Texturas procedurales con mapa normal (relieve)
 │   ├── water.js                Agua animada (dos capas de olas, reflejo del cielo)
 │   ├── mergeStatic.js          Fusión de la geometría estática por material
+│   ├── kit/                    Piezas de escenario reutilizables (propuesta de rediseño)
+│   │   ├── common.js           Mallas estáticas, tejado a dos aguas transitable, rocas, marcas de escalada
+│   │   ├── terrain.js          Terreno con relieve: malla, mezcla hierba/tierra/roca y colisión
+│   │   ├── village.js          Casas de pescadores, faro, barcas, muelle, iglesia
+│   │   ├── wild.js             Cabañas, hoguera, piedras de arroyo, pilares, roca con vetas, barricada, cascada, torre de caza
+│   │   ├── bridge.js           Tramos de celosía (rectos, inclinados o colgando) y pilas
+│   │   ├── base.js             PDC: muro, torres, contenedores, focos, camiones, helicóptero, edificio brutalista
+│   │   └── city.js             Edificios con escaparates y neón, escaleras de incendios, monorraíl, controles
+│   ├── proto/                  Prototipos de la propuesta (solo con ?proto en la URL)
 │   └── maps/
 │       ├── TrainingGround.js   Mapa 1 — Campo de Pruebas
 │       ├── DistrictZero.js     Mapa 2 — Distrito Cero
@@ -139,6 +148,13 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   pies + escalón (0.45 m). Al bajar rampas o escaleras se mantiene el contacto.
 - Rampas: cuñas con altura lineal a lo largo de un eje; las escaleras usan una
   rampa invisible como colisión para que subir y bajar sea fluido.
+- Terreno con relieve (`addHeightfield`): rejilla de alturas; cada celda son
+  dos triángulos con la misma diagonal que la malla visible (`kit/terrain.js`),
+  así que los pies coinciden con lo que se ve. Cuenta como suelo como una rampa;
+  lo más empinado que `MAX_SLOPE` (50°) no se sube a escalones: el círculo se
+  empuja cuesta abajo y frena como un muro. Si la ladera queda muy por encima
+  de la cabeza se ignora (cuevas bajo el terreno, con suelo y techo de cajas).
+  El rayo de la cámara también choca con él (avance a media celda y bisección).
 
 ## Poderes (Etapa 2)
 
@@ -448,6 +464,23 @@ mapa y se liberan con él. La Encarnación de la Energía es la `Incarnation` de
 Campo con otra ropa, registrada en `PowerAcquisitionSystem`, así que la copia
 sigue exactamente las reglas canónicas (contacto + voluntad; la fuente
 conserva su marca).
+
+## Kit de escenarios y prototipos de la propuesta
+
+Los mapas del rediseño se construyen con piezas de `world/kit/` que crean la
+malla y la colisión a la vez (vía `LevelBuilder` o `world.addBox/addRamp`) y
+marcan lo estático para `mergeStatic`. El terreno (`terrain`) es una sola malla
+por zona con un material propio: mezcla hierba, tierra y roca según el
+atributo `splat` (senda, orillas, pendiente) y proyecta la roca de forma
+triplanar en las laderas para que los estratos no se estiren. Los tramos de
+puente (`trussSpan`) se construyen en coordenadas locales y se colocan rectos,
+inclinados o colgando de una bisagra; su colisión se añade aparte
+(`spanColliders`, rampas y cajas escalonadas trepables).
+
+`world/proto/` registra viñetas de cada mapa propuesto (pueblo, bosque, gran
+cañón, base de la PDC, distrito) solo si la URL lleva `?proto`; cada una trae
+sus planos de cámara (`shots`) y, si procede, dónde colocar a Jon para la
+escala. Sirven para fijar el estilo antes de rehacer los mapas de la historia.
 
 ## Gráficos y animación
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CharacterModel } from '../player/CharacterModel.js';
 import { MarkVisual } from '../player/MarkVisual.js';
+import { glowTexture } from '../vfx/glowTexture.js';
 
 /** Paletas de los personajes del prólogo (ropa corriente; nada delata quién tiene marca). */
 export const STORY_PALETTES = {
@@ -356,6 +357,40 @@ export class StealthGuard {
  * dos puntos. Quien queda dentro del círculo iluminado (y con línea de visión
  * desde el foco) es visto mucho antes.
  */
+/**
+ * Haz de luz «volumétrico» falso: más denso en el eje del cono (donde la
+ * superficie mira a la cámara) y transparente en los bordes; se desvanece
+ * junto al foco y hacia el suelo. Así no parece un cono sólido de cerca.
+ */
+function searchlightBeamMaterial(color, opacity) {
+  return new THREE.ShaderMaterial({
+    uniforms: { color: { value: new THREE.Color(color) }, opacity: { value: opacity } },
+    vertexShader: `
+      varying vec3 vN;
+      varying vec3 vV;
+      varying float vT;
+      void main() {
+        vT = -position.y;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 color;
+      uniform float opacity;
+      varying vec3 vN;
+      varying vec3 vV;
+      varying float vT;
+      void main() {
+        float f = abs(dot(normalize(vN), normalize(vV)));
+        float a = opacity * f * f * (1.0 - vT * 0.6) * smoothstep(0.0, 0.1, vT);
+        gl_FragColor = vec4(color, a);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  });
+}
+
 export class Searchlight {
   /** @param {object} o { origin: {x,y,z}, a: {x,z}, b: {x,z}, y (suelo), radius, period } */
   constructor(ctx, o) {
@@ -368,10 +403,11 @@ export class Searchlight {
     this._t = o.phase ?? 0;
     this.spot = { x: o.a.x, y: this.groundY, z: o.a.z };
     this.active = true;
-    const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff4d0, transparent: true, opacity: 0.09, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false });
+    const beamMat = searchlightBeamMaterial(0xfff4d0, 0.2);
     this.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 1, 1, 18, 1, true).translate(0, -0.5, 0), beamMat);
     this.beam.frustumCulled = false;
-    this.discMat = new THREE.MeshBasicMaterial({ color: 0xfff4d0, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+    // Charco de luz de borde suave (no un disco recortado)
+    this.discMat = new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0xfff4d0, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
     this.disc = new THREE.Mesh(new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2), this.discMat);
     this.disc.renderOrder = 2;
     const head = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.6, 12), new THREE.MeshStandardMaterial({ color: 0x1f2329, emissive: 0xfff1c0, emissiveIntensity: 1.6 }));
@@ -405,7 +441,7 @@ export class Searchlight {
     this.beam.scale.set(this.radius, len, this.radius);
     this.beam.quaternion.setFromUnitVectors(UP, new THREE.Vector3(-dx / len, -dy / len, -dz / len));
     this.disc.position.set(s.x, this.groundY + 0.07, s.z);
-    this.disc.scale.setScalar(this.radius);
+    this.disc.scale.setScalar(this.radius * 1.5);
     this.head.lookAt(s.x, this.groundY, s.z);
   }
 }

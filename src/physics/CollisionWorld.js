@@ -9,9 +9,13 @@
  *  - Ramp: cuña sólida con superficie inclinada a lo largo de un eje.
  *          Rampas y tramos de escalera (la escalera visual usa una rampa
  *          como colisión para que el desplazamiento sea suave).
+ *  - Heightfield: terreno con relieve (rejilla de alturas). Cuestas,
+ *          laderas y orillas; lo que es demasiado empinado hace de muro.
  */
 
 const EPS = 1e-6;
+/** Pendiente máxima del terreno que se sube andando (tan 50°). */
+export const MAX_SLOPE = 1.2;
 
 function clamp(v, lo, hi) {
   return v < lo ? lo : v > hi ? hi : v;
@@ -21,11 +25,13 @@ export class CollisionWorld {
   constructor() {
     this.boxes = [];
     this.ramps = [];
+    this.heightfields = [];
   }
 
   clear() {
     this.boxes.length = 0;
     this.ramps.length = 0;
+    this.heightfields.length = 0;
   }
 
   /**
@@ -104,6 +110,55 @@ export class CollisionWorld {
   }
 
   /**
+   * Terreno con relieve: `cols` × `rows` alturas (fila a fila, x primero)
+   * separadas `cell` metros desde (minX, minZ). Cada celda son dos
+   * triángulos con la diagonal (0,0)–(1,1), igual que la malla visible.
+   */
+  addHeightfield({ minX, minZ, cell, cols, rows, heights, tag }) {
+    if (cols < 2 || rows < 2 || heights.length < cols * rows) throw new Error('Rejilla de alturas incompleta');
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < cols * rows; i++) {
+      lo = Math.min(lo, heights[i]);
+      hi = Math.max(hi, heights[i]);
+    }
+    const hf = {
+      kind: 'heightfield', minX, minZ, cell, cols, rows, heights,
+      maxX: minX + cell * (cols - 1), maxZ: minZ + cell * (rows - 1), minY: lo, maxY: hi, tag: tag ?? null,
+    };
+    this.heightfields.push(hf);
+    return hf;
+  }
+
+  /** Altura del terreno en (x, z), o -Infinity fuera de la rejilla. */
+  heightfieldAt(hf, x, z) {
+    const fx = (x - hf.minX) / hf.cell;
+    const fz = (z - hf.minZ) / hf.cell;
+    if (fx < 0 || fz < 0 || fx > hf.cols - 1 || fz > hf.rows - 1) return -Infinity;
+    const ix = Math.min(hf.cols - 2, Math.floor(fx));
+    const iz = Math.min(hf.rows - 2, Math.floor(fz));
+    const tx = fx - ix;
+    const tz = fz - iz;
+    const H = hf.heights;
+    const i00 = iz * hf.cols + ix;
+    const h00 = H[i00];
+    const h10 = H[i00 + 1];
+    const h01 = H[i00 + hf.cols];
+    const h11 = H[i00 + hf.cols + 1];
+    return tx >= tz ? h00 + tx * (h10 - h00) + tz * (h11 - h10) : h00 + tz * (h01 - h00) + tx * (h11 - h01);
+  }
+
+  /** Altura del terreno más alto en (x, z) (-Infinity si no hay). */
+  terrainHeight(x, z) {
+    let best = -Infinity;
+    for (const hf of this.heightfields) {
+      const h = this.heightfieldAt(hf, x, z);
+      if (h > best) best = h;
+    }
+    return best;
+  }
+
+  /**
    * Superficie más alta bajo un círculo (x, z, radius) cuya cima no supere `maxY`.
    * Devuelve -Infinity si no hay suelo.
    */
@@ -125,6 +180,10 @@ export class CollisionWorld {
       const dz = z - cz;
       if (dx * dx + dz * dz >= r2) continue;
       const h = this.rampHeightAt(r, cx, cz);
+      if (h <= maxY && h > best) best = h;
+    }
+    for (const hf of this.heightfields) {
+      const h = this.heightfieldAt(hf, x, z);
       if (h <= maxY && h > best) best = h;
     }
     return best;
@@ -182,6 +241,26 @@ export class CollisionWorld {
       // La rampa solo bloquea donde su superficie supera el escalón.
       if (this.rampHeightAt(r, cx, cz) <= stepTop) continue;
       if (this._pushCircleOutOfRect(pos, radius, r)) contacts++;
+    }
+
+    // Terreno: las cuestas se suben andando, pero lo que es más empinado que
+    // MAX_SLOPE hace de muro (se empuja cuesta abajo, sin ir subiendo a escalones).
+    for (const hf of this.heightfields) {
+      if (hf.maxY <= feetY) continue;
+      for (let i = 0; i < 6; i++) {
+        const h = this.heightfieldAt(hf, pos.x, pos.z);
+        // Por debajo de los pies no estorba; muy por encima de la cabeza es el techo de una cueva
+        if (h <= feetY + 0.02 || h > head + 0.5) break;
+        const e = hf.cell * 0.25;
+        const gx = (this.heightfieldAt(hf, pos.x + e, pos.z) - this.heightfieldAt(hf, pos.x - e, pos.z)) / (2 * e);
+        const gz = (this.heightfieldAt(hf, pos.x, pos.z + e) - this.heightfieldAt(hf, pos.x, pos.z - e)) / (2 * e);
+        const g = Math.hypot(gx, gz);
+        if (!Number.isFinite(g) || g < EPS || (g <= MAX_SLOPE && h <= stepTop)) break;
+        const push = Math.min(0.5, (h - feetY) / g + 0.01);
+        pos.x -= (gx / g) * push;
+        pos.z -= (gz / g) * push;
+        if (i === 0) contacts++;
+      }
     }
     return contacts;
   }
@@ -275,8 +354,52 @@ export class CollisionWorld {
         hit = { t: best, collider: r, normal: n };
       }
     }
+    for (const hf of this.heightfields) {
+      if (opts.ignoreTags && hf.tag && opts.ignoreTags.includes(hf.tag)) continue;
+      const t = rayHeightfield(this, origin, dir, hf, best);
+      if (t !== null && t < best) {
+        best = t;
+        const x = origin.x + dir.x * t;
+        const z = origin.z + dir.z * t;
+        const e = hf.cell * 0.25;
+        const gx = (this.heightfieldAt(hf, x + e, z) - this.heightfieldAt(hf, x - e, z)) / (2 * e);
+        const gz = (this.heightfieldAt(hf, x, z + e) - this.heightfieldAt(hf, x, z - e)) / (2 * e);
+        const l = Math.hypot(gx, 1, gz) || 1;
+        hit = { t: best, collider: hf, normal: { x: -gx / l, y: 1 / l, z: -gz / l } };
+      }
+    }
     return hit;
   }
+}
+
+/**
+ * Rayo contra el terreno: avance a pasos de media celda hasta quedar por
+ * debajo de la superficie y bisección para afinar el punto de impacto.
+ */
+function rayHeightfield(world, o, d, hf, maxT) {
+  const below = (t) => {
+    const h = world.heightfieldAt(hf, o.x + d.x * t, o.z + d.z * t);
+    return h !== -Infinity && o.y + d.y * t < h;
+  };
+  if (below(0)) return null;
+  const step = hf.cell * 0.5;
+  let prev = 0;
+  for (let t = step; prev < maxT; t += step) {
+    const tt = Math.min(t, maxT);
+    if (o.y + d.y * tt > hf.maxY && d.y >= 0) return null;
+    if (below(tt)) {
+      let a = prev;
+      let b = tt;
+      for (let i = 0; i < 8; i++) {
+        const m = (a + b) / 2;
+        if (below(m)) b = m;
+        else a = m;
+      }
+      return a;
+    }
+    prev = tt;
+  }
+  return null;
 }
 
 /** Rayo contra AABB (método de slabs). Escribe en `out` { t, axis } (axis -1 si empieza dentro). */

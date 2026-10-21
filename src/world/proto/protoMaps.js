@@ -3,10 +3,12 @@ import { createSky, createSun, createMountains, createCity } from '../environmen
 import { createWater } from '../water.js';
 import { grassTexture, rockTexture, cobbleTexture } from '../textures.js';
 import { villageMaterials, fishermanHouse, lighthouse, fishingBoat, quay, church, laundryLine, climbMark, lampPost } from '../kit/village.js';
-import { wildMaterials, logCabin, campfire, ropeBridge, canyonWall, fallenLog } from '../kit/wild.js';
 import { cityMaterials, cityBuilding, monorail, pdcCheckpoint, car, streetLight, neonSign } from '../kit/city.js';
 import { deco, staticMesh, rockGeometry } from '../kit/common.js';
-import { pineForest, scatterBushes, scatterRocks, Rain, mulberry } from '../../story/props.js';
+import { pineForest, scatterBushes, Rain, mulberry } from '../../story/props.js';
+import { ProtoForest } from './protoForest.js';
+import { ProtoCanyon } from './protoCanyon.js';
+import { ProtoBase } from './protoBase.js';
 
 /**
  * PROTOTIPOS DE LA PROPUESTA DE MAPAS (solo para capturas: se registran con
@@ -193,134 +195,6 @@ export const ProtoVillageNight = {
   build: (ctx) => buildVillageProto(ctx, true),
 };
 
-// ================================================================= Bosque
-function buildWildProto(ctx) {
-  const { group, builder: B, scene } = ctx;
-  const sunDir = new THREE.Vector3(-0.7, 0.22, 0.4).normalize();
-  scene.fog = new THREE.FogExp2(0xc4b8ac, 0.0075);
-  const sky = createSky({ top: '#3e5a82', horizon: '#f2c08e', bottom: '#5a6470', sunDir, sunColor: '#ffcf98', clouds: 0.4, cloudColor: '#fff0dc', cloudShade: '#988a8c' });
-  group.add(sky);
-  group.add(new THREE.HemisphereLight(0xc6d4e6, 0x4a4434, 0.95));
-  const sun = createSun({ color: '#ffd2a0', intensity: 2.2, direction: sunDir.clone().negate(), shadowSize: 70 });
-  group.add(sun, sun.target);
-  const M = wildMaterials();
-  const r = mulberry(12);
-  // Terreno (x −80…50) a los dos lados del barranco (z ±12) y el gran cañón al este (x > 50)
-  B.block({ x: -15, z: -46, w: 130, d: 68, y: -1, h: 1, mat: M.grass, cast: false });
-  B.block({ x: -15, z: 46, w: 130, d: 68, y: -1, h: 1, mat: M.grass, cast: false });
-  B.block({ x: -15, z: 0, w: 130, d: 24, y: -10, h: 1, mat: M.rockDark, cast: false });
-  B.block({ x: 130, z: 0, w: 160, d: 200, y: -42, h: 1, mat: M.rockDark, cast: false });
-  const river = createWater({ width: 130, depth: 22, color: 0x2f4f5c, speed: 2.4, repeat: 20 });
-  river.position.set(-15, -8.4, 0);
-  group.add(river);
-  const bigRiver = createWater({ width: 160, depth: 60, color: 0x2a4652, speed: 1.6, repeat: 18 });
-  bigRiver.position.set(130, -40.5, 0);
-  group.add(bigRiver);
-  // Ondulaciones del terreno y afloramientos de roca
-  for (let i = 0; i < 26; i++) {
-    const x = -76 + r() * 120;
-    const z = (r() < 0.5 ? -1 : 1) * (20 + r() * 50);
-    const m = staticMesh(group, rockGeometry(6 + r() * 8, 1.2 + r() * 1.6, 5 + r() * 6, 400 + i, 1), M.grass);
-    m.position.set(x, -0.6, z);
-  }
-  for (let i = 0; i < 18; i++) {
-    const x = -76 + r() * 120;
-    const z = (r() < 0.5 ? -1 : 1) * (18 + r() * 50);
-    const m = staticMesh(group, rockGeometry(1.5 + r() * 2.5, 1 + r() * 2.5, 1.5 + r() * 2.5, 600 + i, 1), r() < 0.5 ? M.rock : M.rockWarm);
-    m.position.set(x, 0, z);
-  }
-  // Paredes del barranco: estratos irregulares y borde roto con rocas
-  for (const sgn of [-1, 1]) {
-    B.block({ x: -15, z: sgn * 13, w: 130, d: 2, y: -10, h: 9, mat: M.rockDark });
-    for (let i = 0; i < 30; i++) {
-      const x = -78 + i * 4.3;
-      for (let k = 0; k < 4; k++) {
-        const sy = 1.2 + ((i + k) % 3) * 0.6;
-        const m = staticMesh(group, rockGeometry(1.8 + (k % 2), sy, 1.4 + (i % 2) * 0.6, i * 7 + k + (sgn > 0 ? 500 : 0), 1), k % 2 ? M.rock : M.rockWarm);
-        m.position.set(x + (k - 1.5) * 1.1, -9 + k * 2.4, sgn * (11.6 - (i % 3) * 0.3));
-      }
-      const rim = staticMesh(group, rockGeometry(1.4 + r(), 0.7 + r() * 0.6, 1.2, 800 + i + (sgn > 0 ? 50 : 0), 0), M.rock);
-      rim.position.set(x + r() * 2, -0.2, sgn * 12.6);
-    }
-  }
-  for (const [x, y] of [[-12, -6], [-9, -3.4], [-12.5, -1]]) climbMark(group, M.whiteMark, { x, y, z: -11.1, w: 1.8, d: 0.1 });
-  // Puente de cuerda
-  ropeBridge(ctx, M, { from: { x: -20, y: 0, z: -14 }, to: { x: -20, y: 0, z: 14 }, sag: 1.6 });
-  // Campamento base: hoguera, cabaña, tienda, farol, leña y cajas
-  const fire = campfire(ctx, M, { x: -8, z: -24 });
-  ctx.addEntity({ update: (dt) => fire.update(dt, performance.now() / 1000) });
-  logCabin(ctx, B, M, { x: -21, z: -33, w: 8, d: 6 });
-  for (const sx of [-1, 1]) deco(group, { x: 1.6 + sx * 0.75, y: 0.7, z: -30, w: 1.7, h: 0.05, d: 3, mat: M.tarp, rz: sx * 0.95, cast: true });
-  deco(group, { x: 1.6, y: 0, z: -28.4, w: 0.08, h: 1.5, d: 0.08, mat: M.log });
-  deco(group, { x: -3.5, y: 0, z: -19.5, w: 0.12, h: 2, d: 0.12, mat: M.log });
-  deco(group, { x: -3.5, y: 2, z: -19.5, w: 0.3, h: 0.4, d: 0.3, mat: M.window, cast: false });
-  for (let i = 0; i < 6; i++) {
-    const l = staticMesh(group, new THREE.CylinderGeometry(0.16, 0.16, 1.4, 7).rotateZ(Math.PI / 2), M.log);
-    l.position.set(-13.5, 0.16 + Math.floor(i / 3) * 0.3, -21 + (i % 3) * 0.34);
-  }
-  for (const [x, z] of [[4, -25], [4.9, -24.4]]) B.block({ x, z, w: 0.8, d: 0.8, h: 0.7, mat: M.plank });
-  fallenLog(ctx, B, M, { x: 8, z: -18, len: 8, ry: 0.6 });
-  // Bosque denso (pinos nevados), con claro para el campamento y la senda del puente
-  const trees = [];
-  for (let i = 0; i < 300; i++) {
-    const x = -78 + r() * 126;
-    const z = (r() < 0.5 ? -1 : 1) * (15 + r() * 62);
-    if (Math.hypot(x + 9, z + 26) < 12 || (Math.abs(x + 20) < 3.5 && Math.abs(z) < 30)) continue;
-    trees.push({ x, y: 0, z, s: 0.7 + r() * 0.9 });
-  }
-  pineForest(ctx, trees, { snow: true });
-  const bushes = [];
-  for (let i = 0; i < 80; i++) bushes.push({ x: -78 + r() * 126, y: 0, z: (r() < 0.5 ? -1 : 1) * (14 + r() * 60), s: 0.5 + r() * 0.7 });
-  scatterBushes(ctx, bushes, 0x3c5232);
-  // El gran cañón y el puente de acero roto (la escena final del prólogo)
-  // Paredes del gran cañón: muro de roca con estratos en la cara interior
-  for (const sgn of [-1, 1]) {
-    deco(group, { x: 130, y: -42, z: sgn * 36, w: 160, h: 42, d: 10, mat: M.rockDark });
-    for (let i = 0; i < 26; i++) {
-      for (let k = 0; k < 6; k++) {
-        const sy = 2 + ((i + k) % 3);
-        const m = staticMesh(group, rockGeometry(3 + (k % 2) * 1.5, sy, 2.2, 900 + i * 9 + k + (sgn > 0 ? 400 : 0), 1), k % 2 ? M.rock : M.rockWarm);
-        m.position.set(52 + i * 6, -40 + k * 7, sgn * (31 - ((i + k) % 3) * 0.6));
-      }
-    }
-  }
-  // El barranco desemboca en el cañón: borde del terreno roto
-  for (let i = 0; i < 10; i++) {
-    const m = staticMesh(group, rockGeometry(4, 2.2 + (i % 3) * 0.8, 3.5, 1300 + i, 1), M.rockWarm);
-    m.position.set(49 + (i % 2), -2.5 - (i % 3) * 1.5, -30 + i * 6.5);
-  }
-  const steel = new THREE.MeshStandardMaterial({ color: 0x2c333b, metalness: 0.7, roughness: 0.5 });
-  const yellow = new THREE.MeshStandardMaterial({ color: 0xe0b021, metalness: 0.3, roughness: 0.55 });
-  for (const [x0, x1] of [[50, 82], [90, 124], [132, 170]]) {
-    deco(group, { x: (x0 + x1) / 2, y: -0.6, z: 0, w: x1 - x0, h: 0.6, d: 8, mat: steel });
-    for (const sz of [-1, 1]) {
-      deco(group, { x: (x0 + x1) / 2, y: 5.6, z: sz * 4.5, w: x1 - x0, h: 0.5, d: 0.5, mat: steel });
-      deco(group, { x: (x0 + x1) / 2, y: 1, z: sz * 3.9, w: x1 - x0, h: 0.12, d: 0.12, mat: yellow });
-      for (let x = x0 + 2; x < x1; x += 6) {
-        deco(group, { x, y: -0.6, z: sz * 4.5, w: 0.45, h: 6.7, d: 0.45, mat: steel });
-        deco(group, { x: x + 3, y: -0.6, z: sz * 4.5, w: 0.3, h: 8.2, d: 0.3, mat: steel, rz: sz * 0.75 });
-      }
-    }
-  }
-  for (const x of [70, 107, 150]) deco(group, { x, y: -42, z: 0, w: 3, h: 41.4, d: 6, mat: M.rockDark });
-  group.add(createMountains([
-    { x: -120, z: -240, rad: 110, h: 170 }, { x: 10, z: -260, rad: 120, h: 210 }, { x: 140, z: -230, rad: 100, h: 160 },
-    { x: 300, z: -60, rad: 120, h: 180 }, { x: 290, z: 120, rad: 110, h: 150 },
-  ], { rock: '#56534e', low: '#34402e', snow: '#eef2f6', snowLine: 0.5, seed: 91 }));
-  return { spawn: { x: -8, y: 0.3, z: -18, yaw: Math.PI }, sun };
-}
-
-export const ProtoWild = {
-  id: 'proto-bosque', name: 'Prototipo · Bosque', description: 'Propuesta', envIntensity: 0.5,
-  grade: { contrast: 1.05, saturation: 1.08, shadows: '#283246', highlights: '#ffd6a0', split: 0.07, vignette: 0.3 },
-  shots: [
-    { id: 'campamento', title: 'Campamento base al atardecer', pos: { x: 6, y: 2.2, z: -15 }, look: { x: -14, y: 1, z: -30 } },
-    { id: 'barranco', title: 'Puente de cuerda sobre el barranco', pos: { x: -33, y: 2.6, z: -19 }, look: { x: -18, y: -2.5, z: 5 } },
-    { id: 'canon', title: 'El gran cañón y el puente de acero roto', pos: { x: 38, y: 7, z: -14 }, look: { x: 100, y: -8, z: 2 } },
-  ],
-  build: buildWildProto,
-};
-
 // ================================================================= Distrito
 function buildCityProto(ctx) {
   const { group, builder: B, scene } = ctx;
@@ -394,4 +268,4 @@ export const ProtoCity = {
   build: buildCityProto,
 };
 
-export const PROTO_MAPS = [ProtoVillage, ProtoVillageNight, ProtoWild, ProtoCity];
+export const PROTO_MAPS = [ProtoVillage, ProtoVillageNight, ProtoForest, ProtoCanyon, ProtoBase, ProtoCity];

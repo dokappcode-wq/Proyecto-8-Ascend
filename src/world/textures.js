@@ -935,3 +935,281 @@ export function posterTexture(kind = 0) {
   cache.set(key, tex);
   return tex;
 }
+
+/** Tierra del bosque: suelo pardo con piedrecillas, agujas de pino y raíces. */
+export function dirtTexture(tint = '#6a5440', seed = 95) {
+  return material(`dirt:${tint}:${seed}`, 256, 3, 2, (g, s) => {
+    const r = rng(seed);
+    g.fillStyle = tint;
+    g.fillRect(0, 0, s, s);
+    blotches(g, s, r, 10, 0.14);
+    // Piedrecillas
+    for (let i = 0; i < 260; i++) {
+      const x = r() * s;
+      const y = r() * s;
+      const rad = 0.8 + r() * 2.6;
+      g.fillStyle = tone(r() < 0.5 ? '#8a8276' : '#5a5046', 0.8 + r() * 0.5);
+      g.beginPath();
+      g.ellipse(x, y, rad, rad * (0.6 + r() * 0.4), r() * 3, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      g.fillRect(x - rad * 0.6, y + rad * 0.5, rad * 1.2, 1);
+    }
+    // Agujas de pino caídas
+    for (let i = 0; i < 700; i++) {
+      const x = r() * s;
+      const y = r() * s;
+      const a = r() * Math.PI;
+      const l = 3 + r() * 5;
+      g.strokeStyle = r() < 0.6 ? `rgba(120,84,48,${0.5 + r() * 0.4})` : `rgba(60,44,30,${0.5 + r() * 0.4})`;
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+      g.stroke();
+    }
+    noise(g, s, 0.2, seed);
+  });
+}
+
+/**
+ * Vetas de energía para las rocas que se rompen con Energía: fondo negro y
+ * grietas ramificadas brillantes (se usa como mapa emisivo, en azul).
+ */
+export function veinTexture(seed = 5) {
+  const key = `veins:${seed}`;
+  if (cache.has(key)) return cache.get(key);
+  const c = canvas(256, (g, s) => {
+    const r = rng(seed);
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, s, s);
+    const branch = (x, y, a, len, w) => {
+      if (len < 6 || w < 0.4) return;
+      g.lineWidth = w;
+      g.beginPath();
+      g.moveTo(x, y);
+      let px = x;
+      let py = y;
+      for (let k = 0; k < 6; k++) {
+        a += (r() - 0.5) * 0.9;
+        px += Math.cos(a) * len / 6;
+        py += Math.sin(a) * len / 6;
+        g.lineTo(px, py);
+      }
+      g.stroke();
+      if (r() < 0.8) branch(px, py, a + (r() - 0.5) * 1.6, len * 0.65, w * 0.7);
+      if (r() < 0.5) branch(px, py, a - (r() - 0.5) * 1.6, len * 0.55, w * 0.6);
+    };
+    for (const [blur, alpha, wk] of [[8, 0.5, 2.6], [0, 1, 1]]) {
+      g.save();
+      g.filter = blur ? `blur(${blur}px)` : 'none';
+      g.strokeStyle = `rgba(255,255,255,${alpha})`;
+      const rr = rng(seed + 1);
+      for (let i = 0; i < 5; i++) {
+        const x = rr() * s;
+        const y = rr() * s;
+        branch(x, y, rr() * Math.PI * 2, 90 + rr() * 80, 3.2 * wk);
+      }
+      g.restore();
+    }
+  });
+  const t = toTexture(c, { srgb: false });
+  cache.set(key, t);
+  return t;
+}
+
+/** Cascada: chorros verticales de espuma con transparencia (se desplaza hacia abajo). */
+export function waterfallTexture(seed = 3) {
+  const key = `waterfall:${seed}`;
+  if (cache.has(key)) return cache.get(key);
+  const c = canvas(256, (g, s) => {
+    const r = rng(seed);
+    g.clearRect(0, 0, s, s);
+    g.fillStyle = 'rgba(190,215,225,0.55)';
+    g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 420; i++) {
+      const x = r() * s;
+      const y = r() * s;
+      const w = 1 + r() * 4;
+      const h = 30 + r() * 120;
+      const a = 0.15 + r() * 0.55;
+      const grd = g.createLinearGradient(0, y, 0, y + h);
+      grd.addColorStop(0, 'rgba(255,255,255,0)');
+      grd.addColorStop(0.5, `rgba(255,255,255,${a})`);
+      grd.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grd;
+      for (const oy of [-s, 0]) g.fillRect(x, y + oy, w, h);
+    }
+    for (let i = 0; i < 30; i++) {
+      g.fillStyle = `rgba(40,70,85,${0.08 + r() * 0.12})`;
+      g.fillRect(r() * s, 0, 2 + r() * 8, s);
+    }
+  });
+  const t = toTexture(c);
+  cache.set(key, t);
+  return t;
+}
+
+/**
+ * Estratos de cañón: bandas horizontales de roca sedimentaria (ocres, rojizos
+ * y cremas) con fracturas verticales y regueros oscuros. 1 repetición = 12 m.
+ */
+export function strataTexture(tint = '#9a6a4a', seed = 97) {
+  return material(`strata:${tint}:${seed}`, 512, 12, 3, (g, s) => {
+    const r = rng(seed);
+    let y = 0;
+    while (y < s) {
+      const h = 6 + r() * 40;
+      const k = 0.7 + r() * 0.55;
+      const warm = r();
+      g.fillStyle = warm < 0.2 ? tone('#c9b89a', k) : warm < 0.35 ? tone('#7a4a36', k) : tone(tint, k);
+      g.fillRect(0, y, s, h);
+      // Borde de la capa (sombra bajo la cornisa)
+      g.fillStyle = `rgba(0,0,0,${0.18 + r() * 0.2})`;
+      g.fillRect(0, y + h - 2, s, 2);
+      g.fillStyle = 'rgba(255,240,220,0.08)';
+      g.fillRect(0, y, s, 1);
+      y += h;
+    }
+    blotches(g, s, r, 10, 0.12);
+    // Fracturas verticales y regueros
+    for (let i = 0; i < 26; i++) crack(g, r, r() * s, r() * s, 8, 18, 0.5);
+    for (let i = 0; i < 40; i++) {
+      const x = r() * s;
+      const grd = g.createLinearGradient(0, 0, 0, s);
+      grd.addColorStop(0, 'rgba(30,20,15,0)');
+      grd.addColorStop(0.5, `rgba(30,20,15,${0.08 + r() * 0.12})`);
+      grd.addColorStop(1, 'rgba(30,20,15,0)');
+      g.fillStyle = grd;
+      g.fillRect(x, 0, 1 + r() * 4, s);
+    }
+    noise(g, s, 0.2, seed);
+  });
+}
+
+/** Contenedor marítimo: chapa corrugada, óxido, abolladuras y matrícula. */
+export function corrugatedTexture(tint = '#2a5d8a', seed = 61, code = 'PDCU 204718') {
+  return material(`corrugated:${tint}:${seed}:${code}`, 256, 2.6, 4, (g, s) => {
+    const r = rng(seed);
+    g.fillStyle = tint;
+    g.fillRect(0, 0, s, s);
+    // Nervios verticales (claros y oscuros alternos)
+    for (let x = 0; x < s; x += 16) {
+      g.fillStyle = 'rgba(255,255,255,0.12)';
+      g.fillRect(x, 0, 5, s);
+      g.fillStyle = 'rgba(0,0,0,0.22)';
+      g.fillRect(x + 9, 0, 4, s);
+    }
+    blotches(g, s, r, 8, 0.12);
+    // Óxido en los bordes y chorreones
+    for (let i = 0; i < 40; i++) {
+      const x = r() * s;
+      const y0 = r() < 0.5 ? 0 : s * (0.8 + r() * 0.2);
+      const grd = g.createLinearGradient(0, y0, 0, y0 + 40 + r() * 80);
+      grd.addColorStop(0, `rgba(120,60,30,${0.3 + r() * 0.4})`);
+      grd.addColorStop(1, 'rgba(120,60,30,0)');
+      g.fillStyle = grd;
+      g.fillRect(x, y0, 2 + r() * 6, 120);
+    }
+    g.fillStyle = 'rgba(110,55,28,0.5)';
+    g.fillRect(0, s - 6, s, 6);
+    g.fillRect(0, 0, s, 4);
+    // Matrícula del contenedor
+    g.fillStyle = 'rgba(240,240,235,0.85)';
+    g.font = '700 15px Rajdhani, Arial Narrow, Arial, sans-serif';
+    g.fillText(code, 14, 30);
+    g.font = '600 10px Rajdhani, Arial Narrow, Arial, sans-serif';
+    g.fillText('MAX GROSS 30480 KG', 14, 44);
+    noise(g, s, 0.18, seed);
+  });
+}
+
+/** Estandarte vertical de la PDC: azul profundo, escudo hexagonal con el ojo y siglas. */
+export function pdcBannerTexture() {
+  const key = 'pdc-banner';
+  if (cache.has(key)) return cache.get(key);
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 512;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 512);
+  grd.addColorStop(0, '#0c1c3a');
+  grd.addColorStop(1, '#14305e');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 256, 512);
+  g.fillStyle = '#4aa3ff';
+  g.fillRect(0, 0, 256, 10);
+  g.fillRect(0, 502, 256, 10);
+  g.fillRect(18, 0, 4, 512);
+  g.fillRect(234, 0, 4, 512);
+  // Escudo hexagonal
+  const cx = 128;
+  const cy = 190;
+  g.strokeStyle = '#e8f0ff';
+  g.lineWidth = 10;
+  g.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 6 + (i * Math.PI) / 3;
+    g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * 78, cy + Math.sin(a) * 78);
+  }
+  g.closePath();
+  g.stroke();
+  // Ojo vigilante
+  g.fillStyle = '#e8f0ff';
+  g.beginPath();
+  g.ellipse(cx, cy, 46, 22, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#14305e';
+  g.beginPath();
+  g.arc(cx, cy, 15, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#4aa3ff';
+  g.beginPath();
+  g.arc(cx, cy, 6, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#e8f0ff';
+  g.font = '700 96px Rajdhani, Arial Narrow, Arial, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('PDC', cx, 350);
+  g.font = '600 20px Rajdhani, Arial Narrow, Arial, sans-serif';
+  g.fillStyle = '#9cc8ff';
+  g.fillText('ORDEN · CONTROL', cx, 420);
+  g.fillText('PROTECCIÓN', cx, 446);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  cache.set(key, t);
+  return t;
+}
+
+/** Helipuerto: hormigón oscuro con la H, el círculo y el borde de balizas pintado. */
+export function helipadTexture() {
+  const key = 'helipad';
+  if (cache.has(key)) return cache.get(key);
+  const c = canvas(512, (g, s) => {
+    const r = rng(9);
+    g.fillStyle = '#3a3e44';
+    g.fillRect(0, 0, s, s);
+    blotches(g, s, r, 12, 0.12);
+    noise(g, s, 0.25, 9);
+    g.strokeStyle = '#e8d24a';
+    g.lineWidth = 14;
+    g.beginPath();
+    g.arc(s / 2, s / 2, s * 0.38, 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = '#f2f2ee';
+    const u = s / 16;
+    g.fillRect(s / 2 - 3.5 * u, s / 2 - 4.5 * u, 2 * u, 9 * u);
+    g.fillRect(s / 2 + 1.5 * u, s / 2 - 4.5 * u, 2 * u, 9 * u);
+    g.fillRect(s / 2 - 1.5 * u, s / 2 - u, 3 * u, 2 * u);
+    g.strokeStyle = '#f2f2ee';
+    g.lineWidth = 8;
+    g.strokeRect(10, 10, s - 20, s - 20);
+    for (let i = 0; i < 30; i++) crack(g, r, r() * s, r() * s, 5, 30, 0.3);
+  });
+  const t = toTexture(c);
+  t.userData = { unit: 1 };
+  cache.set(key, t);
+  return t;
+}

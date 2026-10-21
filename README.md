@@ -129,7 +129,7 @@ npm install
 npm run dev        # servidor de desarrollo → http://localhost:5173
 npm run build      # build estático en dist/ (rutas relativas)
 npm run preview    # sirve dist/
-npm test           # tests unitarios (físicas, guardado)
+npm test           # tests unitarios (físicas, terreno, guardado, historia…)
 npm run test:e2e   # prueba end-to-end con Playwright + Chromium
 ```
 
@@ -424,6 +424,34 @@ cielo* (activado) y *Oclusión ambiental (GTAO, exigente)* (desactivada). Con
 el bloom y la resolución de render permiten bajar el coste en equipos
 modestos: en render por software (sin GPU) los reflejos del cielo son lo más
 costoso por píxel (quitarlos duplica los FPS) y después el MSAA.
+
+## Rediseño de mapas (propuesta)
+
+Antes de rehacer los mapas se presenta una propuesta visual con capturas de
+prototipos hechos con el motor (`src/world/proto/`, se cargan con
+`http://localhost:5173/?proto` y `__ascend.startMap('proto-bosque')`, etc.):
+
+- **Pueblo costero** y **Distrito Cero**: aprobados en la primera versión.
+- **Bosque** (rehecho): un recorrido jugable con relieve real — arroyo con
+  piedras para saltar, barricada de tablones que se rompe a golpes, cuesta,
+  roca con vetas azules que solo rompe la Energía, barranco con pilares,
+  cascada con una cueva detrás, pared de escalada marcada, torre de caza y
+  mirador sobre el cañón.
+- **Gran cañón** (replanteado): cada tramo roto del puente pide un movimiento
+  — tramo entero (combate), hueco de 9 m (dash), tramo caído e inclinado que
+  se baja corriendo, pila partida, salto al tramo descolgado y escalada por sus
+  vigas marcadas, bloqueo de la PDC y colina con la ciudad.
+- **Base de la PDC** (replanteada): muro con pasarela y torres, puesto de
+  control, patio de contenedores con grúa, edificio brutalista con franjas de
+  luz azul, helipuerto, garaje y depósitos; charcos de luz y zonas oscuras
+  para el sigilo, manteniendo la infiltración de la M01.
+
+El motor gana **terreno con relieve**: cuestas que se suben andando, laderas
+empinadas que frenan como un muro, cuevas bajo el terreno y cámara que no lo
+atraviesa (`CollisionWorld.addHeightfield`, con pruebas unitarias). Los haces
+de los focos de la base tienen ahora un sombreado volumétrico suave (más
+densos en el eje, transparentes en los bordes) y su charco de luz no tiene
+borde duro.
 
 ## Etapa 7 — Pulido
 
@@ -779,7 +807,9 @@ contenedores y cajas (A1, A2).
   alcance, límites invisibles). Con las marcas, combos y la historia son 134, y 141 con los gráficos
   (`graphics.test.js`: chispas, humo, gradación —incluido que el virado no
   oscurece—, lluvia que no cae bajo techo, montañas y fusión de piezas del
-  personaje);
+  personaje) y 146 con el terreno con relieve (`terrain.test.js`: altura por
+  triángulos, subir una cuesta de 25°, pared empinada que frena, cueva bajo la
+  ladera y rayo de la cámara);
   `story.test.js` comprueba los 29 puntos de control y su tramo de guion, las
   banderas de cada punto, qué poderes se permiten en cada tramo, el estado
   (las banderas no retroceden, la elección solo admite KILL/SPARE, completar),
