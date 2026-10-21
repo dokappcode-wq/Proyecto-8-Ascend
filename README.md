@@ -488,7 +488,10 @@ helicóptero son estáticos; las manzanas y los rascacielos alrededor del
 Distrito son instancias (una llamada de dibujo cada grupo) con material
 Lambert, ordenadas de cerca a lejos para pintar menos píxeles ocultos. En la
 prueba con render por software el Distrito nuevo va a ~2.5 FPS (el anterior,
-~2.3).
+~2.3); la vista del cañón desde el puente, con casi un millón de triángulos
+(terreno detallado, 3 600 pinos, agua y decorado), baja a ~1 FPS, algo que
+solo afecta al render por software de las pruebas (en una GPU es una carga
+normal).
 
 ## Etapa 7 — Pulido
 
