@@ -68,6 +68,11 @@ try {
   // El ratón simulado de Playwright genera movimiento con el puntero bloqueado y
   // desviaría la cámara; en la prueba se bloquea solo el movimiento (los clics siguen llegando).
   await page.evaluate(() => window.addEventListener('mousemove', (e) => e.stopImmediatePropagation(), true));
+  // Render por software (SwiftShader): muchas comprobaciones miden en tiempo
+  // real y, por debajo de 10 FPS, el juego va más lento (dt máx. 0.1 s). Como
+  // en un equipo modesto se apagan el MSAA y los reflejos del cielo (lo más
+  // costoso por píxel); la sección [gráficos] los enciende para comprobarlos.
+  await page.evaluate(() => { const a = window.__ascend; a.save.updateSettings({ antialias: false, reflections: false }); a._applySettings(a.save.settings); });
   await page.screenshot({ path: path.join(out, '00-menu.png') });
   check(await page.isVisible('#screen-menu.active'), 'Menú principal visible');
 
@@ -560,15 +565,24 @@ try {
   console.log('\n[gráficos]');
   const gfx = await q(() => {
     const a = window.__ascend;
-    const passes = a.composer.passes.map((p) => p.constructor.name);
+    const passes = a.composer.passes;
+    const pipeline = [a.renderPass, a.aoPass, a.bloomPass, a.gradePass].every((p) => passes.includes(p)) && passes.indexOf(a.bloomPass) < passes.indexOf(a.gradePass);
+    const low = { env: !!a.scene.environment, samples: a.composer.renderTarget1.samples };
+    // Calidad alta un momento: MSAA ×4 y reflejos del cielo
+    a.save.updateSettings({ antialias: true, reflections: true });
+    a._applySettings(a.save.settings);
+    const high = { env: !!a.scene.environment, samples: a.composer.renderTarget1.samples, settings: !!document.getElementById('set-refl') };
+    a.save.updateSettings({ antialias: false, reflections: false });
+    a._applySettings(a.save.settings);
     a.vfx.clear();
     a.vfx.impact({ x: 0, y: 1, z: 15 }, { x: 0, y: 0, z: 1 }, 0x6fc3ff, 1);
     a.vfx.dust({ x: 0, y: 0, z: 15 });
     const born = { sparks: a.vfx.sparks.count, smoke: a.vfx.smoke.count };
     for (let i = 0; i < 60; i++) a.vfx.update(0.05);
-    return { passes, env: !!a.scene.environment, born, after: { sparks: a.vfx.sparks.count, smoke: a.vfx.smoke.count } };
+    return { pipeline, low, high, envOff: !a.scene.environment, born, after: { sparks: a.vfx.sparks.count, smoke: a.vfx.smoke.count } };
   });
-  check(gfx.env && ['RenderPass', 'UnrealBloomPass', 'OutputPass', 'ShaderPass'].every((n) => gfx.passes.includes(n)), `Postproceso (${gfx.passes.join(' → ')}) y mapa de entorno del cielo`);
+  check(gfx.pipeline, 'Postproceso: render → oclusión (opcional) → bloom → salida → gradación');
+  check(!gfx.low.env && gfx.low.samples === 0 && gfx.high.env && gfx.high.samples === 4 && gfx.envOff && gfx.high.settings, `Ajustes: MSAA (${gfx.low.samples} → ${gfx.high.samples} muestras) y reflejos del cielo se encienden y apagan`);
   check(gfx.born.sparks > 0 && gfx.born.smoke > 0 && gfx.after.sparks === 0 && gfx.after.smoke === 0, `Impacto con chispas (${gfx.born.sparks}) y humo/polvo (${gfx.born.smoke}) que se disipan`);
 
   // ---------------- Poderes de Energía (Etapa 2) ----------------
@@ -1914,9 +1928,9 @@ try {
     const mts = g.getObjectByName('Montañas');
     const withNormals = new Set();
     g.traverse((o) => o.isMesh && !Array.isArray(o.material) && o.material.normalMap && withNormals.add(o.material));
-    return { water: !!water?.material.normalMap && !!water.material.clearcoatNormalMap, mts: !!mts?.geometry.attributes.color, normals: withNormals.size, env: !!a.scene.environment };
+    return { water: !!water?.material.normalMap && !!water.material.clearcoatNormalMap, mts: !!mts?.geometry.attributes.color, normals: withNormals.size };
   });
-  check(vil.water && vil.mts && vil.normals >= 6 && vil.env, `Pueblo: agua animada, montañas nevadas y ${vil.normals} materiales con relieve (mapa normal)`);
+  check(vil.water && vil.mts && vil.normals >= 6, `Pueblo: agua animada, montañas nevadas y ${vil.normals} materiales con relieve (mapa normal)`);
   await page.evaluate(() => window.__ascend.returnToMenu());
   await page.waitForFunction(() => window.__ascend.state === 'menu');
   check(await page.evaluate(() => !window.__ascend.story.active && window.__ascend.marks.storyProfile === null), 'Volver al menú sale de la historia (perfil de marcas del modo libre)');

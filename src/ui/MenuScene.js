@@ -104,6 +104,11 @@ export class MenuScene {
     this.scene.add(this._beacon);
   }
 
+  /** Ajustes → Reflejos del cielo. */
+  setReflections(on) {
+    this.scene.environment = on && this._envRT ? this._envRT.texture : null;
+  }
+
   resize(w, h, pixelRatio = 1) {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();

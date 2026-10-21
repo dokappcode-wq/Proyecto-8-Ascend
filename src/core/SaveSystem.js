@@ -27,8 +27,10 @@ export function createDefaultSave() {
       volumeSfx: 1,
       volumeAmbience: 0.5,
       renderScale: 1,
-      // Mejora gráfica: suavizado de bordes (MSAA) y oclusión ambiental (GTAO, costosa)
+      // Mejora gráfica: suavizado de bordes (MSAA), reflejos del cielo (mapa de
+      // entorno) y oclusión ambiental (GTAO, costosa)
       antialias: true,
+      reflections: true,
       ao: false,
     },
     bindings: null, // null = controles por defecto (ver core/Input.js)

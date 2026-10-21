@@ -441,9 +441,11 @@ con MSAA ×4 (Ajustes → *Suavizado de bordes*) → `GTAOPass` opcional
 `OutputPass` (ACES) → `ShaderPass(GradeShader)`. La gradación (`vfx/gradePass.js`)
 se aplica tras el mapeo de tonos: contraste, saturación, tono de sombras y de
 luces, viñeta y grano; cada mapa la ajusta con `def.grade` y su intensidad de
-reflejos con `def.envIntensity`. Al cargar un mapa, `_applyMapLook` genera un
+reflejos con `def.envIntensity`. Al cargar un mapa, `_updateEnvironment` genera un
 **mapa de entorno** PMREM a partir de su cielo (`skyEnvironment`) para que los
-materiales reflejen el cielo del mapa. Sombras PCF con `shadow.radius`.
+materiales reflejen el cielo del mapa (Ajustes → *Reflejos del cielo*; es lo
+más costoso por píxel en render por software, por eso las pruebas e2e lo
+apagan junto con el MSAA). Sombras PCF con `shadow.radius`.
 
 **Cielo** (`createSky`): degradado, sol con halo, nubes de ruido fractal
 proyectadas sobre un plano alto que se desplazan con el viento, estrellas que

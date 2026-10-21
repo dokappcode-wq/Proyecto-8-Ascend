@@ -396,9 +396,11 @@ encendida, motas de energía, baliza de la antena y cámara que se mece), con
 entrada escalonada del título y los botones y paneles que aparecen con
 suavidad.
 
-**Ajustes nuevos**: *Suavizado de bordes (MSAA)* (activado) y *Oclusión
-ambiental (GTAO, exigente)* (desactivada). Con el bloom y la resolución de
-render permiten bajar el coste en equipos modestos.
+**Ajustes nuevos**: *Suavizado de bordes (MSAA)* (activado), *Reflejos del
+cielo* (activado) y *Oclusión ambiental (GTAO, exigente)* (desactivada). Con
+el bloom y la resolución de render permiten bajar el coste en equipos
+modestos: en render por software (sin GPU) los reflejos del cielo son lo más
+costoso por píxel (quitarlos duplica los FPS) y después el MSAA.
 
 ## Etapa 7 — Pulido
 
@@ -874,12 +876,17 @@ contenedores y cajas (A1, A2).
     primer hueco**; 2 agentes + 1 dron; un reforzado y luego 2 agentes; CP28;
     la colina, la ciudad, el dash final y el menú principal con
     `TutorialComplete`, la Energía en el perfil libre y «Prólogo completado».
-  - Gráficos: la cadena de postproceso (render, bloom, salida, gradación) y el
-    mapa de entorno del cielo están activos; un impacto genera chispas y humo
-    que se disipan; el pueblo tiene agua animada, montañas nevadas y
+  - Gráficos: la cadena de postproceso (render, oclusión, bloom, salida,
+    gradación) está montada; el MSAA (0 ↔ 4 muestras) y los reflejos del
+    cielo se encienden y apagan desde los ajustes; un impacto genera chispas y
+    humo que se disipan; el pueblo tiene agua animada, montañas nevadas y
     materiales con relieve; el menú tiene su fondo 3D animado y, al volver
     de un mapa, el juego vuelve a dibujar su propia escena.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
+  - La batería apaga el MSAA y los reflejos del cielo al empezar, como en un
+    equipo modesto: muchas comprobaciones miden en tiempo real y, con el
+    render por software, la calidad alta baja de 10 FPS (el juego se
+    ralentiza por debajo de esa cifra).
   - La batería tarda ~30 min con render por software (la historia, unos 3–5); `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.
 

@@ -91,6 +91,8 @@ export class GameManager {
     this._envRT = null;
     // Fondo 3D animado del menú principal (escena propia, mismo compositor)
     this.menuScene = new MenuScene(this.renderer);
+    this._reflections = st.reflections !== false;
+    this.menuScene.setReflections(this._reflections);
     this._gradeFor = null;
 
     // --- Sistemas compartidos por todos los mapas ---
@@ -231,7 +233,7 @@ export class GameManager {
     this.player.autopilot = null;
     this.acquisition.cancel();
     const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain, save: this.save });
-    this._applyMapLook(def, map);
+    this._applyMapLook(def);
     this.playerCombat.attach();
     this.player.object3d.visible = true;
     this.player.spawn(map.spawn);
@@ -258,15 +260,26 @@ export class GameManager {
    * Aspecto del mapa: reflejos y luz ambiental a partir de su cielo, y
    * gradación de color propia (`def.grade`, `def.envIntensity`).
    */
-  _applyMapLook(def, map) {
-    this._envRT?.dispose();
-    this._envRT = null;
-    const sky = map.group.getObjectByName('Cielo');
-    if (sky) this._envRT = skyEnvironment(this.renderer, sky);
-    this.scene.environment = this._envRT?.texture ?? null;
+  _applyMapLook(def) {
+    this._updateEnvironment();
     this.scene.environmentIntensity = def.envIntensity ?? 0.45;
     applyGrade(this.gradePass, def.grade);
     this._gradeFor = 'map';
+  }
+
+  /**
+   * Mapa de entorno generado del cielo del mapa (Ajustes → Reflejos del
+   * cielo). Es barato en una GPU, pero cada píxel de los materiales lo
+   * muestrea: en render por software es lo más costoso del frame.
+   */
+  _updateEnvironment() {
+    this._envRT?.dispose();
+    this._envRT = null;
+    this._reflections = this.save.settings.reflections !== false;
+    const sky = this._reflections ? this.mapManager.current?.group.getObjectByName('Cielo') : null;
+    if (sky) this._envRT = skyEnvironment(this.renderer, sky);
+    this.scene.environment = this._envRT?.texture ?? null;
+    this.menuScene.setReflections(this._reflections);
   }
 
   /** Dibuja la escena del menú con el compositor del juego (bloom y gradación). */
@@ -760,6 +773,7 @@ export class GameManager {
     this.audio.applyVolumes();
     this.bloomPass.enabled = s.bloom !== false;
     this.aoPass.enabled = !!s.ao;
+    if ((s.reflections !== false) !== this._reflections) this._updateEnvironment();
     const samples = s.antialias === false ? 0 : 4;
     if (this.composer.renderTarget1.samples !== samples) {
       for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) {

@@ -826,7 +826,9 @@ export class UIManager {
     fps.addEventListener('change', () => apply({ showFps: fps.checked }));
     const aa = this.$('set-aa');
     const ao = this.$('set-ao');
+    const refl = this.$('set-refl');
     aa.addEventListener('change', () => apply({ antialias: aa.checked }));
+    refl.addEventListener('change', () => apply({ reflections: refl.checked }));
     ao.addEventListener('change', () => apply({ ao: ao.checked }));
     for (const [id, key] of [['set-scale', 'renderScale'], ['set-vol', 'volumeMaster'], ['set-sfx', 'volumeSfx'], ['set-amb', 'volumeAmbience']]) {
       const el = this.$(id);
@@ -847,6 +849,7 @@ export class UIManager {
     this.$('set-fps').checked = !!s.showFps;
     this.$('set-aa').checked = s.antialias !== false;
     this.$('set-ao').checked = !!s.ao;
+    this.$('set-refl').checked = s.reflections !== false;
     const pct = (v) => `${Math.round(v * 100)}%`;
     for (const [id, out, key] of [['set-scale', 'out-scale', 'renderScale'], ['set-vol', 'out-vol', 'volumeMaster'], ['set-sfx', 'out-sfx', 'volumeSfx'], ['set-amb', 'out-amb', 'volumeAmbience']]) {
       this.$(id).value = s[key];
