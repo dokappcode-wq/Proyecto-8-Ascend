@@ -154,7 +154,12 @@ function baseAfterAlarm(S) {
   base.alarms.set(true);
   base.shutters.stairs.set(true);
   base.shutters.main.set(true);
-  for (const gd of base.guards) gd.setActive(false);
+  // Los guardias ya están en sus puestos de alarma (ante la entrada principal cerrada)
+  for (const gd of base.guards) {
+    const a = base.alarmPosts?.[gd.id];
+    if (!a) gd.setActive(false);
+    else if (!gd.responding) gd.post(a.at, a.look);
+  }
   for (const l of base.lights) l.active = true;
   S.loop('alarm', true);
 }
@@ -299,8 +304,10 @@ async function vent(S, { entered }) {
   await S.say('AGENTE (RADIO)', 'Patrulla norte, informe de estado.');
   const g1 = base.guards.find((g) => g.id === 'conducto1');
   const g2 = base.guards.find((g) => g.id === 'conducto2');
-  g1.leave([{ x: 85.6, z: -60 }, { x: 82, z: -71 }], 45);
-  g2.leave([{ x: 85.6, z: -63 }, { x: 80, z: -72 }], 45);
+  // Se van al cuartel (el garaje) a fichar y entran; el relevo tarda en llegar
+  const bk = base.barracks;
+  g1.leave([bk], 40, { hide: true });
+  g2.leave([{ x: bk.x - 1.4, z: bk.z + 0.8 }], 42, { hide: true });
   await S.wait(4.5);
   // Iker abre la tapa del conducto
   ik.setPose('stand');
@@ -407,6 +414,11 @@ async function cards(S) {
   await S.say('IKER', '¡Jon, mírame!');
   S.player.lookTarget = null;
   base.alarms.set(true);
+  // Los guardias corren a la entrada principal (creen que el intruso sigue dentro)
+  for (const gd of base.guards) {
+    const a = base.alarmPosts?.[gd.id];
+    if (a) gd.respond(a.at, a.look);
+  }
   S.loop('alarm', true);
   await S.say('SISTEMA', 'Anomalía detectada. Contención comprometida.');
   cine(S, false);
@@ -1348,6 +1360,9 @@ async function drones(S) {
   const P = S.points;
   forestState(S);
   g.factions.reputation.reset({ pdc: 100 });
+  // Los tres drones esperan posados en su estación del tramo oeste (despegan de uno en uno)
+  g.enemies.clear('drones');
+  const fleet = S.map.bridge.droneRack.map((p) => g.enemies.spawn('dronTutorial', { x: p.x, y: p.y, z: p.z, yaw: -PI / 2, tag: 'drones', dormant: true }));
   await S.fadeIn();
   if (S.pos.x < P.clearing.x) {
     S.objective('Cruza el barranco', ['Salta de pilar en pilar']);
@@ -1366,11 +1381,17 @@ async function drones(S) {
   }
   S.markers([]);
   const Y = (P.deckY ?? 3) + 0.1;
-  const spawnDrone = (x, z) => g.enemies.spawn('dronTutorial', { x, y: Y, z, yaw: -PI / 2, tag: 'drones', patrol: [{ x, z }, { x: x - 4, z: z + 1.5 }] });
+  // Despega de su plataforma, sube y vuela a su puesto de patrulla
+  const launch = (d, n, x, z) => {
+    const p = d.position;
+    d.patrol = [{ x, z }, { x: x - 4, z: z + 1.5 }];
+    if (d.alive) d.wake({ path: [{ x: p.x, y: p.y, z: p.z }, { x: p.x, y: p.y + 2.2, z: p.z }, { x, y: Y + 3.8, z }], speed: 4 });
+    S.g.events.emit('story:drone', { n });
+    return d;
+  };
   S.objective('Neutraliza los drones (0/3)');
   // Dron 1: proyectil
-  const d1 = spawnDrone(P.clearing.x + 18, 0);
-  S.g.events.emit('story:drone', { n: 1 });
+  const d1 = launch(fleet[0], 1, P.clearing.x + 18, 0);
   await S.say('DRON', 'Individuo no identificado. Permanezca inmóvil.');
   await S.say('JON', 'No, gracias.', 1.6);
   S.tutorial('Proyectil', '[Clic derecho] apuntar · [Clic izquierdo] disparar · El láser rojo avisa antes de cada disparo del dron');
@@ -1380,15 +1401,13 @@ async function drones(S) {
   // Dron 2: descarga concentrada
   S.allow('charged');
   S.tutorial('Descarga concentrada', 'Mantén [R] para cargar y suelta para disparar · Más carga, más daño · Recarga en el generador [E]');
-  const d2 = spawnDrone(P.clearing.x + 23, -2);
-  S.g.events.emit('story:drone', { n: 2 });
+  const d2 = launch(fleet[1], 2, P.clearing.x + 23, -2);
   await S.until(() => !d2.alive);
   S.objective('Neutraliza los drones (2/3)');
   // Dron 3: onda expansiva
   S.allow('wave');
   S.tutorial('Onda expansiva', 'Acércate y pulsa [G]: la onda golpea a todo lo que tienes cerca · En el aire, [G] cae en forma de rayo');
-  const d3 = spawnDrone(P.clearing.x + 14, 2.2);
-  S.g.events.emit('story:drone', { n: 3 });
+  const d3 = launch(fleet[2], 3, P.clearing.x + 14, 2.2);
   await S.until(() => !d3.alive);
   S.objective('Neutraliza los drones (3/3)');
   S.tutorial(null);
@@ -1440,6 +1459,9 @@ async function dash2(S) {
   const P = S.points;
   const br = S.map.bridge;
   forestState(S);
+  // El primer bloqueo ya está en su puesto (desde arriba se le ve); aún no le han visto
+  S.g.factions.reputation.reset({ pdc: 0 });
+  block1Squad(S);
   await S.fadeIn();
   S.objective('Sube al otro lado', ['Salta al tramo descolgado y trepa por sus vigas', 'Recarga en el generador [E] si lo necesitas']);
   S.markers([{ ...P.hangTop, label: 'Arriba' }]);
@@ -1448,33 +1470,61 @@ async function dash2(S) {
   S.tutorial(null);
 }
 
+/**
+ * Dificultad de los bloqueos del puente (el primer combate del juego): menos
+ * vida y daño, disparos más espaciados, menos puntería y reacción más lenta.
+ */
+const BRIDGE_EASY = { health: 0.65, damage: 0.5, cadence: 1.6, spread: 1.6, reaction: 1.5 };
+const BRIDGE_HEAVY = { health: 0.55, damage: 0.5, cadence: 1.8, spread: 1.5, reaction: 1.4 };
+
 /** Enemigos de un tramo de combate (con el diálogo antes de que disparen). */
 function spawnSquad(S, tag, list) {
   const y = (S.points.deckY ?? 3) + 0.1;
-  return list.map(([type, x, z]) => S.g.enemies.spawn(type, { x, y, z, yaw: -PI / 2, tag, patrol: [{ x, z }, { x: x - 3, z }] }));
+  return list.map(([type, x, z]) => S.g.enemies.spawn(type, { x, y, z, yaw: -PI / 2, tag, mods: BRIDGE_EASY, patrol: [{ x, z }, { x: x - 3, z }] }));
+}
+
+/** Los dos agentes y el dron del primer bloqueo (si no están ya en su puesto, se colocan). */
+function block1Squad(S) {
+  const live = S.g.enemies.list.filter((e) => e.tag === 'block1');
+  if (live.length) return live;
+  const b = S.points.block1;
+  return spawnSquad(S, 'block1', [['pdc', b.x, -1.5], ['pdc', b.x + 3.5, 1.6], ['dron', b.x - 3, 0]]);
+}
+
+/** Un enemigo que sale de la caja de un camión del bloqueo y va a su puesto. */
+function fromTruck(S, type, truck, via, to, mods) {
+  const y = (S.points.deckY ?? 3) + 0.1;
+  const path = [truck.inside, truck.out, ...via, to].map((p) => ({ x: p.x, y, z: p.z }));
+  return S.g.enemies.spawn(type, { x: path[0].x, y, z: path[0].z, yaw: PI / 2, tag: 'block2', mods, entrance: { path, speed: 3 }, patrol: [{ x: to.x, z: to.z }, { x: to.x - 2.5, z: to.z }] });
 }
 
 /** CP25 · Primer bloqueo: 2 agentes y 1 dron. */
 async function block1(S) {
   const g = S.g;
   forestState(S);
+  const P = S.points;
+  // En su puesto, tranquilos hasta que Jon se acerque (o les ataque)
+  const ready = g.enemies.list.some((e) => e.tag === 'block1');
+  if (!ready) g.factions.reputation.reset({ pdc: 0 });
+  const squad = block1Squad(S);
   await S.fadeIn();
   S.markers([]);
-  const P = S.points;
   S.objective('Sigue por el puente');
-  await S.until(() => S.pos.x > P.cp25.x + 3);
-  // Vigilantes: se detienen y apuntan mientras hablan
-  g.factions.reputation.reset({ pdc: 40 });
-  const b = P.block1;
-  const squad = spawnSquad(S, 'block1', [['pdc', b.x, -1.5], ['pdc', b.x + 3.5, 1.6], ['dron', b.x - 3, 0]]);
+  const attacked = () => squad.some((e) => !e.alive || e.health.value < e.health.max);
+  await S.until(() => S.pos.x > P.cp25.x + 3 || attacked());
   g.events.emit('story:encounter', { id: 'block1', types: squad.map((e) => e.type.id) });
-  cine(S, true);
-  S.shot(overShoulder(S.pos, { x: b.x + 1, y: b.y, z: 0 }, { back: 3.2, side: 1 }));
-  await S.say('AGENTE 1', '¡Al suelo!', 1.4);
-  await S.say('JON', 'No quiero problemas.', 1.8);
-  await S.say('AGENTE 2', '¡Está marcado! ¡Fuego!', 1.6);
+  if (!attacked()) {
+    // Vigilantes: se detienen y apuntan mientras hablan
+    g.factions.reputation.reset({ pdc: 40 });
+    const b = P.block1;
+    cine(S, true);
+    S.shot(overShoulder(S.pos, { x: b.x + 1, y: b.y, z: 0 }, { back: 3.2, side: 1 }));
+    await S.say('AGENTE 1', '¡Al suelo!', 1.4);
+    await S.say('JON', 'No quiero problemas.', 1.8);
+    await S.say('AGENTE 2', '¡Está marcado! ¡Fuego!', 1.6);
+    cine(S, false);
+  }
   g.factions.reputation.reset({ pdc: 100 });
-  cine(S, false);
   S.objective('Abre paso (0/3)');
   S.tutorial('Cobertura y esquiva', '[C] junto a un bloque: cubrirte · [Ctrl] esquivar · Alterna moverte y disparar');
   S.every(() => {
@@ -1504,7 +1554,10 @@ async function block2(S) {
   S.markers([]);
   const P = S.points;
   g.factions.reputation.reset({ pdc: 40 });
-  const [heavy] = spawnSquad(S, 'block2', [['reforzado', P.block2.x - 3, 0]]);
+  // El agente reforzado salta de la caja del primer camión del bloqueo
+  g.enemies.clear('block2');
+  const [t1, t2] = S.map.bridge.trucks;
+  const heavy = fromTruck(S, 'reforzado', t1, [], { x: P.block2.x - 3, z: 0 }, BRIDGE_HEAVY);
   g.events.emit('story:encounter', { id: 'block2a', types: ['reforzado'] });
   cine(S, true);
   S.shot(overShoulder(S.pos, heavy.position, { back: 3.4, side: -1 }));
@@ -1516,7 +1569,11 @@ async function block2(S) {
   await S.until(() => !heavy.alive);
   S.tutorial(null);
   await S.say('AGENTE (RADIO)', '¡El sujeto sigue avanzando! ¡Necesitamos refuerzos!', 2.6);
-  const wave = spawnSquad(S, 'block2', [['pdc', P.block2.x + 5.5, 2.2], ['pdc', P.block2.x + 11.5, -2.2]]);
+  // Refuerzos: bajan de los dos camiones
+  const wave = [
+    fromTruck(S, 'pdc', t2, [{ x: t2.out.x - 1.4, z: t2.out.z }], { x: P.block2.x + 5.5, z: 2.2 }, BRIDGE_EASY),
+    fromTruck(S, 'pdc', t1, [{ x: t1.out.x - 3, z: t1.out.z + 0.3 }], { x: P.block2.x - 1.2, z: -2.6 }, BRIDGE_EASY),
+  ];
   g.events.emit('story:encounter', { id: 'block2b', types: wave.map((e) => e.type.id) });
   S.line('JON', '¡No pienso volver a ese autobús!', 2.4);
   S.objective('Derrota a los refuerzos');

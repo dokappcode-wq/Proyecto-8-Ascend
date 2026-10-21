@@ -112,7 +112,8 @@ export default {
 /**
  * ZONA G — Enemigos especiales: un Blindado (escudo delante), dos drones y un
  * francotirador en una torre. El encuentro empieza al pisar la zona (así no
- * molesta en el resto del Campo) y se reinicia en el panel de la entrada.
+ * molesta en el resto del Campo): salen del barracón del fondo y ocupan sus
+ * puestos. Se reinicia en el panel de la entrada.
  */
 function buildZoneG(B, M, ctx) {
   const x0 = -55;
@@ -127,12 +128,24 @@ function buildZoneG(B, M, ctx) {
   for (const [x, z, w, d] of [[x0 + 3, z0 - 6, 3.5, 0.6], [x0 - 4, z0 - 2, 0.6, 3], [x0 + 7, z0 + 1, 3, 0.6], [x0 - 1, z0 + 6, 3.5, 0.6]]) {
     B.block({ x, z, w, d, h: 1.2, mat: M.white });
   }
+  // Barracón de la PDC al fondo (junto a la torre): de su puerta salen los
+  // enemigos del simulacro y el francotirador sube por la escalera de la torre
+  const hut = { x: x0 - 1.5, z: z0 + 12.5 };
+  B.block({ x: hut.x, z: hut.z, w: 7, d: 3.4, h: 3, mat: M.dark });
+  B.block({ x: hut.x, z: hut.z, w: 7.4, d: 3.8, y: 3, h: 0.2, mat: M.metal });
+  doorway(B, M, { x: hut.x, z: hut.z - 1.71, w: 1.4, h: 2.3 });
+  ladder(B, M, { x: x0 - 6.4, z: z0 + 8, h: 7, face: 'x' });
+  const door = { inside: { x: hut.x, y: 0.1, z: hut.z }, out: { x: hut.x, y: 0.1, z: hut.z - 2.6 } };
+  const walk = (type, to, extra = [], o = {}) => ctx.enemies.spawn(type, {
+    x: to.x, y: to.y ?? 0.1, z: to.z, yaw: Math.PI, tag: 'zonaG', ...o,
+    entrance: { path: [door.inside, door.out, ...extra, { x: to.x, y: to.y ?? 0.1, z: to.z }], delay: o.delay ?? 0 },
+  });
   const spawn = () => {
     ctx.enemies.clear('zonaG');
-    ctx.enemies.spawn('blindado', { x: x0, y: 0.1, z: z0 + 2, yaw: Math.PI, tag: 'zonaG', patrol: [{ x: x0 - 3, z: z0 + 2 }, { x: x0 + 3, z: z0 + 2 }] });
-    ctx.enemies.spawn('dron', { x: x0 + 6, y: 4, z: z0 + 6, yaw: Math.PI, tag: 'zonaG', patrol: [{ x: x0 + 6, z: z0 + 6 }, { x: x0 + 6, z: z0 - 4 }] });
-    ctx.enemies.spawn('dron', { x: x0 - 6, y: 4, z: z0 - 6, yaw: Math.PI, tag: 'zonaG', patrol: [{ x: x0 - 6, z: z0 - 6 }, { x: x0 - 8, z: z0 + 2 }] });
-    ctx.enemies.spawn('francotirador', { x: x0 - 8, y: 7.1, z: z0 + 8, yaw: Math.PI, tag: 'zonaG' });
+    walk('francotirador', { x: x0 - 8, y: 7.1, z: z0 + 8 }, [{ x: x0 - 5.9, y: 0.1, z: z0 + 8 }, { x: x0 - 5.9, y: 7.1, z: z0 + 8 }]);
+    walk('blindado', { x: x0, z: z0 + 2 }, [{ x: x0 + 2.5, y: 0.1, z: z0 + 8 }], { delay: 0.6, patrol: [{ x: x0 - 3, z: z0 + 2 }, { x: x0 + 3, z: z0 + 2 }] });
+    walk('dron', { x: x0 + 6, y: 4, z: z0 + 6 }, [{ x: hut.x, y: 2.5, z: hut.z - 4 }], { delay: 1.2, patrol: [{ x: x0 + 6, z: z0 + 6 }, { x: x0 + 6, z: z0 - 4 }] });
+    walk('dron', { x: x0 - 6, y: 4, z: z0 - 6 }, [{ x: hut.x, y: 2.5, z: hut.z - 4 }], { delay: 1.8, patrol: [{ x: x0 - 6, z: z0 - 6 }, { x: x0 - 8, z: z0 + 2 }] });
   };
   // Empieza al entrar en la zona
   const zone = {
@@ -395,20 +408,38 @@ function buildZoneD(B, M, ctx) {
   screen.rotation.y = Math.PI;
   ctx.group.add(screen);
 
-  const spawnEncounter = () => {
+  // Puerta del muro norte: al reiniciar el encuentro, los enemigos entran por ella
+  doorway(B, M, { x: x0, z: z0 - 14.98, w: 1.4, h: 2.3 });
+  const spawnEncounter = (fromDoor) => {
     ctx.enemies.clear('zonaD');
+    const door = [{ x: x0, y: 0.1, z: z0 - 16.2 }, { x: x0, y: 0.1, z: z0 - 13.5 }];
+    const at = (to, delay = 0) => (fromDoor ? { entrance: { path: [...door, { ...to, y: 0.1 }], delay } } : {});
     // Empiezan mirando hacia el fondo del recinto (puesto de guardia), no hacia la entrada.
-    ctx.enemies.spawn('pdc', { x: x0 - 6, y: 0.1, z: z0 - 10, yaw: Math.PI, tag: 'zonaD', patrol: [{ x: x0 - 10, z: z0 - 11 }, { x: x0 + 2, z: z0 - 11 }] });
-    ctx.enemies.spawn('acolyte', { x: x0 + 6, y: 0.1, z: z0 - 4, yaw: Math.PI, tag: 'zonaD', patrol: [{ x: x0 + 9, z: z0 - 4 }, { x: x0 + 9, z: z0 - 12 }] });
+    ctx.enemies.spawn('pdc', { x: x0 - 6, y: 0.1, z: z0 - 10, yaw: Math.PI, tag: 'zonaD', patrol: [{ x: x0 - 10, z: z0 - 11 }, { x: x0 + 2, z: z0 - 11 }], ...at({ x: x0 - 6, z: z0 - 10 }) });
+    ctx.enemies.spawn('acolyte', { x: x0 + 6, y: 0.1, z: z0 - 4, yaw: Math.PI, tag: 'zonaD', patrol: [{ x: x0 + 9, z: z0 - 4 }, { x: x0 + 9, z: z0 - 12 }], ...at({ x: x0 + 6, z: z0 - 4 }, 0.8) });
   };
-  spawnEncounter();
+  spawnEncounter(false);
   ctx.interactions.add({
     position: { x: x0 + 2.6, y: 0.5, z: z0 + 12.6 }, radius: 2.2, label: 'Reiniciar encuentro',
     onInteract: () => {
-      spawnEncounter();
+      spawnEncounter(true);
       ctx.events.emit('encounter:reset', { zone: 'D' });
     },
   });
+}
+
+/** Vano de puerta abierto (oscuro, con marco) en una pared, mirando a ±z. */
+function doorway(B, M, { x, z, w = 1.4, h = 2.3 }) {
+  B.block({ x, z, w, d: 0.06, h, mat: M.pad, collide: false, cast: false });
+  B.block({ x: x - w / 2 - 0.08, z, w: 0.16, d: 0.12, h: h + 0.16, mat: M.stripe, collide: false, cast: false });
+  B.block({ x: x + w / 2 + 0.08, z, w: 0.16, d: 0.12, h: h + 0.16, mat: M.stripe, collide: false, cast: false });
+  B.block({ x, z, w: w + 0.32, d: 0.12, y: h, h: 0.16, mat: M.stripe, collide: false, cast: false });
+}
+
+/** Escalera de mano (peldaños) pegada a una cara (decorado). */
+function ladder(B, M, { x, z, h, face = 'x' }) {
+  for (const s of [-0.28, 0.28]) B.block({ x: face === 'x' ? x : x + s, z: face === 'x' ? z + s : z, w: 0.06, d: 0.06, h, mat: M.metal, collide: false, cast: false });
+  for (let y = 0.3; y < h; y += 0.32) B.block({ x, z, y, w: face === 'x' ? 0.05 : 0.56, d: face === 'x' ? 0.56 : 0.05, h: 0.04, mat: M.metal, collide: false, cast: false });
 }
 
 /** Terminal dorado de la Zona E que lleva al Prólogo (Historia). */

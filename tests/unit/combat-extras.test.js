@@ -87,3 +87,17 @@ test('Alas · Plumaje: las plumas absorben el 20 % del daño mientras queden', (
   assert.deepEqual(plumageAbsorb(50, 0, P), { taken: 50, feathers: 0 });
   assert.ok(MARKS.alas.passive);
 });
+
+test('Dificultad por enemigo: scaleType ajusta vida, daño, cadencia, puntería y reacción sin tocar el tipo base', async () => {
+  const { scaleType } = await import('../../src/ai/enemyTypes.js');
+  const base = ENEMY_TYPES.pdc;
+  const easy = scaleType(base, { health: 0.65, damage: 0.5, cadence: 1.6, spread: 1.6, reaction: 1.5 });
+  assert.equal(easy.id, 'pdc', 'mismo tipo (las pruebas y el guion lo reconocen)');
+  assert.equal(easy.health, Math.round(base.health * 0.65));
+  assert.equal(easy.weapon.damage, base.weapon.damage * 0.5);
+  assert.ok(easy.weapon.cadence > base.weapon.cadence, 'dispara más despacio');
+  assert.ok(easy.weapon.spread > base.weapon.spread, 'apunta peor');
+  assert.ok(easy.brain.reactionTime > base.brain.reactionTime, 'reacciona más tarde');
+  assert.equal(base.health, 80, 'el tipo base no cambia');
+  assert.equal(scaleType(base, {}).weapon.damage, base.weapon.damage, 'sin ajustes, igual');
+});

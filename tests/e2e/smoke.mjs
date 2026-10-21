@@ -73,7 +73,7 @@ try {
   // Como en un equipo modesto se apagan el MSAA y los reflejos del cielo (lo
   // más costoso por píxel) y se dibuja al 75 % de resolución; la sección
   // [gráficos] enciende la calidad alta un momento para comprobarla.
-  await page.evaluate(() => { const a = window.__ascend; a.save.updateSettings({ antialias: false, reflections: false, renderScale: 0.75 }); a._applySettings(a.save.settings); });
+  await page.evaluate(() => { const a = window.__ascend; a.save.updateSettings({ antialias: false, reflections: false, renderScale: 0.75, autoQuality: false }); a._applySettings(a.save.settings); });
   await page.screenshot({ path: path.join(out, '00-menu.png') });
   check(await page.isVisible('#screen-menu.active'), 'Menú principal visible');
 
@@ -1838,7 +1838,9 @@ try {
   await g(() => window.__ascend.player.spawnAt({ x: -50, y: 0.3, z: 34, yaw: 0 }));
   await page.waitForFunction(() => window.__ascend.enemies.list.filter((e) => e.tag === 'zonaG').length === 4, null, { timeout: 8000 }).catch(() => {});
   const gTypes = await g(() => window.__ascend.enemies.list.filter((e) => e.tag === 'zonaG').map((e) => e.type.id).sort().join(','));
-  check(gTypes === 'blindado,dron,dron,francotirador', `Al entrar aparecen el Blindado, dos drones y el francotirador (${gTypes})`);
+  check(gTypes === 'blindado,dron,dron,francotirador', `Al entrar llegan el Blindado, dos drones y el francotirador (${gTypes})`);
+  const gEntry = await g(() => window.__ascend.enemies.list.filter((e) => e.tag === 'zonaG').map((e) => e.scripted));
+  check(gEntry.every(Boolean), 'Salen del barracón del fondo hacia sus puestos (no aparecen en ellos de la nada)');
   // Francotirador: apunta con el láser antes de disparar
   await g(() => {
     const a = window.__ascend;

@@ -32,6 +32,9 @@ export function createDefaultSave() {
       antialias: true,
       reflections: true,
       ao: false,
+      // Rendimiento: resolución dinámica (baja la resolución y, si hace falta,
+      // el MSAA cuando el juego va por debajo de ~45 FPS)
+      autoQuality: true,
     },
     bindings: null, // null = controles por defecto (ver core/Input.js)
     // Etapa del prototipo que escribió el guardado (para migraciones).

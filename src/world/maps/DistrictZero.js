@@ -336,9 +336,9 @@ function plaza(B, M, group, ctx) {
     B.world.addBox({ x: x - 0.25, y: 0.7, z: z - 0.25 }, { x: x + 0.25, y: 3.7, z: z + 0.25 });
   }
 
-  // Farolas de la plaza con luz real (pocas, por rendimiento)
+  // Farolas de la plaza (sin luz real: su charco de luz se pinta en el suelo)
   for (const [x, z] of [[-15, -15], [15, -15], [-15, 15], [15, 15]]) {
-    lamp(ctx, x, z, true);
+    lamp(ctx, x, z, false);
   }
 }
 
@@ -418,7 +418,7 @@ function streetProps(ctx, B, M, pools) {
       pools.push({ x, z, r: 5, color: 0xffc890, opacity: 0.3 });
     }
   }
-  for (const [x, z] of [[-15, -15], [15, -15], [-15, 15], [15, 15]]) pools.push({ x, y: 0.2, z, r: 5.5, color: 0xffd0a0, opacity: 0.22 });
+  for (const [x, z] of [[-15, -15], [15, -15], [-15, 15], [15, 15]]) pools.push({ x, y: 0.2, z, r: 6.5, color: 0xffd0a0, opacity: 0.34 });
   // Farolas altas de brazo en las calles exteriores
   for (const [x, z, ry] of [[-56, -40, 0], [-56, 0, 0], [-56, 52, 0], [56, -48, Math.PI], [56, 0, Math.PI], [56, 30, Math.PI], [-30, -56, -Math.PI / 2], [30, -56, -Math.PI / 2], [-30, 56, Math.PI / 2], [40, 56, Math.PI / 2]]) {
     streetLight(group, M, { x, z, ry });

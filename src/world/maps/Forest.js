@@ -704,6 +704,8 @@ function buildBridge(ctx, B, M, P) {
   pier(ctx, B, M, { x: 94, bottom: groundY(94, 0) - 2, top: Y - 0.6 });
   for (const [x, z, along] of [[78, 1.8, 'x'], [84, -2, 'x'], [91, 1.4, 'z']]) jersey(ctx, B, P, { x, y: Y, z, along, len: 2.6 });
   wreck(ctx, B, P, { x: 87, y: Y, z: 1.9, ry: 0.25 });
+  // Soporte de drones de la PDC junto al borde roto: tres drones posados que despegan de uno en uno
+  const droneRack = droneStation(ctx, B, P, { x: 96.4, y: Y, z: -2.7 });
 
   // 2 · Hueco (dash) y tramo caído, inclinado hasta la pila partida
   const T0 = { x: FALLEN.x0 - 1.2, y: FALLEN.y0 + (FALLEN.y0 - FALLEN.y1) / (FALLEN.x1 - FALLEN.x0) * 1.2 };
@@ -758,7 +760,42 @@ function buildBridge(ctx, B, M, P) {
     m.setVisible(false);
     return m;
   });
-  return { spans: BRIDGE_SPANS, gaps: BRIDGE_GAPS, markers, deckY: Y, fallen: FALLEN, pier: PIER, hang: HANG };
+  // Camiones del bloqueo final: los refuerzos salen por la caja trasera
+  const trucks = [truckRear(190, -2.4, Math.PI / 2 + 0.2, Y), truckRear(197, 2.4, -Math.PI / 2 + 0.2, Y)];
+  return { spans: BRIDGE_SPANS, gaps: BRIDGE_GAPS, markers, deckY: Y, fallen: FALLEN, pier: PIER, hang: HANG, droneRack, trucks };
+}
+
+/**
+ * Interior y salida trasera de la caja de un camión (kit `truck`): punto
+ * dentro de la lona y punto en el suelo, detrás de la compuerta.
+ */
+function truckRear(x, z, ry, y) {
+  const ax = Math.cos(ry);
+  const az = -Math.sin(ry);
+  return { inside: { x: x - ax * 2, y, z: z - az * 2 }, out: { x: x - ax * 4.1, y, z: z - az * 4.1 } };
+}
+
+/**
+ * Estación de drones de la PDC: maleta de carga con tres plataformas
+ * iluminadas (los drones esperan posados encima). Devuelve las plataformas.
+ */
+function droneStation(ctx, B, P, { x, y, z }) {
+  const { group } = ctx;
+  B.block({ x, z, w: 4.2, d: 1.2, y, h: 0.75, mat: P.pdcDark, climbable: true });
+  deco(group, { x, y: y + 0.75, z, w: 4.22, h: 0.06, d: 1.22, mat: P.strip, cast: false });
+  deco(group, { x, y: y + 0.3, z: z + 0.61, w: 3.6, h: 0.12, d: 0.02, mat: P.hazard, cast: false });
+  const pads = [];
+  for (const dx of [-1.4, 0, 1.4]) {
+    const pad = staticMesh(group, new THREE.CylinderGeometry(0.5, 0.55, 0.06, 16), P.plate, { cast: false });
+    pad.position.set(x + dx, y + 0.78, z);
+    const ring = staticMesh(group, new THREE.TorusGeometry(0.5, 0.03, 4, 20).rotateX(Math.PI / 2), P.strip, { cast: false });
+    ring.position.set(x + dx, y + 0.82, z);
+    pads.push({ x: x + dx, y: y + 0.85, z });
+  }
+  // Antena de enlace
+  deco(group, { x: x + 2.3, y, z, w: 0.08, h: 2.2, d: 0.08, mat: P.metal });
+  deco(group, { x: x + 2.3, y: y + 2.2, z, w: 0.18, h: 0.18, d: 0.18, mat: P.redLight, cast: false });
+  return pads;
 }
 
 /** Coche accidentado y medio aplastado (cobertura). */

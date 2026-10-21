@@ -156,6 +156,8 @@ function facadeWindow(group, M, wood, h, f, along, y0, { tall = false, lit = fal
 
 function facadeDoor(group, M, wood, h, f, along, baseH) {
   const p = onFacade(h, f, along, 0.07);
+  // Registro de puertas (comprobaciones: que no den a una pared ni al vacío)
+  (group.userData.doors ??= []).push({ x: p.x, z: p.z, nx: f.axis === 'x' ? f.sgn : 0, nz: f.axis === 'z' ? f.sgn : 0 });
   const thin = (w, d) => (f.axis === 'z' ? { w, d } : { w: d, d: w });
   deco(group, { x: p.x, y: 0, z: p.z, ...thin(1.5, 0.08), h: 2.55, mat: M.trim, cast: false });
   const q = onFacade(h, f, along, 0.12);

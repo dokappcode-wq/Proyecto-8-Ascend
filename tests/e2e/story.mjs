@@ -14,7 +14,7 @@ export async function storySection({ page, check, PORT, out }) {
   await page.waitForFunction(() => window.__ascend);
   await page.evaluate(() => window.addEventListener('mousemove', (e) => e.stopImmediatePropagation(), true));
   // Render más ligero para que el software aguante los mapas nuevos
-  await g(() => { const a = window.__ascend; Object.assign(a.save.settings, { shadows: false, bloom: false, renderScale: 0.5 }); a._applySettings(a.save.settings); });
+  await g(() => { const a = window.__ascend; Object.assign(a.save.settings, { shadows: false, bloom: false, renderScale: 0.5, autoQuality: false }); a._applySettings(a.save.settings); });
   check(await page.isVisible('#menu-story'), 'Menú: botón «Historia · Prólogo»');
   await page.click('#menu-story');
   await until(() => window.__ascend.state === 'playing' && window.__ascend.story.active);
@@ -212,16 +212,18 @@ export async function storySection({ page, check, PORT, out }) {
     check(await has('story:line', "e.d.text === 'Vale... creo que empiezo a entenderlo.'"), '«Creo que empiezo a entenderlo»');
     // Drones
     await jump('CP21');
+    check(await g(() => { const d = window.__ascend.enemies.list.filter((e) => e.tag === 'drones'); return d.length === 3 && d.every((e) => e.dormant); }), 'Los tres drones esperan posados en su estación (no aparecen de la nada)');
     // Pilares, pared y meseta (se recorren en el juego): directo al tramo oeste del puente
     await tp({ x: P.clearing.x + 1.5, y: P.deckY + 0.2, z: 0, yaw: Math.PI / 2 });
-    check(await has('enemy:spawned', "e.d.tag === 'drones'"), 'En el tramo oeste aparecen los drones');
+    check(await has('story:drone', 'e.d.n === 1'), 'En el tramo oeste despega el primer dron');
     const killDrones = async () => {
       for (let n = 1; n <= 3; n++) {
         await until((k) => window.__ev.filter((e) => e.ev === 'story:drone').length >= k, n, 30000);
-        const alive = await g(() => window.__ascend.enemies.alive.filter((e) => e.tag === 'drones').length);
+        // Los que esperan posados en la estación no cuentan: despegan de uno en uno
+        const alive = await g(() => window.__ascend.enemies.alive.filter((e) => e.tag === 'drones' && !e.dormant).length);
         if (alive !== 1) check(false, `De uno en uno: ${alive} drones activos a la vez`);
         await page.waitForTimeout(400);
-        await g(() => { const a = window.__ascend; for (const e of a.enemies.alive.filter((x) => x.tag === 'drones')) a.combat.applyDamage(e, 999, { faction: 'player', kind: 'bolt' }); });
+        await g(() => { const a = window.__ascend; for (const e of a.enemies.alive.filter((x) => x.tag === 'drones' && !x.dormant)) a.combat.applyDamage(e, 999, { faction: 'player', kind: 'bolt' }); });
       }
     };
     await killDrones();
@@ -295,6 +297,7 @@ export async function storySection({ page, check, PORT, out }) {
     // Bajada por el tramo caído hasta la pila partida
     await tp({ ...P.pier, y: P.pier.y + 0.3, yaw: Math.PI / 2 });
     check(await cpIs('CP24', 60000), 'Pila partida → CP24');
+    check(await until(() => window.__ascend.enemies.alive.filter((e) => e.tag === 'block1').length === 3, null, 30000), 'El primer bloqueo ya está en su puesto antes de llegar (no aparece de la nada)');
     // Bloqueos
     await jump('CP25');
     await tp({ x: P.cp25.x + 4, y: P.deckY + 0.2, z: 0, yaw: Math.PI / 2 });
@@ -307,6 +310,13 @@ export async function storySection({ page, check, PORT, out }) {
     await tp({ x: P.cp27.x + 0.5, y: P.deckY + 0.2, z: 0, yaw: Math.PI / 2 });
     check(await cpIs('CP27', 60000), 'Sección final → CP27');
     check(await has('story:encounter', "e.d.id === 'block2a' && e.d.types.join() === 'reforzado'"), 'Oleada 1: un agente reforzado');
+    const fromTruck = await g(() => {
+      const a = window.__ascend;
+      const h = a.enemies.list.find((e) => e.tag === 'block2');
+      const t = a.mapManager.current.story.bridge.trucks[0].inside;
+      return { d: Math.hypot(h.position.x - t.x, h.position.z - t.z), hp: h.health.max };
+    });
+    check(fromTruck.d < 7, `El reforzado sale de la caja de un camión (a ${fromTruck.d.toFixed(1)} m) y es más débil (${fromTruck.hp} PV)`);
     await until(() => !window.__ascend.story.controlsLocked, null, 45000);
     await g(() => { const a = window.__ascend; for (const e of a.enemies.alive.filter((x) => x.tag === 'block2')) a.combat.applyDamage(e, 999, { faction: 'player', kind: 'bolt' }); });
     check(await has('story:encounter', "e.d.id === 'block2b' && e.d.types.join() === 'pdc,pdc'"), 'Oleada 2: dos agentes');

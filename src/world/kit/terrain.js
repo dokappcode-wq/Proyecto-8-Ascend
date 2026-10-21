@@ -54,31 +54,124 @@ export function terrain(ctx, o) {
       col.set([t, t, t], k * 3);
     }
   }
-  const index = [];
-  for (let j = 0; j < rows - 1; j++) {
-    for (let i = 0; i < cols - 1; i++) {
-      const a = j * cols + i; // (0,0)
-      const b = a + 1; // (1,0)
-      const c = a + cols; // (0,1)
-      const d = c + 1; // (1,1)
-      // Misma diagonal que CollisionWorld.heightfieldAt
-      index.push(a, c, d, a, d, b);
+  // Normales a partir de la rejilla completa (continuas entre baldosas)
+  const nrm = new Float32Array(n * 3);
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const gx = (at(i + 1, j) - at(i - 1, j)) / (2 * cell);
+      const gz = (at(i, j + 1) - at(i, j - 1)) / (2 * cell);
+      const l = Math.hypot(gx, 1, gz);
+      nrm.set([-gx / l, 1 / l, -gz / l], (j * cols + i) * 3);
     }
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.setAttribute('splat', new THREE.BufferAttribute(spl, 2));
-  geo.setIndex(index);
-  geo.computeVertexNormals();
   // `simple`: terreno de fondo con solo hierba y tinte (sin mezcla: mucho más barato por píxel)
   const mat = o.simple ? new THREE.MeshStandardMaterial({ map: o.grass, vertexColors: true, roughness: 1 }) : terrainMaterial(o);
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
-  mesh.castShadow = !o.simple;
+  // Baldosas de TILE × TILE celdas: se descartan fuera de cámara y, lejos,
+  // usan la rejilla cada 2 o 4 vértices (con faldones que tapan las rendijas
+  // entre baldosas de distinto detalle)
+  const TILE = o.tile ?? 32;
+  const lodD = o.simple ? null : o.lodDistances ?? [70, 170];
+  const skirt = cell * 2 + 1;
+  const mesh = new THREE.Group();
   mesh.name = 'Terreno';
+  const tiles = [];
+  for (let tj = 0; tj < rows - 1; tj += TILE) {
+    for (let ti = 0; ti < cols - 1; ti += TILE) {
+      const ci = Math.min(TILE, cols - 1 - ti);
+      const cj = Math.min(TILE, rows - 1 - tj);
+      const tc = ci + 1;
+      const tr = cj + 1;
+      // Bordes (índices de la baldosa) en orden: sur, este, norte, oeste
+      const edges = [
+        Array.from({ length: tc }, (_, k) => k),
+        Array.from({ length: tr }, (_, k) => k * tc + ci),
+        Array.from({ length: tc }, (_, k) => cj * tc + k),
+        Array.from({ length: tr }, (_, k) => k * tc),
+      ];
+      const nv = tc * tr + edges.reduce((a, e) => a + e.length, 0);
+      const P = new Float32Array(nv * 3);
+      const U = new Float32Array(nv * 2);
+      const C = new Float32Array(nv * 3);
+      const S = new Float32Array(nv * 2);
+      const N = new Float32Array(nv * 3);
+      const copy = (dst, src, g) => {
+        P.set(pos.subarray(src * 3, src * 3 + 3), dst * 3);
+        U.set(uv.subarray(src * 2, src * 2 + 2), dst * 2);
+        C.set(col.subarray(src * 3, src * 3 + 3), dst * 3);
+        S.set(spl.subarray(src * 2, src * 2 + 2), dst * 2);
+        N.set(nrm.subarray(src * 3, src * 3 + 3), dst * 3);
+        if (g) P[dst * 3 + 1] -= g;
+      };
+      for (let j = 0; j < tr; j++) for (let i = 0; i < tc; i++) copy(j * tc + i, (tj + j) * cols + ti + i, 0);
+      const skirtBase = [];
+      let v = tc * tr;
+      for (const e of edges) {
+        skirtBase.push(v);
+        for (const k of e) copy(v++, (tj + Math.floor(k / tc)) * cols + ti + (k % tc), skirt);
+      }
+      const attrs = {
+        position: new THREE.BufferAttribute(P, 3), uv: new THREE.BufferAttribute(U, 2), color: new THREE.BufferAttribute(C, 3),
+        splat: new THREE.BufferAttribute(S, 2), normal: new THREE.BufferAttribute(N, 3),
+      };
+      const strides = lodD ? [1, 2, 4].filter((st) => ci % st === 0 && cj % st === 0) : [1];
+      const meshes = strides.map((st) => {
+        const index = [];
+        for (let j = 0; j + st <= cj; j += st) {
+          for (let i = 0; i + st <= ci; i += st) {
+            const a = j * tc + i; // (0,0)
+            const b = a + st; // (1,0)
+            const c = a + st * tc; // (0,1)
+            const d = c + st; // (1,1)
+            // Misma diagonal que CollisionWorld.heightfieldAt
+            index.push(a, c, d, a, d, b);
+          }
+        }
+        if (strides.length > 1) {
+          edges.forEach((e, ei) => {
+            for (let k = 0; k + st < e.length; k += st) {
+              const t0 = e[k];
+              const t1 = e[k + st];
+              const b0 = skirtBase[ei] + k;
+              const b1 = skirtBase[ei] + k + st;
+              // A las dos caras (el faldón se ve desde la baldosa vecina)
+              index.push(t0, b0, b1, t0, b1, t1, t0, b1, b0, t0, t1, b1);
+            }
+          });
+        }
+        const geo = new THREE.BufferGeometry();
+        for (const [k, a] of Object.entries(attrs)) geo.setAttribute(k, a);
+        geo.setIndex(index);
+        geo.computeBoundingSphere();
+        const m = new THREE.Mesh(geo, mat);
+        m.receiveShadow = true;
+        m.castShadow = !o.simple;
+        m.name = 'Terreno';
+        m.visible = st === 1;
+        mesh.add(m);
+        return m;
+      });
+      const x0 = minX + ti * cell;
+      const z0 = minZ + tj * cell;
+      tiles.push({ x0, z0, x1: x0 + ci * cell, z1: z0 + cj * cell, meshes, cur: 0 });
+    }
+  }
   ctx.group.add(mesh);
+  if (lodD) {
+    ctx.addEntity({
+      lod(eye) {
+        for (const t of tiles) {
+          const dx = Math.max(t.x0 - eye.x, 0, eye.x - t.x1);
+          const dz = Math.max(t.z0 - eye.z, 0, eye.z - t.z1);
+          const d = Math.hypot(dx, dz);
+          const k = Math.min(t.meshes.length - 1, d < lodD[0] ? 0 : d < lodD[1] ? 1 : 2);
+          if (k === t.cur) continue;
+          t.meshes[t.cur].visible = false;
+          t.meshes[k].visible = true;
+          t.cur = k;
+        }
+      },
+    });
+  }
   const hf = collide ? ctx.world.addHeightfield({ minX, minZ, cell, cols, rows, heights, tag: 'terrain' }) : null;
   const heightAt = (x, z) => {
     const fx = Math.max(0, Math.min(cols - 1, (x - minX) / cell));

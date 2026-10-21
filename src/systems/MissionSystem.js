@@ -110,7 +110,11 @@ export class MissionSystem {
     g.enemies.clear('mision-acolito');
     m.activate();
     for (const s of m.def.spawns) {
-      g.enemies.spawn(s.type, { x: s.x, y: s.y ?? 0.2, z: s.z, yaw: s.yaw, tag: s.tag, patrol: s.patrol });
+      // Llegan a su puesto por un camino (salen de un vehículo o de un callejón);
+      // `delay`: esperan dentro unos instantes para no salir todos a la vez
+      const y = s.y ?? 0;
+      const path = s.from ? [...s.from, { x: s.x, z: s.z }].map((p) => ({ x: p.x, y, z: p.z })) : null;
+      g.enemies.spawn(s.type, { x: s.x, y: y + 0.2, z: s.z, yaw: s.yaw, tag: s.tag, patrol: s.patrol, entrance: path ? { path, speed: 2.6, delay: s.delay ?? 0 } : null });
     }
     g.events.emit('mission:started', { id: m.def.id });
     g.ui.toast(m.def.name, m.def.brief, 5000);

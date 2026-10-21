@@ -20,7 +20,8 @@ export class VfxSystem {
     scene.add(this.smoke.points);
     this.sparks = new SparkSystem(900);
     scene.add(this.sparks.lines);
-    this.lights = new LightPool(scene, 6);
+    // Pocas luces fijas: cada luz puntual encarece todos los píxeles iluminados
+    this.lights = new LightPool(scene, 3);
     this.transients = []; // { obj, life, maxLife, update(t) }
     this.group = new THREE.Group();
     this.group.name = 'VFX';

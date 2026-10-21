@@ -5,6 +5,7 @@ import { createWater } from '../water.js';
 import { scaleBoxUVs } from '../LevelBuilder.js';
 import { EnergySource } from '../entities/EnergySource.js';
 import { StealthGuard, Searchlight } from '../../story/actors.js';
+import { NavGrid } from '../../ai/NavGrid.js';
 import { Shutter, Zipline, Rain, AlarmLights, CardVitrines, mulberry, pineForest, scatterBushes, scatterRocks } from '../../story/props.js';
 import { villageMaterials, fishermanHouse, lighthouse, fishingBoat, quay, church, laundryLine } from '../kit/village.js';
 import { lampPost, climbMark, deco, staticMesh, rockGeometry, gableRoof } from '../kit/common.js';
@@ -515,9 +516,6 @@ function buildJonHouse(ctx, M, V) {
   photo.position.set(H.x, 1.6, z1 - t - 0.02);
   photo.rotation.y = Math.PI;
   intact.add(photo);
-  const lamp = new THREE.PointLight(0xffc27a, 0, 9, 1.6);
-  lamp.position.set(H.x, 3.2, H.z);
-  group.add(lamp);
   // --- En ruinas: muros rotos, tejado hundido y escombros ---
   const rubble = new THREE.MeshStandardMaterial({ color: 0x6d665b, roughness: 1, flatShading: true });
   box(ruined, ruinedBoxes, { x: (x0 + H.x - door / 2) / 2, z: z0 + t / 2, w: H.x - door / 2 - x0, d: t, h: 2.2, mat: V.stoneDark });
@@ -541,7 +539,7 @@ function buildJonHouse(ctx, M, V) {
   beam.castShadow = true;
   ruined.add(beam);
   const handle = {
-    intact, ruined, furniture, lamp,
+    intact, ruined, furniture,
     ruinedState: false,
     setRuined(v) {
       this.ruinedState = v;
@@ -744,9 +742,11 @@ function buildBase(ctx, B, M, P, night) {
   void stairs;
   // Planta baja este (bajo la losa): cerrada salvo la escalera y la puerta principal
   wall({ x: 104, z: (-62 + Z1) / 2, w: T, d: Z1 + 62, y: Y, h: 3.8 });
-  // Compuerta de la escalera (se cierra con la alarma) y puerta principal
-  const shutterStairs = new Shutter(ctx, { x: 109, z: -59.6, w: 2.6, d: 0.2, y: Y + 4, h: 2.6, mat: M.stripe, open: true });
-  const shutterMain = new Shutter(ctx, { x: 108.2, z: Z1 - 0.2, w: 2.4, d: 0.25, y: Y, h: 2.6, mat: M.stripe, open: false });
+  // Compuerta de la escalera y persiana de seguridad de la entrada (recogidas; bajan con la alarma)
+  const shutterStairs = new Shutter(ctx, { x: 109, z: -59.6, w: 2.6, d: 0.2, y: Y + 4, h: 2.6, mat: P.plate, open: true });
+  const shutterMain = new Shutter(ctx, { x: 108.2, z: Z1 + 0.05, w: 2.4, d: 0.12, y: Y, h: 2.6, mat: P.plate, open: true });
+  // Entrada principal: doble puerta de cristal con marco y control de acceso (cerrada con llave)
+  mainDoor(ctx, B, P, { x: 108.2, z: Z1 - 0.2, y: Y, w: 2.4, h: 2.6 });
   const shutterChamber = new Shutter(ctx, { x: 105.6, z: -62, w: 2, d: 0.3, y: Y + 4, h: 2.4, mat: M.metal, open: true });
   ctx.addEntity(shutterStairs);
   ctx.addEntity(shutterMain);
@@ -778,8 +778,14 @@ function buildBase(ctx, B, M, P, night) {
   B.block({ x: 106.9, z: -43.6, w: 0.8, d: 1.2, y: Y, h: 8.75, mat: M.metal, climbable: true });
   // Anexo este (azotea a 15) y pasarela hasta la torre de la tirolina
   B.block({ x: 116, z: -60, w: 8, d: 20, y: Y, h: 5, mat: M.concrete, climbable: false });
+  serviceDoor(ctx, P, { x: 116, z: -49.95, y: Y, face: 1, night });
+  for (const z of [-66, -60, -54]) deco(group, { x: 120.04, y: Y + 3, z, w: 0.06, h: 0.8, d: 2.4, mat: night ? P.window : P.windowDark, cast: false });
+  ladderRungs(group, P.metal, { x: 120.1, z: -67.5, y: Y, h: 5, face: 'x' });
   B.bridge({ from: { x: 116, y: Y + 5, z: -50 }, to: { x: 116, y: Y + 5, z: -16 }, width: 2.2, mat: M.rust, rails: M.metal });
-  B.block({ x: 116, z: -11, w: 6, d: 10, y: Y, h: 5, mat: M.metal, climbable: false }); // torre de la tirolina
+  B.block({ x: 116, z: -11, w: 6, d: 10, y: Y, h: 5, mat: P.concrete, climbable: false }); // torre de la tirolina (caseta de mantenimiento)
+  deco(group, { x: 116, y: Y + 4.6, z: -11, w: 6.2, h: 0.4, d: 10.2, mat: P.concreteDark });
+  serviceDoor(ctx, P, { x: 112.95, z: -9, y: Y, face: -1, axis: 'x', night });
+  ladderRungs(group, P.metal, { x: 116, z: -16.1, y: Y, h: 5, face: 'z' });
   B.block({ x: 116, z: -7.5, w: 0.3, d: 0.3, y: Y + 5, h: 4, mat: M.metal, collide: false });
   B.block({ x: 116, z: -7.5, w: 0.4, d: 0.4, y: Y + 9, h: 0.3, mat: M.redLight, collide: false });
   const zipline = new Zipline(ctx, { from: { x: 116, y: Y + 7.6, z: -8 }, to: { x: 110, y: 2.3, z: 38 } });
@@ -793,6 +799,7 @@ function buildBase(ctx, B, M, P, night) {
   helicopter(ctx, P, { x: 133, y: Y + 0.25, z: -30, ry: 0.6 });
   B.block({ x: 132, z: -90, w: 20, d: 14, y: Y, h: 6.5, mat: P.concrete, climbable: false });
   for (const x of [125, 132, 139]) rollDoor(ctx, P, { x, y: Y, z: -82.95, w: 5, h: 4.4 });
+  serviceDoor(ctx, P, { x: 128.5, z: -82.95, y: Y, face: 1, night, w: 1.1 });
   deco(group, { x: 132, y: Y + 5.2, z: -82.92, w: 20, h: 0.12, d: 0.06, mat: P.strip, cast: false });
   for (const z of [-62, -53]) {
     const t = staticMesh(group, new THREE.CylinderGeometry(2.6, 2.6, 5.5, 20), P.metalLight);
@@ -814,36 +821,44 @@ function buildBase(ctx, B, M, P, night) {
     { x: 94, y: Y + 3.5, z: -45.6 }, { x: 106, y: Y + 7.5, z: -60 }, { x: 101, y: Y + 7.5, z: -50 },
     { x: 89, y: Y + 3.5, z: -60 }, { x: 110, y: Y + 7.5, z: -70 },
   ]);
-  for (const p of [{ x: 104, y: Y + 7, z: -52 }, { x: 94, y: Y + 3, z: -60 }]) {
-    const l = new THREE.PointLight(0xff2020, 0, 22, 1.6);
+  // Una sola luz roja real (las balizas son emisivas): cada luz encarece todos los píxeles
+  for (const p of [{ x: 100, y: Y + 6, z: -56 }]) {
+    const l = new THREE.PointLight(0xff2020, 0, 30, 1.4);
     l.position.set(p.x, p.y, p.z);
     group.add(l);
     alarms.addLight(l);
   }
   ctx.addEntity(alarms);
 
-  // Guardias de sigilo
+  // Guardias de sigilo: rutas que rodean cajas y paredes (rejilla de navegación de la meseta)
+  const nav = new NavGrid(ctx.world, { x0: 56, x1: 151, z0: -105, z1: 9.5, y: Y, cell: 0.75 });
+  const guard = (o) => new StealthGuard(ctx, { y: Y, nav, ...o });
   const guards = [
-    new StealthGuard(ctx, { id: 'patio', route: [{ x: 66, z: -31, wait: 2.5 }, { x: 87, z: -36, wait: 2.5 }], y: Y, speed: 1.6, range: 12, fov: 38 }),
-    new StealthGuard(ctx, { id: 'fachada', route: [{ x: 76, z: -54, wait: 2 }, { x: 76, z: -62, wait: 2 }, { x: 70, z: -60, wait: 1.5 }], y: Y, speed: 1.4, range: 11, fov: 36 }),
-    new StealthGuard(ctx, { id: 'conducto1', route: [{ x: 85.6, z: -50.2, wait: 999, yaw: -Math.PI / 2 }], y: Y, range: 10, fov: 32 }),
-    new StealthGuard(ctx, { id: 'conducto2', route: [{ x: 85.6, z: -54, wait: 999, yaw: -Math.PI / 2 }], y: Y, range: 10, fov: 32 }),
-    new StealthGuard(ctx, { id: 'almacen', route: [{ x: 91, z: -66, wait: 2.5 }, { x: 98, z: -66, wait: 2.5 }, { x: 98, z: -57, wait: 2 }], y: Y, speed: 1.3, range: 9, fov: 36 }),
+    guard({ id: 'patio', route: [{ x: 66, z: -31, wait: 2.5 }, { x: 87, z: -36, wait: 2.5 }], speed: 1.6, range: 12, fov: 38 }),
+    guard({ id: 'fachada', route: [{ x: 76, z: -54, wait: 2 }, { x: 76, z: -62, wait: 2 }, { x: 70, z: -60, wait: 1.5 }], speed: 1.4, range: 11, fov: 36 }),
+    guard({ id: 'conducto1', route: [{ x: 85.6, z: -50.2, wait: 999, yaw: -Math.PI / 2 }], range: 10, fov: 32 }),
+    guard({ id: 'conducto2', route: [{ x: 85.6, z: -54, wait: 999, yaw: -Math.PI / 2 }], range: 10, fov: 32 }),
+    guard({ id: 'almacen', route: [{ x: 91, z: -66, wait: 2.5 }, { x: 98, z: -66, wait: 2.5 }, { x: 98, z: -57, wait: 2 }], speed: 1.3, range: 9, fov: 36 }),
+    // El resto de la base también está vigilado (lejos de la ruta del sigilo)
+    guard({ id: 'puerta', route: [{ x: 96.5, z: -96.5, wait: 4, look: Math.PI }, { x: 103.5, z: -96.5, wait: 4, look: Math.PI }], speed: 1.1, range: 10, fov: 34 }),
+    guard({ id: 'helipuerto', route: [{ x: 123.5, z: -40, wait: 2 }, { x: 143, z: -40, wait: 2 }, { x: 143, z: -20, wait: 2 }, { x: 123.5, z: -20, wait: 2 }], speed: 1.4, range: 11, fov: 36 }),
+    guard({ id: 'garaje', route: [{ x: 128.5, z: -79.6, wait: 6, look: 0 }, { x: 121, z: -76, wait: 3 }], speed: 1.1, range: 10, fov: 34 }),
   ];
   for (const g of guards) ctx.addEntity(g);
 
   // Fluorescentes del interior: de noche son la única luz dentro de la base
   if (night) {
     const panel = new THREE.MeshStandardMaterial({ color: 0x1a1c20, emissive: 0xeef4ff, emissiveIntensity: 1.6 });
+    // Dos luces reales (almacén y planta alta) y cuatro paneles emisivos
     for (const [x, z, color, intensity, dist] of [
-      [94, -66, 0xdde8ff, 9, 16], // almacén, norte (cajas y pasarela)
-      [94, -52, 0xdde8ff, 9, 16], // almacén, sur (conducto)
-      [106, -68.5, 0x9fd0ff, 11, 13], // cámara de contención (azulada)
-      [108, -53, 0xe6eeff, 8, 13], // pasillo alto y escalera
+      [94, -59, 0xdde8ff, 12, 22], // almacén (cajas, pasarela y conducto)
+      [106, -62, 0xbcd8ff, 12, 18], // cámara de contención y pasillo alto
     ]) {
       const l = new THREE.PointLight(color, intensity, dist, 1.2);
       l.position.set(x, Y + 7.4, z);
       group.add(l);
+    }
+    for (const [x, z] of [[94, -66], [94, -52], [106, -68.5], [108, -53]]) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.32), panel);
       m.position.set(x, Y + 7.95, z);
       group.add(m);
@@ -853,10 +868,60 @@ function buildBase(ctx, B, M, P, night) {
   // Generador decorativo en el patio (sin uso en M01: Jon aún no tiene Energía)
   void EnergySource;
   void night;
+  // Con la alarma: todos acuden a la entrada principal cerrada (creen que el
+  // intruso sigue dentro); el de la puerta norte no la deja y los del
+  // helipuerto y el garaje vigilan la pasarela del anexo
+  const toDoor = { x: 108.2, z: -45 };
+  const alarmPosts = {
+    patio: { at: { x: 105.4, z: -40.6 }, look: toDoor }, fachada: { at: { x: 111, z: -40.4 }, look: toDoor },
+    conducto1: { at: { x: 103.2, z: -42 }, look: toDoor }, conducto2: { at: { x: 113.4, z: -41.8 }, look: toDoor },
+    almacen: { at: { x: 91, z: -52 }, look: { x: 88, z: -52 } }, puerta: { at: { x: 100, z: -97.5 }, look: { x: 100, z: -80 } },
+    helipuerto: { at: { x: 121.5, z: -34 }, look: { x: 116, z: -30 } }, garaje: { at: { x: 120, z: -24 }, look: { x: 116, z: -24 } },
+  };
   return {
-    guards, lights: [lightA, lightB], vitrines, documents, zipline, alarms,
+    guards, lights: [lightA, lightB], vitrines, documents, zipline, alarms, nav, alarmPosts,
+    /** Puerta del cuartel (garaje): ahí se releva la guardia del conducto. */
+    barracks: { x: 128.5, z: -81.6 },
     shutters: { stairs: shutterStairs, main: shutterMain, chamber: shutterChamber, vent: ventCover },
   };
+}
+
+/** Doble puerta de cristal de la entrada (cerrada con llave: colisiona siempre), con marco, tirador y lector. */
+function mainDoor(ctx, B, P, { x, z, y, w, h }) {
+  const { group } = ctx;
+  B.block({ x, z, w, d: 0.12, y, h, mat: P.glass }).castShadow = false;
+  deco(group, { x, y, z: z + 0.07, w: 0.08, h, d: 0.08, mat: P.metal, cast: false });
+  for (const sx of [-1, 1]) {
+    deco(group, { x: x + sx * (w / 2 + 0.05), y, z, w: 0.1, h: h + 0.1, d: 0.2, mat: P.metal, cast: false });
+    deco(group, { x: x + sx * 0.18, y: y + 1, z: z + 0.1, w: 0.04, h: 0.6, d: 0.05, mat: P.metalLight, cast: false });
+  }
+  deco(group, { x, y: y + h, z, w: w + 0.2, h: 0.1, d: 0.2, mat: P.metal, cast: false });
+  deco(group, { x: x + w / 2 + 0.4, y: y + 1.1, z: z + 0.12, w: 0.18, h: 0.26, d: 0.05, mat: P.strip, cast: false });
+}
+
+/**
+ * Puerta de servicio (chapa) con marco, rótulo luminoso y luz encima.
+ * `face`: hacia dónde da (+1 / −1 en el eje `axis`).
+ */
+function serviceDoor(ctx, P, { x, z, y, face = 1, axis = 'z', night = true, w = 1.1, h = 2.2 }) {
+  const { group } = ctx;
+  const along = axis === 'z';
+  const t = (a, b) => (along ? { w: a, d: b } : { w: b, d: a });
+  const off = (k) => (along ? { x, z: z + face * k } : { x: x + face * k, z });
+  deco(group, { ...off(0.02), y, ...t(w + 0.24, 0.08), h: h + 0.12, mat: P.concreteDark, cast: false });
+  deco(group, { ...off(0.07), y, ...t(w, 0.06), h, mat: P.plate, cast: false });
+  const hd = along ? { x: x + w * 0.32, z: z + face * 0.12 } : { x: x + face * 0.12, z: z + w * 0.32 };
+  deco(group, { ...hd, y: y + 1, ...t(0.12, 0.05), h: 0.05, mat: P.metalLight, cast: false });
+  deco(group, { ...off(0.08), y: y + h + 0.25, ...t(0.7, 0.04), h: 0.18, mat: P.strip, cast: false });
+  deco(group, { ...off(0.3), y: y + h + 0.5, ...t(0.5, 0.5), h: 0.08, mat: P.concreteDark, cast: false });
+  if (night) lightPool(group, { ...off(1.2), y, r: 2.4, color: 0xdfeaff, opacity: 0.25 });
+}
+
+/** Escalera de mano (peldaños de acero) pegada a una fachada (decorado). */
+function ladderRungs(group, mat, { x, z, y, h, face = 'x' }) {
+  const ax = face === 'x';
+  for (const s of [-0.28, 0.28]) deco(group, { x: ax ? x : x + s, y, z: ax ? z + s : z, w: 0.06, h: h + 0.9, d: 0.06, mat });
+  for (let k = 0.3; k < h + 0.8; k += 0.3) deco(group, { x, y: y + k, z, w: ax ? 0.05 : 0.56, h: 0.04, d: ax ? 0.56 : 0.05, mat, cast: false });
 }
 
 /** Grúa pórtico amarilla sobre los contenedores, con uno colgando del carro. */

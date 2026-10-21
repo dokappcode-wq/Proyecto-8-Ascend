@@ -58,6 +58,13 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   PDC, el bosque con el gran cañón y el Distrito Cero, construidos con el kit
   de escenarios de la propuesta aprobada, con terreno con relieve y sin
   huecos de mapa a la vista (el mundo continúa más allá de los límites).
+- **Rendimiento, enemigos y base** ✅: el juego dibuja mucho menos (densidad
+  de píxeles a 1×, resolución dinámica automática, nivel de detalle en pinos y
+  terreno, menos luces reales); ningún enemigo aparece de la nada (están en el
+  mapa o salen de un camión, una puerta o un soporte de drones); los enemigos
+  del puente son más fáciles; y la base de la PDC tiene puertas con sentido y
+  guardias que rodean los obstáculos, se relevan en el cuartel y acuden a la
+  alarma.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -356,8 +363,8 @@ Código: reglas puras en `src/powers/combos.js` y efectos en
 
 **Dónde**: en la nueva **Zona G — Enemigos especiales** del Campo (sudoeste;
 punto de viaje «G»): un Blindado, dos drones y un francotirador en una torre.
-El encuentro empieza al pisar la zona y se reinicia en el panel de la
-entrada. En el Distrito Cero hay un Blindado en la calle este, un dron sobre
+El encuentro empieza al pisar la zona (salen del barracón del fondo y el
+francotirador sube a su torre) y se reinicia en el panel de la entrada. En el Distrito Cero hay un Blindado en la calle este, un dron sobre
 la calle oeste y un francotirador en la azotea de B5.
 
 Código: datos y regla de daño (`enemyDamage`) en `src/ai/enemyTypes.js`,
@@ -493,6 +500,83 @@ prueba con render por software el Distrito nuevo va a ~2.5 FPS (el anterior,
 solo afecta al render por software de las pruebas (en una GPU es una carga
 normal).
 
+## Rendimiento
+
+El juego iba lento sobre todo por lo que dibujaba la tarjeta gráfica:
+
+- **Densidad de píxeles**: como mucho 1 píxel de render por píxel de la
+  pantalla. En pantallas de alta densidad (portátiles con 2×) antes se dibujaba
+  4 veces más; con el MSAA activado apenas se nota la diferencia.
+- **Calidad automática** (Ajustes, activada por defecto): mide los FPS y, si
+  bajan de ~45, reduce la resolución de render por escalones de 10 % hasta el
+  60 %; si aun así va por debajo de 30, quita el MSAA. Cuando sobra margen lo
+  devuelve todo poco a poco (`src/core/AutoQuality.js`, con pruebas).
+- **Pinos con nivel de detalle**: solo los que están a menos de 55 m de la
+  cámara usan la copa detallada (ahora de 120 triángulos en vez de 280) y
+  proyectan sombra; el resto usa la copa simplificada y los que la niebla ya
+  oculta no se dibujan.
+- **Terreno en baldosas**: el terreno se divide en baldosas de 32 × 32 celdas
+  que se descartan fuera de cámara y, lejos, se dibujan con la mitad o la
+  cuarta parte de vértices (con faldones que tapan las rendijas).
+- **Menos luces reales**: cada luz puntual encarece todos los píxeles
+  iluminados. Las luces fijas de los efectos bajan de 6 a 3; en la base, de 7
+  a 3 (dos interiores y la de la alarma); se quita una luz que no se usaba en
+  la casa de Jon, y las farolas de la plaza del Distrito pintan su charco de
+  luz en vez de iluminar.
+
+En el bosque, los triángulos que se dibujan bajan de ~1.7 millones a
+~0.4–0.55 millones según la vista.
+
+## Enemigos que no aparecen de la nada
+
+Los enemigos ya están en el mapa o llegan por un sitio visible:
+
+- **Puente**: los tres drones esperan **posados en una estación de drones**
+  del tramo oeste y despegan de uno en uno. Los agentes del primer bloqueo ya
+  están en su puesto (tranquilos) mientras Jon trepa por el tramo descolgado;
+  si se les ataca antes, el combate empieza sin diálogo. El **agente reforzado
+  salta de la caja de un camión** y los refuerzos bajan de los dos camiones.
+- **Misión del Distrito**: la patrulla **baja por detrás del camión de la
+  PDC** aparcado en la calle norte, de uno en uno, y el Acólito **sale del
+  callejón** entre A2 y B3.
+- **Campo de Pruebas**: en la Zona G los enemigos **salen del barracón del
+  fondo** y el francotirador sube a su torre por la escalera; en la Zona D
+  están en el recinto desde el principio y, al reiniciar en la consola,
+  **entran por la puerta del muro norte**.
+
+`Enemy` admite dos estados sin IA: *en reposo* (`dormant`, quieto en su sitio
+hasta `wake()`) y *entrada* (`entrance`: recorre un camino desde su escondite,
+con una espera opcional oculto dentro). Un golpe interrumpe cualquiera de los
+dos y el enemigo reacciona.
+
+**Dificultad del puente**: los enemigos de los bloqueos tienen el 65 % de la
+vida (el reforzado, el 55 %), hacen la mitad de daño, disparan con más
+tiempo entre balas, apuntan peor y reaccionan más tarde (`scaleType`, por
+enemigo; el tipo base no cambia).
+
+## Base de la PDC: puertas y guardias
+
+- **Puertas**: la entrada principal es una doble puerta de cristal (cerrada
+  con llave) con una **persiana de seguridad que baja con la alarma**; el
+  anexo y la caseta de la tirolina tienen puerta de servicio con luz y
+  escalera de mano a la azotea; el garaje (el cuartel) tiene puerta de
+  personal; las torres de vigilancia, escalera; la garita, su puerta por
+  dentro.
+- **Guardias que no atraviesan nada**: una rejilla de navegación de la meseta
+  (`src/ai/NavGrid.js`, A* con pruebas) marca lo que ocupa el cuerpo de un
+  guardia; sus rutas, las investigaciones de ruidos, el relevo y la alarma
+  siguen caminos que rodean paredes, cajas, camiones y vallas.
+- **Más vigilancia**: además del patio, la fachada, el conducto y el almacén,
+  hay guardias en la puerta norte, el helipuerto y el garaje (lejos de la
+  ruta del sigilo).
+- **Cambio de guardia**: los dos guardias del conducto se van andando por el
+  lado oeste del edificio hasta el cuartel, **entran** y, un rato después,
+  salen y vuelven a su puesto.
+- **Alarma**: los guardias ya no desaparecen: **corren a la entrada
+  principal** cerrada (creen que el intruso sigue dentro), el de la puerta
+  norte no la abandona y los del helipuerto y el garaje vigilan la pasarela
+  del anexo mientras Jon huye por las azoteas.
+
 ## Etapa 7 — Pulido
 
 **Sonido** (`src/audio/`): todo se sintetiza en tiempo real con Web Audio, sin
@@ -544,8 +628,9 @@ subir a cornisas; pasos sincronizados con el ciclo de la animación.
 
 **Población del barrio**: una patrulla PDC de dos agentes recorre la calle
 norte y un Acólito de Energía vigila la azotea de B3. Al activar la misión
-aparecen además la patrulla PDC objetivo (tres agentes, calle sur) y el
-Acólito hostil (calle entre B3 y B4).
+llegan además la patrulla PDC objetivo (tres agentes que bajan del camión de
+la calle norte hacia la calle sur) y el Acólito hostil (sale del callejón
+entre A2 y B3 hacia la calle entre B3 y B4).
 
 **Hostilidad de la PDC** (reputación básica):
 
@@ -943,8 +1028,8 @@ traseras y los pilares del monorraíl.
     soltar se activa; la pasiva Plumaje absorbe 6 de 30 de daño con 6 plumas.
   - Combos: Combustión, Escarcha, Descarga en cadena y Plumas ardientes se
     provocan con los poderes reales y muestran el aviso.
-  - Enemigos especiales: la Zona G empieza vacía y al entrar aparecen el
-    Blindado, dos drones y el francotirador; el francotirador apunta con el
+  - Enemigos especiales: la Zona G empieza vacía y al entrar llegan desde el
+    barracón el Blindado, dos drones y el francotirador; el francotirador apunta con el
     láser ≈1.3 s antes de disparar; los drones vuelan a ≈4.5 m; el escudo
     para el 90 % de frente pero no por detrás ni flotando; el dron recibe un
     25 % de los golpes y, atado, cae; el Distrito tiene sus tres unidades
@@ -970,11 +1055,13 @@ traseras y los pilares del monorraíl.
     Encarnación; la Energía sigue bloqueada hasta el bosque; PERDONAR y MATAR
     (ambas ramas) tienen frases distintas, se guardan al instante y acaban en
     CP17 y el autobús (ataque, vuelco, destello, CP18); el escombro no se
-    rompe a golpes y sí a disparos; el generador recarga; exactamente 3
-    drones, de uno en uno; R y G se desbloquean tras ellos y Q en el puente;
+    rompe a golpes y sí a disparos; el generador recarga; los 3 drones
+    esperan posados en su estación y despegan de uno en uno; R y G se
+    desbloquean tras ellos y Q en el puente;
     caer al cañón recarga CP23; **un salto real con teclado + dash cruza el
     hueco de 9 m** y aterriza en el tramo caído; la pila partida guarda
-    CP24; 2 agentes + 1 dron; un reforzado y luego 2 agentes; CP28;
+    CP24 con el primer bloqueo ya en su puesto; 2 agentes + 1 dron; el
+    reforzado sale de un camión (y es más débil) y luego 2 agentes; CP28;
     la colina, la ciudad, el dash final y el menú principal con
     `TutorialComplete`, la Energía en el perfil libre y «Prólogo completado».
   - Gráficos: la cadena de postproceso (render, oclusión, bloom, salida,

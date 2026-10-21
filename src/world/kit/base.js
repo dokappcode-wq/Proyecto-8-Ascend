@@ -171,6 +171,9 @@ export function watchtower(ctx, B, M, { x, z, y = 0, h = 9, night = true }) {
     deco(group, { x, y: yy, z: z + 1.3, w: 2.9, h: 0.15, d: 0.15, mat: M.metal });
   }
   B.block({ x, z, w: 3.4, d: 3.4, y: y + h, h: 0.25, mat: M.plate });
+  // Escalera de mano por la cara sur, con trampilla en el suelo de la garita
+  for (const s of [-0.28, 0.28]) deco(group, { x: x + s, y, z: z + 1.5, w: 0.06, h: h + 0.25, d: 0.06, mat: M.metal });
+  for (let k = 0.35; k < h; k += 0.35) deco(group, { x, y: y + k, z: z + 1.5, w: 0.56, h: 0.04, d: 0.05, mat: M.metal, cast: false });
   // Garita: muros bajos de chapa, banda de ventanas y techo
   for (const [dx, dz, w, d] of [[0, -1.6, 3.4, 0.15], [0, 1.6, 3.4, 0.15], [-1.6, 0, 0.15, 3.4], [1.6, 0, 0.15, 3.4]]) {
     deco(group, { x: x + dx, y: y + h + 0.25, z: z + dz, w, h: 1.1, d, mat: M.pdcDark });
@@ -411,6 +414,9 @@ export function gatehouse(ctx, B, M, { x, z, y = 0, w = 10, night = true }) {
     deco(group, { x: gx + dx, y: y + 1.1, z: z + dz, w: ww, h: 1.3, d: dd, mat: night ? M.window : M.glass, cast: false });
   }
   B.block({ x: gx, z, w: 3.6, d: 4.4, y: y + 2.4, h: 0.35, mat: M.concreteDark });
+  // Puerta de la garita, por dentro de la base (+z)
+  deco(group, { x: gx + 0.7, y, z: z + 2.03, w: 0.9, h: 2.1, d: 0.06, mat: M.plate, cast: false });
+  deco(group, { x: gx + 0.7, y: y + 2.1, z: z + 2.03, w: 1.06, h: 0.08, d: 0.08, mat: M.metal, cast: false });
   // Marquesina sobre el paso
   for (const sx of [-1, 1]) B.block({ x: x + sx * (w / 2 + 0.3), z, w: 0.6, d: 0.6, y, h: 5.2, mat: M.concreteDark });
   B.block({ x, z, w: w + 1.6, d: 5, y: y + 5.2, h: 0.6, mat: M.concrete });

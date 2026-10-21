@@ -830,6 +830,8 @@ export class UIManager {
     const ao = this.$('set-ao');
     const refl = this.$('set-refl');
     aa.addEventListener('change', () => apply({ antialias: aa.checked }));
+    const auto = this.$('set-auto');
+    auto.addEventListener('change', () => apply({ autoQuality: auto.checked }));
     refl.addEventListener('change', () => apply({ reflections: refl.checked }));
     ao.addEventListener('change', () => apply({ ao: ao.checked }));
     for (const [id, key] of [['set-scale', 'renderScale'], ['set-vol', 'volumeMaster'], ['set-sfx', 'volumeSfx'], ['set-amb', 'volumeAmbience']]) {
@@ -850,6 +852,7 @@ export class UIManager {
     this.$('set-bloom').checked = !!s.bloom;
     this.$('set-fps').checked = !!s.showFps;
     this.$('set-aa').checked = s.antialias !== false;
+    this.$('set-auto').checked = s.autoQuality !== false;
     this.$('set-ao').checked = !!s.ao;
     this.$('set-refl').checked = s.reflections !== false;
     const pct = (v) => `${Math.round(v * 100)}%`;

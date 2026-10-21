@@ -77,6 +77,8 @@ export class MapManager {
       return;
     }
     for (const e of this.current.entities) {
+      // Nivel de detalle propio (bosques, terreno): reparte según la cámara
+      e.lod?.(eye);
       if (!e.lodRoot) continue;
       const p = e.lodRoot.position;
       // `hidden`: la entidad está oculta a propósito (el guion), no por distancia

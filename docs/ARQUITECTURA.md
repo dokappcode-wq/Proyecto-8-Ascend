@@ -7,6 +7,7 @@ src/
 │   ├── GameManager.js          Estados (menú/juego/pausa), bucle, registro de sistemas
 │   ├── EventBus.js             Eventos entre sistemas desacoplados
 │   ├── Input.js                Teclado/ratón con acciones reasignables
+│   ├── AutoQuality.js          Resolución dinámica según los FPS (sin Three.js)
 │   └── SaveSystem.js           Guardado versionado (ajustes, controles, perfil)
 ├── physics/
 │   ├── CollisionWorld.js       Cajas, rampas y terreno con relieve; consultas y raycast (sin Three.js)
@@ -51,8 +52,9 @@ src/
 │   └── props.js                Compuertas, tirolina, escombro, lluvia, cartas, autobús…
 ├── ai/
 │   ├── EnemyBrain.js           Máquina de estados de la IA (sin Three.js)
-│   ├── Enemy.js                Cuerpo, percepción, navegación y arma de un enemigo
-│   └── enemyTypes.js           Datos del Agente PDC y del Acólito de Energía
+│   ├── Enemy.js                Cuerpo, percepción, navegación, arma, reposo y entradas en escena
+│   ├── NavGrid.js              Rejilla de navegación y A* para los guardias (sin Three.js)
+│   └── enemyTypes.js           Datos de los enemigos y ajuste de dificultad (scaleType)
 ├── combat/
 │   ├── CombatSystem.js         Dañables, actores, facciones, daño directo y de área
 │   ├── Health.js               Salud con regeneración e invulnerabilidad
@@ -463,6 +465,51 @@ mapa y se liberan con él. La Encarnación de la Energía es la `Incarnation` de
 Campo con otra ropa, registrada en `PowerAcquisitionSystem`, así que la copia
 sigue exactamente las reglas canónicas (contacto + voluntad; la fuente
 conserva su marca).
+
+## Rendimiento
+
+- **Densidad de píxeles** (`GameManager._pixelRatio`): `min(devicePixelRatio, 1)`
+  × resolución de render × factor de la calidad automática.
+- **Calidad automática** (`core/AutoQuality.js`, pura): ventanas de 1.5 s; por
+  debajo de 45 FPS baja la escala un 10 % (mínimo 60 %) y, en el mínimo y por
+  debajo de 30, quita el MSAA; por encima de 57 FPS durante tres ventanas
+  devuelve primero el MSAA y luego la escala. Espera 4 s tras cada cambio (el
+  cambio de tamaño de los búferes cuesta). Solo mide mientras se juega.
+- **Nivel de detalle** (`MapManager.cull` llama a `entidad.lod(ojo)`): los
+  bosques (`pineForest`) reparten cada pino entre una malla instanciada
+  detallada (cerca, con sombra) y otra simplificada (sin sombra), y descartan
+  los que la niebla oculta, cuando la cámara se mueve 4 m; el terreno elige
+  por baldosa entre tres índices (cada 1, 2 o 4 vértices) que comparten los
+  mismos atributos, con faldones a dos caras en los bordes.
+- **Luces**: la reserva de luces de los efectos (`LightPool`) tiene 3; los
+  mapas usan charcos de luz pintados (`lightPools`) en lugar de luces reales.
+
+## Enemigos: reposo, entradas y dificultad
+
+- `Enemy` con `dormant` no percibe ni actúa (sin física: se apoya en el suelo
+  al crearse) hasta `wake(entrada?)`. Con `entrance: { path, speed, delay }`
+  recorre el camino por tramos rectos (cinemático, sin colisión), oculto
+  durante `delay`, y al llegar empieza a patrullar. `takeDamage`, flotar o
+  aturdir interrumpen ambos estados (`_interruptScript`).
+- `scaleType(tipo, mods)` (enemyTypes.js, pura) devuelve el tipo con la vida,
+  el daño, la cadencia, la dispersión y la reacción ajustadas; el `id` no
+  cambia (las pruebas y el guion lo siguen reconociendo).
+- Misiones: cada aparición puede llevar `from` (camino desde su escondite) y
+  `delay`.
+
+## Guardias del sigilo y navegación
+
+- `ai/NavGrid.js` (pura): rejilla de celdas de 0.75 m sobre un suelo plano;
+  una celda está bloqueada si una caja activa (`enabled`) o una rampa ocupa la
+  franja del cuerpo (0.35–1.7 m) ampliada por el radio. A* en 8 direcciones
+  sin cortar esquinas, destino ajustado a la celda libre más cercana y camino
+  enderezado con pruebas de visibilidad sobre la rejilla.
+- `StealthGuard` con `nav`: la ruta se expande con los caminos entre puntos
+  (puntos intermedios sin espera); `investigate`, `leave(puntos, espera, { hide })`
+  (relevo: entra en el edificio y vuelve), `respond(puesto, mirar)` (alarma,
+  corriendo) y `post` (ya en su puesto al recargar). Sin camino posible se
+  queda donde está: nunca atraviesa paredes. Mientras está oculto o
+  respondiendo a la alarma no cuenta para la detección.
 
 ## Kit de escenarios
 

@@ -6,7 +6,7 @@ import { Magazine } from '../powers/Magazine.js';
 import { EnemyBrain, STATE_NAMES } from './EnemyBrain.js';
 import { BurnStatus } from '../powers/temperature/BurnStatus.js';
 import { DroneModel } from './DroneModel.js';
-import { enemyDamage } from './enemyTypes.js';
+import { enemyDamage, scaleType } from './enemyTypes.js';
 
 const DT_STEP = 1 / 60;
 const tmp = new THREE.Vector3();
@@ -25,11 +25,15 @@ export class Enemy {
   /**
    * @param {object} sys EnemySystem (servicios: world, combat, projectiles, vfx, events, player)
    * @param {object} type definición de ENEMY_TYPES
-   * @param {object} o { x, y, z, yaw, patrol: [{x,z}], tag }
+   * @param {object} o { x, y, z, yaw, patrol: [{x,z}], tag, mods, dormant, entrance }
+   *   mods: dificultad de este enemigo (ver scaleType en enemyTypes.js)
+   *   dormant: quieto en su sitio sin IA hasta `wake()` (drones posados…)
+   *   entrance: { path: [{x,y,z}…], speed } sale de un escondite recorriendo el camino
    */
   constructor(sys, type, o) {
     this.sys = sys;
-    this.type = type;
+    this.type = o.mods ? scaleType(type, o.mods) : type;
+    type = this.type;
     this.tag = o.tag ?? null;
     this.faction = 'enemy';
     this.radius = type.radius ?? 0.42;
@@ -99,6 +103,94 @@ export class Enemy {
     this._barState = '';
 
     sys.combat.registerActor(this);
+    /** En reposo: quieto en su sitio, sin percepción ni IA, hasta `wake()`. */
+    this.dormant = !!o.dormant;
+    if (this.dormant && !type.flying) {
+      // En reposo no hay física: se apoya en el suelo desde el principio
+      const g = sys.world.groundHeight(o.x, o.z, 0.3, (o.y ?? 0.2) + 1);
+      if (Number.isFinite(g)) this.motor.position.y = g;
+    }
+    /** Entrada guionizada en curso: { path, i, speed }. */
+    this._entrance = null;
+    if (o.entrance) this.enter(o.entrance);
+    this._sync();
+  }
+
+  // ---------------------------------------------------------------- Entradas en escena
+  /**
+   * Sale de un escondite (camión, puerta, soporte de drones…): recorre `path`
+   * en línea recta por tramos, sin IA, y al llegar al último punto empieza a
+   * actuar (patrulla). Si recibe daño, se interrumpe y reacciona.
+   */
+  enter({ path, speed, delay = 0 }) {
+    const p0 = path[0];
+    this.motor.teleport({ x: p0.x, y: p0.y ?? this.motor.position.y, z: p0.z });
+    // `delay`: espera dentro de su escondite (oculto) antes de salir
+    this._entrance = { path: path.map((p) => ({ x: p.x, y: p.y ?? null, z: p.z })), i: 1, speed: speed ?? Math.max(1.5, this.type.walkSpeed * 1.2), wait: delay };
+    this.root.visible = !(delay > 0);
+    this.dormant = false;
+    if (path.length > 1) this.facing = Math.atan2(path[1].x - p0.x, path[1].z - p0.z);
+  }
+
+  /** Despierta (y, si se indica, sale por un camino). */
+  wake(entrance = null) {
+    this.dormant = false;
+    if (entrance) this.enter(entrance);
+  }
+
+  /** ¿En reposo o saliendo de su escondite (sin IA)? */
+  get scripted() {
+    return this.dormant || !!this._entrance;
+  }
+
+  _interruptScript() {
+    if (!this.dormant && !this._entrance) return;
+    this.dormant = false;
+    this._entrance = null;
+    this.root.visible = true;
+    const p = this.motor.position;
+    this.motor.teleport({ x: p.x, y: p.y, z: p.z });
+  }
+
+  _updateScripted(dt) {
+    this.seesPlayer = false;
+    this.watching = false;
+    this._canSee = false;
+    const e = this._entrance;
+    let speed = 0;
+    if (e && e.wait > 0) {
+      e.wait -= dt;
+      this.root.visible = e.wait <= 0;
+    } else if (e) {
+      const p = this.motor.position;
+      const t = e.path[e.i];
+      const ty = t.y ?? p.y;
+      const dx = t.x - p.x;
+      const dy = ty - p.y;
+      const dz = t.z - p.z;
+      const d = Math.hypot(dx, dy, dz);
+      const step = e.speed * dt;
+      if (d <= step) {
+        p.x = t.x;
+        p.y = ty;
+        p.z = t.z;
+        if (++e.i >= e.path.length) {
+          this._entrance = null;
+          this.motor.teleport({ x: p.x, y: p.y, z: p.z });
+        }
+      } else {
+        p.x += (dx / d) * step;
+        p.y += (dy / d) * step;
+        p.z += (dz / d) * step;
+      }
+      if (Math.hypot(dx, dz) > 0.05) {
+        let a = Math.atan2(dx, dz) - this.facing;
+        a = Math.atan2(Math.sin(a), Math.cos(a));
+        this.facing += a * (1 - Math.exp(-dt * 10));
+      }
+      speed = Math.hypot(dx, dz) > 0.05 ? e.speed : 0;
+    }
+    this.model.animate(dt, { speed, grounded: true, sprinting: false, dodging: false, verticalSpeed: 0, aimWeight: 0, aimPitch: 0 });
     this._sync();
   }
 
@@ -131,6 +223,8 @@ export class Enemy {
   }
 
   takeDamage(amount, info = {}) {
+    // Un golpe interrumpe la espera o la entrada: reacciona como cualquier otro
+    if (amount > 0) this._interruptScript();
     // Escudo frontal (Blindado) y resistencia al cuerpo a cuerpo (Dron)
     if (this.type.shield || this.type.meleeMul !== undefined) {
       const from = info.source?.position ?? this.sys.player?.position ?? null;
@@ -504,7 +598,12 @@ export class Enemy {
     if (this.magazine.update(dt)) this.model.setReload(null);
     this._fireCd = Math.max(0, this._fireCd - dt);
     if (this._float || this._stun > 0) {
+      this._interruptScript();
       this._updateControlled(dt);
+      return;
+    }
+    if (this.dormant || this._entrance) {
+      this._updateScripted(dt);
       return;
     }
 

@@ -171,6 +171,22 @@ export const ENEMY_TYPES = Object.freeze({
   },
 });
 
+/**
+ * Tipo con la dificultad ajustada (pura, para las pruebas): mismo id y
+ * aspecto, otros números. `mods`: { health, damage (multiplicadores),
+ * cadence (multiplica el tiempo entre disparos), spread (multiplica la
+ * dispersión), reaction (multiplica el tiempo de reacción) }.
+ */
+export function scaleType(type, mods = {}) {
+  const k = (v, m) => (m === undefined ? v : v * m);
+  return {
+    ...type,
+    health: Math.max(1, Math.round(k(type.health, mods.health))),
+    brain: { ...type.brain, reactionTime: k(type.brain.reactionTime, mods.reaction) },
+    weapon: { ...type.weapon, damage: k(type.weapon.damage, mods.damage), cadence: k(type.weapon.cadence, mods.cadence), spread: k(type.weapon.spread, mods.spread) },
+  };
+}
+
 /** Daños que llegan desde arriba o desde el suelo: el escudo no los para. */
 const UNBLOCKABLE = new Set(['burn', 'tormenta', 'lluvia', 'estela', 'fall', 'granada', 'caída']);
 

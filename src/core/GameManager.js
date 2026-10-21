@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { AutoQuality } from './AutoQuality.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
@@ -59,7 +60,9 @@ export class GameManager {
 
     // --- Render ---
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * (this.save.settings.renderScale ?? 1));
+    // Resolución dinámica (Ajustes → Calidad automática)
+    this.autoQuality = new AutoQuality();
+    this.renderer.setPixelRatio(this._pixelRatio());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -74,7 +77,7 @@ export class GameManager {
     // efectos), oclusión ambiental opcional, bloom para que poderes y marcas
     // brillen, mapeo de tonos y gradación de color final.
     const st = this.save.settings;
-    this._sceneRT = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: st.antialias === false ? 0 : 4 });
+    this._sceneRT = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: this._msaaSamples() });
     this.composer = new EffectComposer(this.renderer, this._sceneRT);
     this.renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(this.renderPass);
@@ -800,15 +803,10 @@ export class GameManager {
     this.bloomPass.enabled = s.bloom !== false;
     this.aoPass.enabled = !!s.ao;
     if ((s.reflections !== false) !== this._reflections) this._updateEnvironment();
-    const samples = s.antialias === false ? 0 : 4;
-    if (this.composer.renderTarget1.samples !== samples) {
-      for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) {
-        rt.samples = samples;
-        rt.dispose();
-      }
-      this._resize();
-    }
-    if (this._renderScale !== s.renderScale) this._resize();
+    // Sin calidad automática, la resolución y el MSAA son los de los ajustes
+    if (s.autoQuality === false) this.autoQuality.reset();
+    this._applyMsaa();
+    if (this._renderScale !== s.renderScale || this.renderer.getPixelRatio() !== this._pixelRatio()) this._resize();
     if (this.renderer.shadowMap.enabled !== s.shadows) {
       this.renderer.shadowMap.enabled = s.shadows;
       const sun = this.mapManager.current?.sun;
@@ -819,10 +817,39 @@ export class GameManager {
     }
   }
 
+  /**
+   * Densidad de píxeles del render: como mucho 1 píxel por píxel CSS (en
+   * pantallas de alta densidad dibujar 2×2 píxeles por punto cuadruplica el
+   * coste sin apenas mejora con MSAA), por la resolución de render de los
+   * ajustes y por el factor de la resolución dinámica.
+   */
+  _pixelRatio() {
+    const s = this.save.settings;
+    const dyn = s.autoQuality === false ? 1 : this.autoQuality.scale;
+    return Math.min(window.devicePixelRatio || 1, 1) * (s.renderScale ?? 1) * dyn;
+  }
+
+  /** Muestras de MSAA: las de los ajustes, salvo que la calidad automática lo haya quitado. */
+  _msaaSamples() {
+    const s = this.save.settings;
+    if (s.antialias === false) return 0;
+    return s.autoQuality === false || this.autoQuality.msaa ? 4 : 0;
+  }
+
+  _applyMsaa() {
+    const samples = this._msaaSamples();
+    if (this.composer.renderTarget1.samples === samples) return;
+    for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) {
+      rt.samples = samples;
+      rt.dispose();
+    }
+    this._resize();
+  }
+
   _resize() {
     // Resolución de render (Ajustes): escala sobre la densidad de la pantalla
     this._renderScale = this.save.settings.renderScale ?? 1;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * this._renderScale);
+    this.renderer.setPixelRatio(this._pixelRatio());
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.renderer.setSize(w, h, false);
@@ -882,8 +909,14 @@ export class GameManager {
 
   _frame() {
     this._clock.update();
-    const realDt = Math.min(this._clock.getDelta(), 0.1);
+    const rawDt = this._clock.getDelta();
+    const realDt = Math.min(rawDt, 0.1);
     if (realDt > 0) this._fps += (1 / realDt - this._fps) * 0.05;
+    // Resolución dinámica: solo mide mientras se juega (no en menús ni pausas)
+    if (this.state === 'playing' && !this.story.skipping && this.save.settings.autoQuality !== false && this.autoQuality.frame(rawDt)) {
+      this._applyMsaa();
+      this._resize();
+    }
     // Con la rueda de marcas abierta, el tiempo va más lento
     const dt = this.state === 'playing' ? this._updateMarkWheel(realDt) : realDt;
     if (this.state === 'playing') this._time += dt;

@@ -674,7 +674,7 @@ function pineFoliageGeometry() {
   const dark = new THREE.Color(0x203826);
   const light = new THREE.Color(0x4f7a52);
   layers.forEach(([r, h, y], li) => {
-    const g = new THREE.ConeGeometry(r, h, 14, 2).toNonIndexed();
+    const g = new THREE.ConeGeometry(r, h, 12, 1).toNonIndexed();
     const pos = g.attributes.position;
     const col = new Float32Array(pos.count * 3);
     const c = new THREE.Color();
@@ -735,44 +735,107 @@ function farFoliageGeometry() {
 }
 
 /**
- * Bosque de pinos con InstancedMesh: tronco y copa (dos llamadas de dibujo
- * para cientos de árboles). Cada árbol tiene un verde algo distinto.
- * `positions`: [{x, y, z, s}]. Sin colisión salvo que se pida (`colliders`).
+ * Bosque de pinos con InstancedMesh (pocas llamadas de dibujo para miles de
+ * árboles; cada uno con un verde algo distinto). `positions`: [{x, y, z, s}].
+ * Sin colisión salvo que se pida (`colliders`).
+ *
+ * Nivel de detalle: los pinos a menos de `near` m de la cámara usan la copa
+ * detallada y proyectan sombra; el resto, la copa simplificada sin sombra, y
+ * los que la niebla ya oculta no se dibujan. El reparto se rehace cuando la
+ * cámara se mueve unos metros (`lod(eye)`, lo llama MapManager.cull).
+ * `far`: todos con la copa simplificada y sin reparto (pinos de fondo).
  */
-export function pineForest(ctx, positions, { colliders = false, snow = false, far = false } = {}) {
+export function pineForest(ctx, positions, { colliders = false, snow = false, far = false, near = 55 } = {}) {
   const n = positions.length;
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1f, roughness: 0.95 });
   const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true });
-  // `far`: pinos de fondo (copa de pocas caras y sin sombra): miles cuestan como unos pocos cercanos
-  const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.3, 3.4, far ? 4 : 7).translate(0, 1.7, 0), trunkMat, n);
-  const crown = new THREE.InstancedMesh(far ? farFoliageGeometry() : pineFoliageGeometry(), leafMat, n);
+  const matrices = new Float32Array(n * 16);
+  const colors = new Float32Array(n * 3);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const s = new THREE.Vector3();
   const p = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
   const tint = new THREE.Color();
+  const snowC = new THREE.Color(1.4, 1.45, 1.5);
   const r = mulberry(n * 7 + 3);
   positions.forEach((t, i) => {
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2));
+    q.setFromAxisAngle(up, (i * 2.39996) % (Math.PI * 2));
     const sc = t.s ?? 1;
     s.set(sc * (0.9 + r() * 0.2), sc * (0.9 + r() * 0.25), sc * (0.9 + r() * 0.2));
     p.set(t.x, t.y ?? 0, t.z);
-    m.compose(p, q, s);
-    trunk.setMatrixAt(i, m);
-    crown.setMatrixAt(i, m);
+    m.compose(p, q, s).toArray(matrices, i * 16);
     // Variación de color por árbol (más amarillo, más azulado o con nieve)
     const k = r();
     tint.setRGB(0.85 + k * 0.3, 0.9 + r() * 0.2, 0.85 + (1 - k) * 0.25);
-    if (snow && r() < 0.5) tint.lerp(new THREE.Color(1.4, 1.45, 1.5), 0.35);
-    crown.setColorAt(i, tint);
+    if (snow && r() < 0.5) tint.lerp(snowC, 0.35);
+    tint.toArray(colors, i * 3);
     if (colliders) ctx.world.addBox({ x: t.x - 0.3, y: t.y ?? 0, z: t.z - 0.3 }, { x: t.x + 0.3, y: (t.y ?? 0) + 3, z: t.z + 0.3 }, { climbable: false, cameraBlocking: false });
   });
-  for (const im of [trunk, crown]) {
-    im.castShadow = !far;
-    im.receiveShadow = true;
-    ctx.group.add(im);
+  const set = (detailed, cast) => {
+    const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.3, 3.4, detailed ? 7 : 4).translate(0, 1.7, 0), trunkMat, n);
+    const crown = new THREE.InstancedMesh(detailed ? pineFoliageGeometry() : farFoliageGeometry(), leafMat, n);
+    crown.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+    for (const im of [trunk, crown]) {
+      im.castShadow = cast;
+      im.receiveShadow = true;
+      ctx.group.add(im);
+    }
+    return { trunk, crown };
+  };
+  if (far) {
+    const f = set(false, false);
+    f.trunk.instanceMatrix.array.set(matrices);
+    f.crown.instanceMatrix.array.set(matrices);
+    f.crown.instanceColor.array.set(colors);
+    return [f.trunk, f.crown];
   }
-  return [trunk, crown];
+  const hi = set(true, true);
+  const lo = set(false, false);
+  // Cerca de la cámara cambian a menudo: sin caja envolvente (siempre se dibujan)
+  for (const im of [hi.trunk, hi.crown, lo.trunk, lo.crown]) {
+    im.frustumCulled = false;
+    im.count = 0;
+  }
+  const last = { x: Infinity, z: Infinity, far: 0 };
+  const xs = positions.map((t) => t.x);
+  const zs = positions.map((t) => t.z);
+  const lod = {
+    lod(eye) {
+      // Distancia a la que la niebla ya los oculta (≈1 % de visibilidad)
+      const fog = ctx.scene?.fog;
+      const farD = fog?.isFogExp2 ? Math.min(900, 2.2 / Math.max(1e-4, fog.density)) : fog?.far ?? 900;
+      if (Math.hypot(eye.x - last.x, eye.z - last.z) < 4 && Math.abs(farD - last.far) < 20) return;
+      last.x = eye.x;
+      last.z = eye.z;
+      last.far = farD;
+      const n2 = near * near;
+      const f2 = farD * farD;
+      let a = 0;
+      let b = 0;
+      const put = (dst, j, i) => {
+        dst.trunk.instanceMatrix.array.set(matrices.subarray(i * 16, i * 16 + 16), j * 16);
+        dst.crown.instanceMatrix.array.set(matrices.subarray(i * 16, i * 16 + 16), j * 16);
+        dst.crown.instanceColor.array.set(colors.subarray(i * 3, i * 3 + 3), j * 3);
+      };
+      for (let i = 0; i < n; i++) {
+        const dx = xs[i] - eye.x;
+        const dz = zs[i] - eye.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < n2) put(hi, a++, i);
+        else if (d2 < f2) put(lo, b++, i);
+      }
+      for (const [dst, c] of [[hi, a], [lo, b]]) {
+        for (const im of [dst.trunk, dst.crown]) {
+          im.count = c;
+          im.instanceMatrix.needsUpdate = true;
+        }
+        dst.crown.instanceColor.needsUpdate = true;
+      }
+    },
+  };
+  ctx.addEntity(lod);
+  return [hi.trunk, hi.crown, lo.trunk, lo.crown];
 }
 
 /** Rocas sueltas (instanciadas, con forma irregular). `positions`: [{x, y, z, s}]. */

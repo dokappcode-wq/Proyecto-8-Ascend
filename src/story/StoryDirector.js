@@ -472,7 +472,8 @@ export class StoryDirector {
     st.lit = lit;
     let max = 0;
     for (const gd of st.guards) {
-      if (!gd.active) continue;
+      // Dentro de un edificio (relevo) o acudiendo a la alarma: no vigila
+      if (!gd.active || gd.hidden || gd.responding) continue;
       const e = gd.eye;
       const dx = p.x - e.x;
       const dz = p.z - e.z;

@@ -209,14 +209,17 @@ export class Npc {
  */
 export class StealthGuard {
   /**
-   * @param {object} o { id, route: [{x,z,wait,look}], y, speed, range, fov (grados, semiángulo) }
+   * @param {object} o { id, route: [{x,z,wait,look}], y, speed, range, fov (grados, semiángulo), nav }
+   *   nav: NavGrid de la zona; con ella los tramos de la ruta, las
+   *   investigaciones, los relevos y la respuesta a la alarma rodean paredes y cajas.
    */
   constructor(ctx, o) {
     this.ctx = ctx;
     this.world = ctx.world;
     this.id = o.id;
-    this.route = o.route;
-    this.home = o.route.map((p) => ({ ...p }));
+    this.nav = o.nav ?? null;
+    this.route = this.nav ? expandRoute(this.nav, o.route) : o.route;
+    this.home = this.route.map((p) => ({ ...p }));
     this.speed = o.speed ?? 1.6;
     this.range = o.range ?? 13;
     this.fov = THREE.MathUtils.degToRad(o.fov ?? 38);
@@ -258,19 +261,87 @@ export class StealthGuard {
     return { x: this.position.x, y: this.position.y + 1.6, z: this.position.z };
   }
 
-  /** Va a un punto, mira unos segundos y vuelve a su ruta (distracción). */
-  investigate(p) {
-    this._override = { points: [{ x: p.x, z: p.z }], i: 0, wait: 3.5, then: 'resume', look: true };
+  /** Camino hasta `p` rodeando obstáculos (o en línea recta sin rejilla). */
+  _pathTo(p, from = this.position) {
+    if (!this.nav) return [{ x: p.x, z: p.z }];
+    // Sin camino posible (otra sala cerrada): se queda donde está, nunca atraviesa paredes
+    const path = this.nav.findPath(from, p) ?? [{ x: from.x, z: from.z }];
+    return path.map((q) => ({ x: q.x, z: q.z }));
   }
 
-  /** Se va por estos puntos y espera allí `stay` segundos antes de volver (cambio de guardia). */
-  leave(points, stay = 30) {
-    this._override = { points: points.map((p) => ({ ...p })), i: 0, wait: stay, then: 'resume' };
+  _go(points, o = {}) {
+    this._wait = 0;
+    this._override = { points, i: 0, wait: 0, then: 'resume', ...o };
+  }
+
+  /** Va a un punto, mira unos segundos y vuelve a su ruta (distracción). */
+  investigate(p) {
+    if (this.responding) return;
+    this._go(this._pathTo(p), { wait: 3.5 });
+  }
+
+  /**
+   * Se va por estos puntos y espera allí `stay` segundos antes de volver
+   * (cambio de guardia). `hide`: al llegar entra en el edificio (no se ve ni
+   * vigila) y al acabar la espera sale y vuelve a su puesto.
+   */
+  leave(points, stay = 30, { hide = false } = {}) {
+    const pts = [];
+    let from = this.position;
+    for (const p of points) {
+      pts.push(...this._pathTo(p, from));
+      from = p;
+    }
+    this._go(pts, { wait: hide ? 0.4 : stay, hide, stay });
+  }
+
+  /** Alarma: corre a `post` y se queda allí mirando hacia `look` (sin vigilar: el sigilo ya acabó). */
+  respond(post, look) {
+    this.responding = true;
+    this.cone.visible = false;
+    this._go(this._pathTo(post), { wait: Infinity, then: 'hold', speed: 3.6, lookAt: look });
+  }
+
+  /** Igual que `respond` pero ya en su puesto (al recargar un punto de control posterior). */
+  post(post, look) {
+    this.responding = true;
+    this.cone.visible = false;
+    this.position.x = post.x;
+    this.position.z = post.z;
+    this.position.y = this._ground(post.x, post.z, this.position.y + 3);
+    this.yaw = Math.atan2(look.x - post.x, look.z - post.z);
+    this._go([{ x: post.x, z: post.z, look: this.yaw }], { wait: Infinity, then: 'hold' });
+    this._wait = Infinity;
+    this._sync();
+  }
+
+  /** Fin de un desvío: esconderse, quedarse o volver a la ruta por un camino. */
+  _finishOverride() {
+    const ov = this._override;
+    if (ov.hide && !ov.hidden) {
+      ov.hidden = true;
+      ov.hideT = ov.stay;
+      this.hidden = true;
+      this.model.root.visible = false;
+      this.cone.visible = false;
+      return;
+    }
+    if (ov.then === 'hold') return;
+    if (ov.then === 'resume') {
+      const t = this.route[this._i];
+      this._go(this._pathTo(t), { then: 'end', wait: 0.01 });
+      return;
+    }
+    this._override = null;
   }
 
   /** Vuelve a la ruta original desde su principio (recarga de punto de control). */
   reset() {
     this._override = null;
+    this.responding = false;
+    this.hidden = false;
+    this.model.root.visible = this.active;
+    this.cone.visible = this.active;
     this.route = this.home.map((p) => ({ ...p }));
     const s = this.route[0];
     this.position.x = s.x;
@@ -293,6 +364,19 @@ export class StealthGuard {
     if (!this.active) return;
     let moving = false;
     const ov = this._override;
+    if (ov?.hidden) {
+      // Dentro del edificio: al acabar la espera sale y vuelve a su puesto
+      ov.hideT -= dt;
+      if (ov.hideT <= 0) {
+        this.hidden = false;
+        this.model.root.visible = true;
+        this.cone.visible = !this.responding;
+        ov.hide = false;
+        ov.hidden = false;
+        this._finishOverride();
+      }
+      return;
+    }
     const list = ov ? ov.points : this.route;
     const idx = ov ? ov.i : this._i;
     const t = list[Math.min(idx, list.length - 1)];
@@ -301,11 +385,10 @@ export class StealthGuard {
       this._wait -= dt;
       this._scan += dt;
       const base = t.look ?? this.yaw;
-      if (t.look !== undefined) this.yaw = base + Math.sin(this._scan * 0.9) * 0.6;
+      if (t.look !== undefined) this.yaw = base + Math.sin(this._scan * 0.9) * (t.scan ?? 0.6);
       if (this._wait <= 0) {
-        if (ov && ov.i >= ov.points.length - 1) {
-          this._override = null;
-        } else if (ov) ov.i++;
+        if (ov && ov.i >= ov.points.length - 1) this._finishOverride();
+        else if (ov) ov.i++;
         else this._i = (this._i + 1) % this.route.length;
       }
     } else {
@@ -313,11 +396,17 @@ export class StealthGuard {
       const dz = t.z - this.position.z;
       const d = Math.hypot(dx, dz);
       if (d < 0.2) {
-        this._wait = ov ? (ov.i >= ov.points.length - 1 ? ov.wait : 0.01) : (t.wait ?? 1.5);
+        const last = ov && ov.i >= ov.points.length - 1;
+        this._wait = ov ? (last ? ov.wait : 0.01) : (t.wait ?? 1.5);
         this._scan = 0;
+        if (last && ov.lookAt) {
+          t.look = Math.atan2(ov.lookAt.x - this.position.x, ov.lookAt.z - this.position.z);
+          t.scan = 0.25;
+        }
         if (t.look === undefined) t.look = this.yaw;
+        if (ov && this._wait <= 0) this._finishOverride();
       } else {
-        const step = Math.min(d, this.speed * dt);
+        const step = Math.min(d, (ov?.speed ?? this.speed) * dt);
         this.position.x += (dx / d) * step;
         this.position.z += (dz / d) * step;
         this.position.y += (this._ground(this.position.x, this.position.z, this.position.y + 0.6) - this.position.y) * Math.min(1, dt * 12);
@@ -333,7 +422,8 @@ export class StealthGuard {
     this.coneMat.color.setRGB(1, 0.95 - m * 0.7, 0.7 - m * 0.65);
     this.coneMat.opacity = 0.14 + m * 0.2;
     if (this.model.root.visible) {
-      this.model.animate(dt, { speed: moving ? this.speed : 0, grounded: true, sprinting: false, dodging: false, verticalSpeed: 0, aimWeight: m > 0.5 ? 1 : 0, aimPitch: -0.1 });
+      const sp = moving ? (ov?.speed ?? this.speed) : 0;
+      this.model.animate(dt, { speed: sp, grounded: true, sprinting: sp > 3, dodging: false, verticalSpeed: 0, aimWeight: m > 0.5 || this.responding ? 1 : 0, aimPitch: -0.1 });
     }
     this._sync();
   }
@@ -444,4 +534,21 @@ export class Searchlight {
     this.disc.scale.setScalar(this.radius * 1.5);
     this.head.lookAt(s.x, this.groundY, s.z);
   }
+}
+
+/**
+ * Ruta de patrulla que rodea los obstáculos: entre cada par de puntos (y del
+ * último al primero) inserta los del camino de la rejilla, sin espera.
+ */
+function expandRoute(nav, route) {
+  if (route.length < 2) return route.map((p) => ({ ...p }));
+  const out = [];
+  for (let i = 0; i < route.length; i++) {
+    const a = route[i];
+    const b = route[(i + 1) % route.length];
+    out.push({ ...a });
+    const path = nav.findPath(a, b) ?? [b];
+    for (const q of path.slice(0, -1)) out.push({ x: q.x, z: q.z, wait: 0.01 });
+  }
+  return out;
 }
