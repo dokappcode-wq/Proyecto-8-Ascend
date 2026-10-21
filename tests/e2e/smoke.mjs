@@ -98,8 +98,14 @@ try {
   await q(() => window.__ascend.player.spawnAt({ x: 15, y: 0.4, z: -60.4, yaw: Math.PI }));
   await page.waitForFunction(() => /establecer contacto/.test(document.getElementById('hud-prompt').textContent) && document.getElementById('hud-prompt').classList.contains('show'), null, { timeout: 8000 }).catch(() => {});
   check(await page.isVisible('#hud-prompt'), 'Junto a la Encarnación aparece «E: establecer contacto»');
-  await page.keyboard.press('KeyE');
-  await page.waitForFunction(() => window.__ascend.acquisition.state === 'contact', null, { timeout: 5000 }).catch(() => {});
+  // (Con el render por software, los primeros segundos tras cargar el mapa van
+  // muy lentos; si la pulsación no llega a procesarse se repite, y se avisa)
+  for (let tries = 0; tries < 3; tries++) {
+    if (tries) console.log(`    (reintento ${tries}: la primera E no llegó a procesarse)`);
+    await page.keyboard.press('KeyE');
+    await page.waitForFunction(() => window.__ascend.acquisition.state === 'contact', null, { timeout: 5000 }).catch(() => {});
+    if (await q(() => window.__ascend.acquisition.state === 'contact')) break;
+  }
   check(await q(() => window.__ascend.acquisition.state === 'contact'), 'E establece el contacto');
   // Regla III: soltar antes de completar la voluntad no copia la marca
   await page.keyboard.down('KeyE');
