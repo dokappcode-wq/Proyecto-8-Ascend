@@ -242,6 +242,7 @@ export async function storySection({ page, check, PORT, out }) {
     await until(() => !window.__ascend.story.controlsLocked && !!window.__ascend.story.dashAssist, null, 45000);
     await tp({ x: gap.from - 10, y: P.deckY + 0.2, z: 0, yaw: Math.PI / 2 });
     await page.waitForTimeout(400);
+    const fallsBefore = await g(() => window.__ev.filter((e) => e.ev === 'story:reload' && e.d.reason === 'Has caído').length);
     // Carrera, salto en el borde y dash en lo alto del salto (teclas reales, sincronizadas con los fotogramas)
     const dashRun = await g((edge) => new Promise((resolve) => {
       const a = window.__ascend;
@@ -279,7 +280,17 @@ export async function storySection({ page, check, PORT, out }) {
     }), gap.from - 0.6);
     console.log('    dash:', JSON.stringify(dashRun));
     const crossed = await g(() => { const p = window.__ascend.player.motor.position; return { x: p.x, y: p.y }; });
-    check(crossed.x > gap.to + 0.5 && crossed.y > 5, `Hueco cruzado con salto + dash: aterriza en el tramo caído (x ${crossed.x.toFixed(1)}, y ${crossed.y.toFixed(1)})`);
+    check(crossed.x > gap.to + 0.5 && crossed.y > 5, `Hueco cruzado con salto + dash (x ${crossed.x.toFixed(1)}, y ${crossed.y.toFixed(1)})`);
+    // (en render por software el vuelo dura muchos fotogramas: se espera a que toque suelo)
+    await until(() => window.__ascend.player.motor.grounded, null, 120000);
+    const landed = await g((to) => {
+      const a = window.__ascend;
+      const p = a.player.motor.position;
+      const f = a.mapManager.current.story.bridge.fallen;
+      const rampY = f.y0 + ((f.y1 - f.y0) * (p.x - f.x0)) / (f.x1 - f.x0);
+      return { x: p.x, y: p.y, onRamp: p.x > to && p.x < f.x1 && Math.abs(p.y - rampY) < 0.6, fell: window.__ev.filter((e) => e.ev === 'story:reload' && e.d.reason === 'Has caído').length };
+    }, gap.to);
+    check(landed.onRamp && landed.fell === fallsBefore, `Aterriza en el tramo caído sin caer al cañón (x ${landed.x.toFixed(1)}, y ${landed.y.toFixed(1)})`);
     check(await has('story:line', "e.d.text === 'Eso ha sido... increíble.'"), '«Eso ha sido... increíble»');
     // Bajada por el tramo caído hasta la pila partida
     await tp({ ...P.pier, y: P.pier.y + 0.3, yaw: Math.PI / 2 });
