@@ -23,19 +23,18 @@ src/
 ├── world/
 │   ├── MapManager.js           Registro, carga y descarga de mapas
 │   ├── LevelBuilder.js         Malla + colisionador a la vez (bloques, rampas, escaleras…)
-│   ├── environment.js          Cielo (nubes, estrellas, luna), mapa de entorno, sol, montañas y ciudad lejana
+│   ├── environment.js          Cielo (nubes, estrellas, luna), mapa de entorno, sol, montañas, ciudad lejana y niebla suave
 │   ├── textures.js             Texturas procedurales con mapa normal (relieve)
 │   ├── water.js                Agua animada (dos capas de olas, reflejo del cielo)
-│   ├── mergeStatic.js          Fusión de la geometría estática por material
-│   ├── kit/                    Piezas de escenario reutilizables (propuesta de rediseño)
+│   ├── mergeStatic.js          Fusión de la geometría estática por material y celda de 96 m
+│   ├── kit/                    Piezas de escenario reutilizables
 │   │   ├── common.js           Mallas estáticas, tejado a dos aguas transitable, rocas, marcas de escalada
 │   │   ├── terrain.js          Terreno con relieve: malla, mezcla hierba/tierra/roca y colisión
 │   │   ├── village.js          Casas de pescadores, faro, barcas, muelle, iglesia
-│   │   ├── wild.js             Cabañas, hoguera, piedras de arroyo, pilares, roca con vetas, barricada, cascada, torre de caza
+│   │   ├── wild.js             Hoguera, piedras de arroyo, pilares de roca, cascada, torre de caza, tienda
 │   │   ├── bridge.js           Tramos de celosía (rectos, inclinados o colgando) y pilas
-│   │   ├── base.js             PDC: muro, torres, contenedores, focos, camiones, helicóptero, edificio brutalista
-│   │   └── city.js             Edificios con escaparates y neón, escaleras de incendios, monorraíl, controles
-│   ├── proto/                  Prototipos de la propuesta (solo con ?proto en la URL)
+│   │   ├── base.js             PDC: muro, torres, contenedores, focos, charcos de luz, camiones, helicóptero, piel brutalista
+│   │   └── city.js             Plantas bajas con escaparates y neón, escaleras de incendios, depósitos, monorraíl, coches
 │   └── maps/
 │       ├── TrainingGround.js   Mapa 1 — Campo de Pruebas
 │       ├── DistrictZero.js     Mapa 2 — Distrito Cero
@@ -465,9 +464,9 @@ Campo con otra ropa, registrada en `PowerAcquisitionSystem`, así que la copia
 sigue exactamente las reglas canónicas (contacto + voluntad; la fuente
 conserva su marca).
 
-## Kit de escenarios y prototipos de la propuesta
+## Kit de escenarios
 
-Los mapas del rediseño se construyen con piezas de `world/kit/` que crean la
+Los mapas se construyen con piezas de `world/kit/` que crean la
 malla y la colisión a la vez (vía `LevelBuilder` o `world.addBox/addRamp`) y
 marcan lo estático para `mergeStatic`. El terreno (`terrain`) es una sola malla
 por zona con un material propio: mezcla hierba, tierra y roca según el
@@ -477,10 +476,38 @@ puente (`trussSpan`) se construyen en coordenadas locales y se colocan rectos,
 inclinados o colgando de una bisagra; su colisión se añade aparte
 (`spanColliders`, rampas y cajas escalonadas trepables).
 
-`world/proto/` registra viñetas de cada mapa propuesto (pueblo, bosque, gran
-cañón, base de la PDC, distrito) solo si la URL lleva `?proto`; cada una trae
-sus planos de cámara (`shots`) y, si procede, dónde colocar a Jon para la
-escala. Sirven para fijar el estilo antes de rehacer los mapas de la historia.
+Los mapas rehechos conservan la geometría jugable que usan el guion y las
+pruebas (coordenadas de los puntos de control, rutas del sigilo, huellas y
+alturas de los edificios del Distrito, escaleras, pasarelas): el kit se
+superpone como decorado o sustituye piezas por otras de la misma colisión.
+
+- **Sin huecos de mapa**: cada mapa rodea su zona jugable con suelo hasta el
+  horizonte. El pueblo y el bosque usan un `terrain` lejano sin colisión
+  (`simple`, sin sombras) que en el borde continúa a la misma altura que el
+  terreno jugable; en el bosque baja hacia el este hasta la llanura de la
+  ciudad (−20 m) sin lomas en el cono que se ve desde la colina. El Distrito
+  tiene un plano de suelo urbano de 2.4 km, manzanas cercanas y rascacielos
+  lejanos (`cityTowers`, instancias).
+- **Niebla suave** (`softFog(material, k)`): sustituye el `fog_fragment` del
+  material por la misma niebla exponencial con la densidad multiplicada por
+  `k`. Lo muy lejano (ciudad, su aguja, sus luces) queda velado por la bruma
+  en vez de recortarse contra ella; en la colina la historia baja la
+  densidad de la niebla (`clearFog`) y la ciudad aparece entera.
+- **Charcos de luz** (`lightPools`): discos aditivos con el color en los
+  vértices, todos los de un mapa en una malla. Sustituyen a las luces reales
+  de focos y farolas (las luces puntuales y focos son lo más caro por píxel).
+- **Fusión por celdas** (`mergeStatic`): la clave de fusión es material +
+  sombras + celda de 96 m (las piezas de más de 1.5 celdas van a un grupo
+  global), de modo que las celdas fuera del encuadre se descartan por
+  *frustum culling*.
+- **Pinos** (`pineForest`): los cercanos con sombras; los lejanos (`far`) con
+  un modelo de tres conos de seis lados y sin sombras.
+- **Obstáculos de la historia** (`story/props.js`): `Barricade` (tablones que
+  se rompen con cualquier daño; los postes quedan) y `VeinBoulder` (roca con
+  vetas que solo rompe la Energía, `ENERGY_KINDS`); ambos con `hint`,
+  `clear` (rotos sin efectos al recargar un punto posterior) y `reset`.
+- **Lluvia** (`Rain`): con `follow` sigue a la cámara que la dibuja
+  (`onBeforeRender`); en la historia la coloca el director.
 
 ## Gráficos y animación
 

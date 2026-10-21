@@ -12,11 +12,3 @@ const game = new GameManager({
 
 // Acceso para depuración desde la consola y para las pruebas automáticas.
 window.__ascend = game;
-
-// Prototipos de la propuesta de mapas (solo con ?proto: no se descargan si no)
-if (location.search.includes('proto')) {
-  import('./world/proto/protoMaps.js').then((m) => {
-    for (const def of m.PROTO_MAPS) game.mapManager.register(def);
-    window.__protoReady = true;
-  });
-}

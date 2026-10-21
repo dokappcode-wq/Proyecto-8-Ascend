@@ -4,7 +4,7 @@ import { scaleBoxUVs } from '../LevelBuilder.js';
 import { deco } from './common.js';
 
 /**
- * KIT DEL PUENTE (propuesta del gran cañón): tramos de celosía de acero
+ * KIT DEL PUENTE (gran cañón): tramos de celosía de acero
  * pintado en rojo óxido que se construyen en coordenadas locales y luego se
  * colocan rectos, inclinados (se cayeron de un lado) o colgando (se
  * descolgaron de una bisagra). Pilas de hormigón enteras o partidas.

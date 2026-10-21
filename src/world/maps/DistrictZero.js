@@ -1,37 +1,64 @@
 import * as THREE from 'three';
-import { createSky, createSun } from '../environment.js';
-import { asphaltTexture, concreteTexture, facadeTextures, sidewalkTexture, rng } from '../textures.js';
+import { createSky, createSun, createCity, cityTowers } from '../environment.js';
+import { concreteTexture, rng } from '../textures.js';
 import { EnergySource } from '../entities/EnergySource.js';
+import { cityMaterials, storefronts, fireEscape, waterTank, monorail, car, streetLight, neonSign } from '../kit/city.js';
+import { baseMaterials, chainFence, jersey, sandbags, truck, banner, lightPools } from '../kit/base.js';
+import { deco, staticMesh } from '../kit/common.js';
+import { Rain } from '../../story/props.js';
 
 /**
  * MAPA 2 — DISTRITO CERO
  *
- * Porción reducida de la ciudad: 8 edificios principales + 2 anexos,
- * calles, callejones, una plaza central y azoteas accesibles mediante
- * escaleras de incendios, pasarelas y saltos.
+ * Una manzana de ciudad de noche bajo la lluvia (kit de ciudad): 8 edificios
+ * principales + 2 anexos de ladrillo y hormigón con planta baja comercial
+ * (escaparates, toldos y neón), escaleras de incendios trepables, azoteas con
+ * depósitos de agua, un monorraíl elevado sobre la calle norte, puestos de la
+ * PDC con torres de escaneo, un callejón de neón y bloques nuevos en las
+ * esquinas. Alrededor, la ciudad sigue en todas direcciones (sin vacío).
+ *
+ * La geometría jugable (huellas y alturas de los edificios, escaleras,
+ * pasarelas, cajas de los anexos, plaza, misión y patrullas) es la misma de
+ * antes: las rutas de azoteas siguen funcionando igual.
  *
  * Red de azoteas (todas accesibles en la Etapa 1, sin escalada):
  *   Suelo → B5 (escalera) → B4 → B3 → A2 (bajada)
  *   Suelo → B6 (escalera) → B7 → B8 (torre) → B1 → B2
  *   Suelo → B1 (escalera) · Suelo → A1 y A2 (cajas y contenedores)
  *   B6 → B5 (pasarela)
+ * Nuevas: escaleras de incendios en las fachadas traseras y los pilares del
+ * monorraíl (se trepan) hasta la viga.
  */
 
 const HALF = 62; // límite jugable
 
+/**
+ * Edificios. `fronts`: fachadas con planta comercial (y tramos libres en
+ * coordenadas del mundo); `fire`: fachada con escalera de incendios;
+ * `tank`: depósito de agua en la azotea (lejos de las rutas).
+ */
 const BUILDINGS = [
-  { id: 'B1', x: -36, z: -36, w: 18, d: 18, h: 12, style: 0 },
-  { id: 'B2', x: 0, z: -40, w: 20, d: 14, h: 18, style: 1 },
-  { id: 'B3', x: 36, z: -36, w: 16, d: 18, h: 9, style: 2 },
-  { id: 'B4', x: 40, z: 0, w: 14, d: 20, h: 14, style: 3 },
-  { id: 'B5', x: 36, z: 36, w: 18, d: 16, h: 7, style: 2 },
-  { id: 'B6', x: 0, z: 40, w: 22, d: 14, h: 10, style: 4 },
-  { id: 'B7', x: -36, z: 36, w: 16, d: 16, h: 16, style: 1 },
-  { id: 'B8', x: -40, z: 0, w: 14, d: 22, h: 24, style: 3 },
+  { id: 'B1', x: -36, z: -36, w: 18, d: 18, h: 12, style: 0, body: 'brickRed', fronts: [{ f: '+z' }, { f: '+x', skip: [[-43, -35]] }], fire: '-z', tank: [-30.2, -30.6] },
+  { id: 'B2', x: 0, z: -40, w: 20, d: 14, h: 18, style: 1, body: 'concrete', fronts: [{ f: '+z' }], fire: '-z', tank: [6, -44] },
+  { id: 'B3', x: 36, z: -36, w: 16, d: 18, h: 9, style: 2, body: 'brickBuff', fronts: [{ f: '+z' }], fire: '+x', tank: [41, -42] },
+  { id: 'B4', x: 40, z: 0, w: 14, d: 20, h: 14, style: 3, body: 'brickDark', fronts: [{ f: '-x' }], fire: '+x' },
+  { id: 'B5', x: 36, z: 36, w: 18, d: 16, h: 7, style: 2, body: 'brickRed', fronts: [{ f: '-z' }], tank: [41.5, 40.5] },
+  { id: 'B6', x: 0, z: 40, w: 22, d: 14, h: 10, style: 4, body: 'brickBuff', fronts: [{ f: '-z', skip: [[-8.5, -0.5]] }], fire: '+z', tank: [7, 44.5] },
+  { id: 'B7', x: -36, z: 36, w: 16, d: 16, h: 16, style: 1, body: 'brickDark', fronts: [{ f: '-z' }, { f: '+x' }], fire: '+z' },
+  { id: 'B8', x: -40, z: 0, w: 14, d: 22, h: 24, style: 3, body: 'concrete', fronts: [{ f: '+x' }], fire: '-x' },
   // Anexos que forman callejones
-  { id: 'A1', x: -38, z: -19, w: 14, d: 8, h: 5, style: 4 },
-  { id: 'A2', x: 19, z: -38, w: 10, d: 12, h: 6, style: 0 },
+  { id: 'A1', x: -38, z: -19, w: 14, d: 8, h: 5, style: 4, body: 'brickRed', fronts: [{ f: '+z' }] },
+  { id: 'A2', x: 19, z: -38, w: 10, d: 12, h: 6, style: 0, body: 'brickBuff', fronts: [{ f: '+z' }] },
+  // Bloques nuevos en las esquinas (densidad) y la pared oeste del callejón de neón
+  { id: 'C1', x: -18, z: -51, w: 10, d: 10, h: 11, style: 2, body: 'brickDark', fronts: [{ f: '+z' }] },
+  { id: 'C2', x: 18, z: 50, w: 10, d: 12, h: 13, style: 0, body: 'concrete', fronts: [{ f: '-z' }] },
+  { id: 'C3', x: 54, z: -30, w: 10, d: 12, h: 12, style: 4, body: 'brickRed', fronts: [{ f: '-x' }] },
+  { id: 'C4', x: -52, z: 18, w: 12, d: 10, h: 9, style: 1, body: 'brickBuff', fronts: [{ f: '+x' }] },
+  { id: 'C5', x: -53, z: 38, w: 10, d: 16, h: 14, style: 3, body: 'brickDark', fronts: [] },
 ];
+
+/** Callejón de neón: entre C5 (x −48) y B7 (x −44), de z 28 a 46. */
+const ALLEY = { x0: -48, x1: -44, z0: 28, z1: 46 };
 
 export default {
   id: 'distrito',
@@ -40,9 +67,10 @@ export default {
   /** Reputación: la PDC empieza tranquila y reacciona a lo que haga el jugador. */
   factions: { pdc: 0 },
   reputation: true,
-  /** Aspecto: atardecer cálido en la ciudad. */
-  envIntensity: 0.45,
-  grade: { contrast: 1.08, saturation: 1.1, shadows: '#2a2440', highlights: '#ffc89a', split: 0.08, vignette: 0.34 },
+  /** Aspecto: noche lluviosa, neón y calzada mojada. */
+  envIntensity: 0.6,
+  grade: { contrast: 1.08, saturation: 1.15, shadows: '#1c2244', highlights: '#ffb8e0', split: 0.09, lift: 0.03, vignette: 0.34 },
+  fillLight: { color: 0x9fb0e8, intensity: 0.6 },
   /** Zona jugable (aviso al acercarse al límite). */
   bounds: { minX: -HALF, maxX: HALF, minZ: -HALF, maxZ: HALF },
 
@@ -52,18 +80,20 @@ export default {
     { id: 'B5', name: 'Escalera de B5', x: 26.2, y: 0.2, z: 46, yaw: Math.PI },
     { id: 'B8', name: 'Azotea de B8 (torre)', x: -36, y: 24.4, z: -6, yaw: 0 },
     { id: 'callejon', name: 'Callejón de A2', x: 12.2, y: 0.2, z: -48, yaw: Math.PI },
+    { id: 'neon', name: 'Callejón de neón', x: -46, y: 0.2, z: 27, yaw: 0 },
+    { id: 'monorrail', name: 'Viga del monorraíl', x: 8, y: 7.7, z: -24.3, yaw: Math.PI / 2 },
     { id: 'telefono', name: 'Teléfono público (misión)', x: -4.6, y: 0.3, z: 10, yaw: -Math.PI / 2 },
     { id: 'patrulla', name: 'Calle sur (patrulla de la misión)', x: 0, y: 0.3, z: -14, yaw: Math.PI },
   ],
 
   build(ctx) {
     const { group, builder: B, scene } = ctx;
-    // --- Ambiente de atardecer ---
-    scene.fog = new THREE.FogExp2(0x3a2f3a, 0.0085);
-    const sunDir = new THREE.Vector3(0.75, 0.12, -0.65);
-    group.add(createSky({ top: '#0d1a33', horizon: '#e0824e', bottom: '#1b1a20', sunDir, sunColor: '#ffb067', clouds: 0.45, cloudColor: '#f2a87e', cloudShade: '#3e3046', stars: 0.35 }));
-    group.add(new THREE.HemisphereLight(0x6d83b5, 0x3a2a24, 0.9));
-    const sun = createSun({ color: '#ffb27a', intensity: 2.4, direction: sunDir.clone().negate().setY(-0.45), shadowSize: 50 });
+    // --- Noche lluviosa ---
+    scene.fog = new THREE.FogExp2(0x1c2433, 0.009);
+    const moonDir = new THREE.Vector3(0.3, 0.5, -0.8);
+    group.add(createSky({ top: '#060a14', horizon: '#3a2a4a', bottom: '#0a0c14', sunDir: moonDir, sunColor: '#8fa0c8', clouds: 0.85, cloudColor: '#3a3448', cloudShade: '#141420', stars: 0.15, moonDir }));
+    group.add(new THREE.HemisphereLight(0x6a7aa8, 0x2a2228, 1.2));
+    const sun = createSun({ color: '#8fa0c8', intensity: 0.9, direction: moonDir.clone().negate(), shadowSize: 60 });
     group.add(sun, sun.target);
 
     const tex = (t) => {
@@ -72,79 +102,57 @@ export default {
       c.userData = t.userData;
       return c;
     };
-    const M = {
-      asphalt: new THREE.MeshStandardMaterial({ map: tex(asphaltTexture()), roughness: 0.95 }),
-      sidewalk: new THREE.MeshStandardMaterial({ map: tex(sidewalkTexture()), roughness: 0.9 }),
-      roof: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#55575c', 31)), roughness: 0.95 }),
-      plaza: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#8a7f73', 41)), roughness: 0.85 }),
-      concrete: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#77736d', 51)), roughness: 0.9 }),
-      metal: new THREE.MeshStandardMaterial({ color: 0x3d434b, metalness: 0.7, roughness: 0.45 }),
-      rust: new THREE.MeshStandardMaterial({ color: 0x5a3b2c, metalness: 0.4, roughness: 0.7 }),
-      bridge: new THREE.MeshStandardMaterial({ color: 0x4b5058, metalness: 0.55, roughness: 0.5 }),
-      wood: new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.85 }),
-      dumpster: new THREE.MeshStandardMaterial({ color: 0x2f5a3c, metalness: 0.3, roughness: 0.6 }),
-      crate: new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 }),
-      leaves: new THREE.MeshStandardMaterial({ color: 0x2f4a2a, roughness: 0.9 }),
+    const M = cityMaterials(true);
+    const P = baseMaterials(true);
+    Object.assign(M, {
+      plaza: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#7a7068', 41)), roughness: 0.5 }),
+      roof: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#4a4d53', 31)), roughness: 0.8 }),
+      rust: P.rust,
+      bridge: new THREE.MeshStandardMaterial({ color: 0x3e444c, metalness: 0.6, roughness: 0.45 }),
+      dumpster: new THREE.MeshStandardMaterial({ color: 0x2f5a3c, metalness: 0.3, roughness: 0.5 }),
+      crate: new THREE.MeshStandardMaterial({ color: 0x7a5e3a, roughness: 0.9 }),
+      leaves: new THREE.MeshStandardMaterial({ color: 0x2a4426, roughness: 0.9 }),
       trunk: new THREE.MeshStandardMaterial({ color: 0x3b2a1f, roughness: 0.9 }),
-      water: new THREE.MeshStandardMaterial({ color: 0x1f3d55, metalness: 0.2, roughness: 0.1, emissive: 0x0a1a2a }),
-      lampHead: new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffc27a, emissiveIntensity: 2.2 }),
-      barrier: new THREE.MeshStandardMaterial({ color: 0xa8a39a, roughness: 0.85 }),
-      stripe: new THREE.MeshStandardMaterial({ color: 0xc9a13a, roughness: 0.6 }),
-      line: new THREE.MeshStandardMaterial({ color: 0xd9d4c5, roughness: 0.8 }),
-    };
+      water: new THREE.MeshStandardMaterial({ color: 0x14283a, metalness: 0.3, roughness: 0.05, emissive: 0x0a1e30 }),
+      barrier: P.concrete,
+      line: new THREE.MeshStandardMaterial({ color: 0xcfcabb, roughness: 0.6 }),
+    });
 
-    // --- Suelo (asfalto) ---
+    // --- Suelo: calzada mojada y, fuera del barrio, la ciudad sigue ---
     B.block({ x: 0, z: 0, w: 200, d: 200, y: -1, h: 1, mat: M.asphalt, cast: false });
     roadMarkings(B, M);
+    outskirts(ctx);
 
     // --- Edificios ---
-    const facadeMats = new Map();
-    const facadeFor = (style) => {
-      if (!facadeMats.has(style)) {
-        const f = facadeTextures(style);
-        facadeMats.set(style, new THREE.MeshStandardMaterial({
-          map: tex(f.map),
-          emissiveMap: tex(f.emissiveMap),
-          emissive: 0xffffff,
-          emissiveIntensity: 0.8,
-          roughness: 0.75,
-        }));
-      }
-      return facadeMats.get(style);
-    };
     const byId = {};
     for (const b of BUILDINGS) {
       byId[b.id] = b;
-      // Acera alrededor
-      B.block({ x: b.x, z: b.z, w: b.w + 4, d: b.d + 4, h: 0.15, mat: M.sidewalk, cast: false });
-      const f = facadeFor(b.style);
-      B.block({ x: b.x, z: b.z, w: b.w, d: b.d, y: 0.15, h: b.h - 0.15, mat: [f, f, M.roof, M.roof, f, f], tag: b.id });
-      parapet(B, b, M.concrete);
+      building(ctx, B, M, b);
     }
 
     // --- Accesos a azoteas ---
     // B1: escalera de incendios en su fachada este (x = -27), carriles hacia +x
-    B.stairTower({ x: -27, z: -41, axis: 'z', dir: 1, side: 1, height: 12, base: 0.15, width: 1.6, mat: M.metal, landingMat: M.rust });
+    B.stairTower({ x: -27, z: -41, axis: 'z', dir: 1, side: 1, height: 12, base: 0.15, width: 1.6, mat: M.iron, landingMat: M.rust });
     // B5: escalera en su fachada oeste (x = 27), carriles hacia -x
-    B.stairTower({ x: 27, z: 43, axis: 'z', dir: -1, side: -1, height: 7, base: 0.15, width: 1.6, mat: M.metal, landingMat: M.rust });
+    B.stairTower({ x: 27, z: 43, axis: 'z', dir: -1, side: -1, height: 7, base: 0.15, width: 1.6, mat: M.iron, landingMat: M.rust });
     // B6: escalera en su fachada sur hacia la plaza (z = 33), carriles hacia -z
-    B.stairTower({ x: -6, z: 33, axis: 'x', dir: 1, side: -1, height: 10, base: 0.15, width: 1.6, mat: M.metal, landingMat: M.rust });
+    B.stairTower({ x: -6, z: 33, axis: 'x', dir: 1, side: -1, height: 10, base: 0.15, width: 1.6, mat: M.iron, landingMat: M.rust });
 
     // A1: contenedor → cajas → toldo → azotea (cada salto ≤ 1.3 m)
     B.block({ x: -26.5, z: -16.5, w: 2.2, d: 1.4, h: 1.2, mat: M.dumpster });
     B.block({ x: -29.2, z: -16, w: 1.4, d: 1.4, h: 2.6, mat: M.crate });
     B.block({ x: -30.5, z: -18.2, w: 1.0, d: 2.2, y: 3.7, h: 0.2, mat: M.rust }); // toldo / repisa
-    B.block({ x: -30.5, z: -18.2, w: 0.15, d: 0.15, y: 0.15, h: 3.55, mat: M.metal, collide: false });
+    B.block({ x: -30.5, z: -18.2, w: 0.15, d: 0.15, y: 0.15, h: 3.55, mat: M.iron, collide: false });
     // A2: contenedores y cajas en el callejón con B2
     B.block({ x: 12.2, z: -45, w: 1.4, d: 2.2, y: 0.15, h: 1.2, mat: M.dumpster });
     B.block({ x: 12.2, z: -42.4, w: 1.4, d: 1.4, y: 0.15, h: 2.4, mat: M.crate });
     B.block({ x: 12.2, z: -40.2, w: 1.4, d: 1.4, y: 0.15, h: 3.6, mat: M.crate });
     B.block({ x: 13.5, z: -38, w: 1.0, d: 2.0, y: 4.7, h: 0.2, mat: M.rust });
-    B.block({ x: 13.5, z: -38, w: 0.15, d: 0.15, y: 0.15, h: 4.55, mat: M.metal, collide: false });
+    B.block({ x: 13.5, z: -38, w: 0.15, d: 0.15, y: 0.15, h: 4.55, mat: M.iron, collide: false });
 
     // --- Pasarelas entre azoteas ---
     // Los extremos quedan a la altura del pretil (azotea + 0.3) para enlazar sin escalón.
-    const br = (from, to) => B.bridge({ from: { ...from, y: from.y + 0.3 }, to: { ...to, y: to.y + 0.3 }, width: 2.2, mat: M.bridge, rails: M.metal });
+    const br = (from, to) => B.bridge({ from: { ...from, y: from.y + 0.3 }, to: { ...to, y: to.y + 0.3 }, width: 2.2, mat: M.bridge, rails: M.iron });
     br({ x: -27, y: 12, z: -44 }, { x: -10, y: 18, z: -44 }); // B1 → B2 (z=-44 para no cruzar la escalera de B1)
     br({ x: 38, y: 9, z: -27 }, { x: 38, y: 14, z: -10 }); // B3 → B4
     br({ x: 38, y: 14, z: 10 }, { x: 38, y: 7, z: 28 }); // B4 → B5
@@ -154,22 +162,31 @@ export default {
     br({ x: -42, y: 24, z: -11 }, { x: -42, y: 12, z: -27 }); // B8 → B1
     br({ x: 11, y: 10, z: 38 }, { x: 27, y: 7, z: 38 }); // B6 → B5
 
+    // --- Monorraíl elevado sobre la calle norte (bajo las pasarelas; sus pilares se trepan) ---
+    monorail(ctx, B, M, { points: [{ x: -80, z: -24.3 }, { x: 80, z: -24.3 }], y: 6.4 });
+
     // --- Detalles de azotea ---
-    rooftopProps(B, M, byId);
+    rooftopProps(ctx, B, M, P, byId);
 
     // --- Plaza central ---
     plaza(B, M, group, ctx);
 
-    // --- Mobiliario urbano y vehículos ---
-    streetProps(B, M, group, ctx);
+    // --- Mobiliario urbano, vehículos, PDC y callejón de neón ---
+    const pools = [];
+    streetProps(ctx, B, M, pools);
+    pdcPosts(ctx, B, M, P, pools);
+    neonAlley(ctx, B, M, pools);
     energySources(ctx, byId);
+    lightPools(group, pools);
 
     // --- Patrullas y Acólitos del barrio (además de los de la misión) ---
     ambientEnemies(ctx, byId);
 
     // --- Límites del escenario ---
-    boundaries(B, M);
-    skyline(group);
+    boundaries(ctx, B, M, P);
+
+    // --- Lluvia (sigue a la cámara) ---
+    ctx.addEntity(new Rain(ctx, { count: 2600, follow: true }));
 
     return {
       spawn: { x: 0, y: 0.3, z: 11, yaw: Math.PI },
@@ -177,6 +194,34 @@ export default {
     };
   },
 };
+
+/**
+ * Edificio con el kit de ciudad sobre su caja de colisión de siempre: planta
+ * baja de hormigón con escaparates, pisos con ventanas encendidas, pilastras
+ * y cornisa de ladrillo, pretil bajo (se pasa caminando), escalera de
+ * incendios trepable y depósito de agua.
+ */
+function building(ctx, B, M, b) {
+  const { group } = ctx;
+  const body = M[b.body];
+  const f = M[`facade${b.style}`];
+  const groundH = Math.min(4.2, b.h - 0.6);
+  // Acera alrededor
+  B.block({ x: b.x, z: b.z, w: b.w + 4, d: b.d + 4, h: 0.15, mat: M.sidewalk, cast: false });
+  // Cuerpo (la colisión de siempre) y planta baja
+  B.block({ x: b.x, z: b.z, w: b.w, d: b.d, y: 0.15, h: b.h - 0.15, mat: [f, f, M.roof, M.roof, f, f], tag: b.id });
+  deco(group, { x: b.x, y: 0.15, z: b.z, w: b.w + 0.1, h: groundH - 0.15, d: b.d + 0.1, mat: M.concreteDark, cast: false });
+  // Pilastras en las esquinas, imposta sobre la planta baja y cornisa
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) deco(group, { x: b.x + sx * (b.w / 2 - 0.3), y: groundH, z: b.z + sz * (b.d / 2 - 0.3), w: 0.75, h: b.h - groundH - 0.5, d: 0.75, mat: body, cast: false });
+  }
+  deco(group, { x: b.x, y: groundH - 0.3, z: b.z, w: b.w + 0.3, h: 0.35, d: b.d + 0.3, mat: body, cast: false });
+  deco(group, { x: b.x, y: b.h - 0.5, z: b.z, w: b.w + 0.5, h: 0.5, d: b.d + 0.5, mat: body });
+  parapet(B, b, body);
+  for (const { f: face, skip } of b.fronts) storefronts(ctx, M, b, face, { groundH, skip, r: rng(Math.round(b.x * 11 + b.z * 5 + 7)) });
+  if (b.fire) fireEscape(ctx, B, M, b, b.fire, groundH);
+  if (b.tank) waterTank(ctx, B, M, { x: b.tank[0], z: b.tank[1], y: b.h });
+}
 
 function parapet(B, b, mat) {
   const t = 0.3;
@@ -364,39 +409,32 @@ function energySources(ctx, byId) {
   add({ kind: 'pillows', x: -12.5, z: -3, yaw: Math.PI / 2, y: 0.2 });
 }
 
-function streetProps(B, M, group, ctx) {
-  const r = rng(5);
-  // Farolas en las aceras del anillo (solo emisivas)
+function streetProps(ctx, B, M, pools) {
+  const { group } = ctx;
+  // Farolas en las aceras del anillo (solo emisivas) con su charco de luz en la calzada mojada
   for (const a of [-16, 16]) {
-    lamp(ctx, a, -27.2, false);
-    lamp(ctx, a, 27.2, false);
-    lamp(ctx, -27.2, a, false);
-    lamp(ctx, 27.2, a, false);
+    for (const [x, z] of [[a, -27.2], [a, 27.2], [-27.2, a], [27.2, a]]) {
+      lamp(ctx, x, z, false);
+      pools.push({ x, z, r: 5, color: 0xffc890, opacity: 0.3 });
+    }
   }
-  // Coches aparcados (obstáculos que se pueden saltar: 1.5 m)
-  const carColors = [0x7a1e1e, 0x1e3a5a, 0x2f2f33, 0xb0b4b8, 0x4a5a2a];
+  for (const [x, z] of [[-15, -15], [15, -15], [-15, 15], [15, 15]]) pools.push({ x, y: 0.2, z, r: 5.5, color: 0xffd0a0, opacity: 0.22 });
+  // Farolas altas de brazo en las calles exteriores
+  for (const [x, z, ry] of [[-56, -40, 0], [-56, 0, 0], [-56, 52, 0], [56, -48, Math.PI], [56, 0, Math.PI], [56, 30, Math.PI], [-30, -56, -Math.PI / 2], [30, -56, -Math.PI / 2], [-30, 56, Math.PI / 2], [40, 56, Math.PI / 2]]) {
+    streetLight(group, M, { x, z, ry });
+    pools.push({ x: x + Math.cos(ry) * 1.2, z: z - Math.sin(ry) * 1.2, r: 6, color: 0xffd2a0, opacity: 0.28 });
+  }
+  // Coches aparcados (obstáculos que se pueden saltar; el habitáculo también colisiona)
+  const colors = ['carRed', 'carBlue', 'carGrey', 'carRed', 'carGrey', 'carBlue', 'carGrey', 'carRed'];
   const cars = [
     [-18, -26, true], [8, -25.8, true], [26, -12, false], [-25.8, 14, false], [16, 25.8, true], [-6, 25.8, true], [25.8, 20, false], [-26, -6, false],
   ];
-  for (const [x, z, alongX] of cars) {
-    const mat = new THREE.MeshStandardMaterial({ color: carColors[Math.floor(r() * carColors.length)], metalness: 0.6, roughness: 0.35 });
-    const w = alongX ? 4.2 : 1.9;
-    const d = alongX ? 1.9 : 4.2;
-    B.block({ x, z, w, d, y: 0.3, h: 0.8, mat });
-    B.block({ x, z, w: alongX ? 2.2 : 1.7, d: alongX ? 1.7 : 2.2, y: 1.1, h: 0.55, mat: M.metal });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x0b1118, metalness: 0.9, roughness: 0.1 });
-    B.block({ x, z, w: alongX ? 2.25 : 1.6, d: alongX ? 1.6 : 2.25, y: 1.12, h: 0.48, mat: glass, collide: false });
-    // ruedas (visuales)
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.25, 12), M.metal);
-        wheel.rotation[alongX ? 'x' : 'z'] = Math.PI / 2;
-        wheel.position.set(x + (alongX ? sx * 1.3 : sx * 0.85), 0.33, z + (alongX ? sz * 0.85 : sz * 1.3));
-        wheel.userData.levelStatic = true;
-        group.add(wheel);
-      }
-    }
-  }
+  cars.forEach(([x, z, alongX], i) => {
+    car(ctx, B, M, { x, z, ry: alongX ? 0 : Math.PI / 2, color: colors[i] });
+    const hw = alongX ? 1.2 : 0.85;
+    const hd = alongX ? 0.85 : 1.2;
+    ctx.world.addBox({ x: x - hw, y: 1.3, z: z - hd }, { x: x + hw, y: 2.06, z: z + hd });
+  });
   // Contenedores y cajas en callejones
   const clutter = [
     [-27.5, -25, 1.4, 2.2, 1.2, M.dumpster], [-45, -25, 2.2, 1.4, 1.2, M.dumpster],
@@ -407,8 +445,79 @@ function streetProps(B, M, group, ctx) {
   for (const [x, z, w, d, h, mat] of clutter) B.block({ x, z, w, d, y: 0.15, h, mat });
 }
 
-function rooftopProps(B, M, byId) {
-  const ac = (b, ox, oz) => B.block({ x: b.x + ox, z: b.z + oz, w: 1.6, d: 1.2, y: b.h, h: 1.1, mat: M.metal });
+/**
+ * Presencia de la PDC: dos puestos con barreras New Jersey, sacos terreros y
+ * torre de escaneo (las de inFamous Second Son) en las calles este y oeste,
+ * una tercera torre en la esquina sureste y un camión aparcado en la calle norte.
+ */
+function pdcPosts(ctx, B, M, P, pools) {
+  for (const sx of [-1, 1]) {
+    const x = sx * 28.5;
+    for (const z of [-5.5, -2, 2, 5.5]) jersey(ctx, B, P, { x, z, along: 'z', len: 3 });
+    sandbags(ctx, B, P, { x: x + sx * 1.6, z: sx * 8.6, along: 'x', len: 2.2 });
+    scanTower(ctx, B, M, { x, z: sx * 10.5 });
+    pools.push({ x, z: sx * 10.5, r: 4, color: 0x3ac8ff, opacity: 0.35 });
+    banner(ctx, P, { x: sx * 33.1, y: 11, z: sx * 6, ry: sx > 0 ? -Math.PI / 2 : Math.PI / 2 });
+  }
+  scanTower(ctx, B, M, { x: 50, z: 50 });
+  pools.push({ x: 50, z: 50, r: 4, color: 0x3ac8ff, opacity: 0.35 });
+  truck(ctx, B, P, { x: -4, z: -29, ry: 0 });
+}
+
+/** Torre de escaneo de la PDC: mástil azul con tres anillos luminosos. */
+function scanTower(ctx, B, M, { x, z }) {
+  const { group } = ctx;
+  B.block({ x, z, w: 1.2, d: 1.2, h: 7, mat: M.pdcBlue });
+  for (const yy of [2.5, 4.5, 6.5]) {
+    const ring = staticMesh(group, new THREE.TorusGeometry(1.1, 0.09, 6, 24).rotateX(Math.PI / 2), M.scan, { cast: false });
+    ring.position.set(x, yy, z);
+  }
+  deco(group, { x, y: 7, z, w: 2.2, h: 0.4, d: 2.2, mat: M.pdcBlue });
+}
+
+/**
+ * Callejón de neón (Tokio / Madripoor): banderolas luminosas en las dos
+ * paredes, cables con farolillos rojos, un puesto de fideos y charcos de
+ * colores en el suelo mojado.
+ */
+function neonAlley(ctx, B, M, pools) {
+  const { group } = ctx;
+  const { x0, x1, z0 } = ALLEY;
+  const cx = (x0 + x1) / 2;
+  const texts = ['居酒屋', 'BAR', '麺', 'HOTEL', 'KARAOKE', '寿司', 'ABIERTO', 'NEÓN'];
+  const colors = ['#ff4f6a', '#4fe6ff', '#ffd84f', '#7bff6a', '#ff4fd8', '#ffb04f', '#ff4f6a', '#4fe6ff'];
+  for (let i = 0; i < 8; i++) {
+    const west = i % 2 === 0;
+    const z = z0 + 2 + i * 2.1;
+    neonSign(group, { x: west ? x0 + 0.5 : x1 - 0.5, y: 3.4 + (i % 3) * 1.9, z, ry: 0, text: texts[i], color: colors[i], vertical: true, w: 0.7, h: 2.3 });
+    deco(group, { x: west ? x0 + 0.25 : x1 - 0.25, y: 3.4 + (i % 3) * 1.9 + 2.3, z, w: 0.5, h: 0.05, d: 0.05, mat: M.iron, cast: false });
+    pools.push({ x: west ? x0 + 1 : x1 - 1, y: 0.15, z, r: 2.2, color: new THREE.Color(colors[i]).getHex(), opacity: 0.35 });
+  }
+  // Cables con farolillos de papel
+  const r = rng(4);
+  for (let k = 0; k < 4; k++) {
+    const z = z0 + 3 + k * 4.5;
+    deco(group, { x: cx, y: 5.6, z, w: x1 - x0, h: 0.02, d: 0.02, mat: M.iron, cast: false });
+    for (let j = 0; j < 3; j++) {
+      const m = staticMesh(group, new THREE.SphereGeometry(0.2, 10, 8), M.paperLantern, { cast: false });
+      m.position.set(x0 + 0.9 + j * 1.1 + (r() - 0.5) * 0.3, 5.25 + (r() - 0.5) * 0.15, z);
+      m.scale.y = 1.4;
+    }
+  }
+  // Puesto de fideos con toldo (mostrador sólido) y cajas
+  B.block({ x: x1 - 0.6, z: z0 + 13, w: 1.0, d: 2.6, y: 0, h: 1.05, mat: M.wood });
+  deco(group, { x: x1 - 0.9, y: 2.6, z: z0 + 13, w: 1.8, h: 0.06, d: 3, mat: M.awningRed, rz: 0.3, cast: false });
+  neonSign(group, { x: x1 - 0.06, y: 3.2, z: z0 + 13, ry: -Math.PI / 2, text: 'RAMEN', color: '#ff5a5a', w: 2.6, h: 0.8 });
+  B.block({ x: x0 + 0.7, z: z0 + 6, w: 1.2, d: 1.2, y: 0, h: 1.1, mat: M.crate });
+  B.block({ x: x0 + 0.8, z: z0 + 15.5, w: 1.3, d: 2, y: 0, h: 1.2, mat: M.dumpster });
+}
+
+function rooftopProps(ctx, B, M, P, byId) {
+  const { group } = ctx;
+  const ac = (b, ox, oz) => {
+    B.block({ x: b.x + ox, z: b.z + oz, w: 1.6, d: 1.2, y: b.h, h: 1.1, mat: M.metal });
+    deco(group, { x: b.x + ox, y: b.h + 1.1, z: b.z + oz, w: 0.9, h: 0.04, d: 0.9, mat: M.iron, cast: false });
+  };
   ac(byId.B1, -4, 3);
   ac(byId.B1, 3, 5);
   ac(byId.B2, -5, -2);
@@ -416,59 +525,68 @@ function rooftopProps(B, M, byId) {
   ac(byId.B4, -3, 4);
   ac(byId.B6, 5, 2);
   ac(byId.A2, 1, 3);
+  // Salidas de humo (decorado, junto a los pretiles)
+  for (const [id, ox, oz] of [['B1', -7.5, -7.5], ['B2', 8.5, 5.5], ['B3', 6.5, 7.5], ['B4', 5.5, 8.5], ['B6', -9.5, 5.5], ['B7', 6.5, -6.5], ['C1', 3, 3], ['C2', -3, 4], ['C3', 3, -4], ['C5', 3, 5]]) {
+    const b = byId[id];
+    deco(group, { x: b.x + ox, y: b.h, z: b.z + oz, w: 0.6, h: 1.4, d: 0.6, mat: M.iron });
+  }
   // Depósito de agua en B7 (escalable por la plataforma)
   const b7 = byId.B7;
-  B.block({ x: b7.x + 3, z: b7.z + 3, w: 3, d: 3, y: b7.h, h: 1.2, mat: M.rust });
-  B.block({ x: b7.x + 3, z: b7.z + 3, w: 2.6, d: 2.6, y: b7.h + 1.2, h: 2.4, mat: M.wood });
-  // Torre B8: casetón y antena
+  waterTank(ctx, B, M, { x: b7.x + 3, z: b7.z + 3, y: b7.h });
+  // Torre B8: casetón, antena con baliza roja y valla publicitaria hacia la plaza
   const b8 = byId.B8;
   B.block({ x: b8.x - 2, z: b8.z + 4, w: 5, d: 4, y: b8.h, h: 3, mat: M.concrete });
-  B.block({ x: b8.x - 2, z: b8.z + 4, w: 0.3, d: 0.3, y: b8.h + 3, h: 9, mat: M.metal });
+  B.block({ x: b8.x - 2, z: b8.z + 4, w: 0.3, d: 0.3, y: b8.h + 3, h: 9, mat: M.iron });
+  deco(group, { x: b8.x - 2, y: b8.h + 12, z: b8.z + 4, w: 0.4, h: 0.4, d: 0.4, mat: P.redLight, cast: false });
+  for (const dz of [-3, 3]) deco(group, { x: b8.x + 5.5, y: b8.h, z: b8.z - 2 + dz, w: 0.2, h: 4, d: 0.2, mat: M.iron });
+  deco(group, { x: b8.x + 5.5, y: b8.h + 3.6, z: b8.z - 2, w: 0.2, h: 3.2, d: 7, mat: M.poster1, cast: false });
   // Cartel luminoso en B4
   const b4 = byId.B4;
-  B.block({ x: b4.x + 2, z: b4.z - 5, w: 0.4, d: 8, y: b4.h, h: 0.3, mat: M.metal });
-  const sign = B.block({ x: b4.x + 2, z: b4.z - 5, w: 0.3, d: 8, y: b4.h + 1.5, h: 3, mat: new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x2f8bff, emissiveIntensity: 1.4 }), collide: false });
-  sign.castShadow = false;
-  for (const dz of [-3.5, 3.5]) B.block({ x: b4.x + 2, z: b4.z - 5 + dz, w: 0.15, d: 0.15, y: b4.h, h: 1.5, mat: M.metal, collide: false });
+  B.block({ x: b4.x + 2, z: b4.z - 5, w: 0.4, d: 8, y: b4.h, h: 0.3, mat: M.iron });
+  neonSign(group, { x: b4.x + 2, y: b4.h + 3, z: b4.z - 5, ry: Math.PI / 2, text: 'DISTRITO 0', color: '#4fd1ff', w: 8, h: 3 });
+  for (const dz of [-3.5, 3.5]) B.block({ x: b4.x + 2, z: b4.z - 5 + dz, w: 0.15, d: 0.15, y: b4.h, h: 1.5, mat: M.iron, collide: false });
+  // Valla publicitaria en B2, de cara a la calle norte
+  const b2 = byId.B2;
+  for (const dx of [-2.5, 2.5]) deco(group, { x: b2.x - 3 + dx, y: b2.h, z: b2.z - 5.6, w: 0.2, h: 4, d: 0.2, mat: M.iron });
+  deco(group, { x: b2.x - 3, y: b2.h + 3.6, z: b2.z - 5.6, w: 7, h: 3.2, d: 0.2, mat: M.poster0, cast: false, ry: Math.PI });
 }
 
-function boundaries(B, M) {
-  // Barreras de hormigón + valla, e invisibles altas para impedir salir.
+function boundaries(ctx, B, M, P) {
+  // Barreras de hormigón con franja de aviso + valla metálica, e invisibles altas para impedir salir.
   const ring = [
     [0, -HALF, HALF * 2, 0.8], [0, HALF, HALF * 2, 0.8], [-HALF, 0, 0.8, HALF * 2], [HALF, 0, 0.8, HALF * 2],
   ];
-  const fence = new THREE.MeshStandardMaterial({ color: 0x8a95a3, transparent: true, opacity: 0.25, depthWrite: false });
   for (const [x, z, w, d] of ring) {
     B.block({ x, z, w, d, h: 1.1, mat: M.barrier });
-    B.block({ x, z, w: w > 1 ? w : 0.1, d: d > 1 ? d : 0.1, y: 1.1, h: 2.4, mat: fence, collide: false, cast: false });
+    deco(ctx.group, { x, y: 0.55, z, w: w + 0.02, h: 0.22, d: d + 0.02, mat: P.hazard, cast: false });
+    const alongX = w > d;
+    chainFence(ctx, P, alongX ? { x0: x - w / 2, z0: z, x1: x + w / 2, z1: z, y: 1.1, h: 2.4 } : { x0: x, z0: z - d / 2, x1: x, z1: z + d / 2, y: 1.1, h: 2.4 });
     B.invisibleWall({ x, z, w: w + 0.5, d: d + 0.5, h: 80 });
   }
 }
 
-function skyline(group) {
-  // Siluetas lejanas de la gran ciudad (solo decorativas, sin colisión).
-  const r = rng(9);
-  const f = facadeTextures(3);
-  // Un solo material para todas las siluetas: la repetición de la textura se
-  // aplica en las UV de cada caja, así se fusionan en una única malla.
-  const map = f.map.clone();
-  const em = f.emissiveMap.clone();
-  map.needsUpdate = em.needsUpdate = true;
-  map.wrapS = map.wrapT = em.wrapS = em.wrapT = THREE.RepeatWrapping;
-  map.repeat.set(1, 1);
-  em.repeat.set(1, 1);
-  const mat = new THREE.MeshStandardMaterial({ map, emissiveMap: em, emissive: 0xffffff, emissiveIntensity: 0.7, color: 0x8899aa });
-  for (let i = 0; i < 46; i++) {
-    const a = (i / 46) * Math.PI * 2 + r() * 0.05;
-    const dist = 120 + r() * 120;
-    const w = 12 + r() * 20;
-    const h = 25 + r() * (i % 7 === 0 ? 120 : 60);
-    const geo = new THREE.BoxGeometry(w, h, w);
-    const uv = geo.attributes.uv;
-    for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * (w / 16), uv.getY(k) * (h / 14));
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(Math.cos(a) * dist, h / 2, Math.sin(a) * dist);
-    m.userData.levelStatic = true;
-    group.add(m);
+/**
+ * La ciudad continúa fuera del barrio: suelo hasta el horizonte, manzanas
+ * cercanas con ventanas encendidas (con niebla) en una cuadrícula que respeta
+ * las calles, y rascacielos lejanos en todas direcciones (sin niebla).
+ */
+function outskirts(ctx) {
+  const { group } = ctx;
+  const ground = staticMesh(group, new THREE.PlaneGeometry(2400, 2400).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x14161b, roughness: 0.8 }), { cast: false });
+  ground.position.y = -0.05;
+  const r = rng(31);
+  const blocks = [];
+  for (let gx = -6; gx <= 6; gx++) {
+    for (let gz = -6; gz <= 6; gz++) {
+      const x = gx * 26;
+      const z = gz * 26;
+      if (Math.abs(x) < 76 && Math.abs(z) < 76) continue;
+      const far = Math.max(Math.abs(x), Math.abs(z));
+      const w = 15 + r() * 5;
+      const d = 15 + r() * 5;
+      blocks.push({ x: x + (r() - 0.5) * 3, y: -0.5, z: z + (r() - 0.5) * 3, w, d, h: 12 + r() * 18 + (far - 70) * 0.35 + (r() < 0.12 ? 30 : 0), ry: 0, tone: 0.9 + r() * 0.3 });
+    }
   }
+  group.add(cityTowers(blocks, { lit: 0.42, intensity: 1.05, fog: true }));
+  group.add(createCity({ origin: { x: 0, y: -30, z: 0 }, heading: -Math.PI / 2, spread: Math.PI * 2, dist: [200, 480], count: 150, seed: 21, lit: 0.34, intensity: 1.1, fog: 0.25 }));
 }

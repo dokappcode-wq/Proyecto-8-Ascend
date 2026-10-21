@@ -72,9 +72,11 @@ export function terrain(ctx, o) {
   geo.setAttribute('splat', new THREE.BufferAttribute(spl, 2));
   geo.setIndex(index);
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, terrainMaterial(o));
+  // `simple`: terreno de fondo con solo hierba y tinte (sin mezcla: mucho más barato por píxel)
+  const mat = o.simple ? new THREE.MeshStandardMaterial({ map: o.grass, vertexColors: true, roughness: 1 }) : terrainMaterial(o);
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
-  mesh.castShadow = true;
+  mesh.castShadow = !o.simple;
   mesh.name = 'Terreno';
   ctx.group.add(mesh);
   const hf = collide ? ctx.world.addHeightfield({ minX, minZ, cell, cols, rows, heights, tag: 'terrain' }) : null;

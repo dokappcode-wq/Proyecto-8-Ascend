@@ -6,7 +6,7 @@ import {
 import { deco, gableRoof, staticMesh, lampPost, climbMark } from './common.js';
 
 /**
- * KIT DEL PUEBLO PESQUERO (propuesta de rediseño): casas altas y estrechas de
+ * KIT DEL PUEBLO PESQUERO: casas altas y estrechas de
  * la costa vasca —planta baja de piedra, revoco blanco o crema, contraventanas
  * y balcones de madera pintada (rojo, verde, azul), tejado de teja a dos aguas
  * transitable o azotea—, faro, iglesia, muelle con barcas y marcas blancas de
@@ -293,6 +293,8 @@ export function fishingBoat(ctx, M, { x, z, y = -1.25, ry = 0, color = 'hullRed'
   g.add(mast);
   g.position.set(x, y, z);
   g.rotation.y = ry;
+  // Quietas en el agua: se fusionan con el resto del decorado
+  g.traverse((o) => { if (o.isMesh) o.userData.levelStatic = true; });
   group.add(g);
   return g;
 }

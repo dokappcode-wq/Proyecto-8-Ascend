@@ -54,6 +54,10 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   bordes, gradación de color, cielo con nubes, estrellas y luna que se refleja
   en los materiales, texturas con relieve, agua animada, montañas nevadas,
   vegetación, chispas, humo y ondas de choque, y menú con fondo 3D animado.
+- **Mapas rehechos** ✅: el pueblo costero (noche y día) con su base de la
+  PDC, el bosque con el gran cañón y el Distrito Cero, construidos con el kit
+  de escenarios de la propuesta aprobada, con terreno con relieve y sin
+  huecos de mapa a la vista (el mundo continúa más allá de los límites).
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -89,7 +93,7 @@ descarga (R) y la onda (G) durante los drones, y el dash (Q) en el puente.
 | **M02 · La plaza** | Pueblo de día | Despertar (primer plano de la marca dorada), exploración, la PDC interroga a los vecinos; **Narbaiza** tortura a Martín con **Sangre**; Jon interviene ([F]) y queda a **1 PV** exactos; discusión con Iker en el callejón (la salud vuelve poco a poco) | CP09–CP10 |
 | **M03 · Cinco días** | Pueblo de día | Tarjetas DÍA 1…5; una tarea por día (reparar el puerto, rumores, la foto familiar, las patrullas desde el mirador) y el encargo de la abuela; charlas opcionales con la abuela y dos vecinos | CP11 (cada día) |
 | **M04 · La tormenta** | Pueblo de día | Mercado (comprar pan, patatas y pescado); la tercera compra desata la **tormenta**; la esfera eléctrica cae sobre la casa; la calle se corta y hay que ir por los tejados; la pérdida; la Encarnación («Normie»); **copia de la Energía** por contacto y voluntad (soltar cancela; la fuente conserva su poder); **MATAR / PERDONAR** (se guarda `KILL` o `SPARE` al instante; escenas distintas); esposas; autobús de presos | CP12–CP17 |
-| **M05 · El despertar** | Valle y puente | El convoy es atacado en el viaducto, el autobús vuelca y un destello de Energía se lleva a Jon; despertar en el bosque; ladera; el **escombro** solo se rompe disparando; recarga en un **generador**; **tres drones** de uno en uno (proyectil, R, G); el **puente destruido** con tres huecos de 8.5, 9.5 y 10.5 m (dash asistido hacia un círculo de aterrizaje y generadores antes de cada salto); **2 agentes + 1 dron**; **agente reforzado** y luego **2 agentes**; colina, la ciudad con cámara fija, Jon sale de plano con un dash y se abre el menú (`TutorialComplete`) | CP18–CP29 |
+| **M05 · El despertar** | Bosque y gran cañón | El convoy es atacado en el viaducto, el autobús vuelca y un destello de Energía se lleva a Jon; despertar en el bosque; arroyo con piedras para saltar; **barricada** de tablones que se rompe a golpes; cuesta; la **roca con vetas azules** solo se rompe disparando; recarga en un **generador**; barranco con pilares, pared de escalada marcada (cueva tras la cascada) y meseta; **tres drones** de uno en uno (proyectil, R, G) en el tramo oeste del puente; el **hueco de 9 m** (dash asistido hacia un círculo de aterrizaje), bajada por el **tramo caído** hasta la **pila partida** y escalada por las vigas del **tramo descolgado**; **2 agentes + 1 dron**; **agente reforzado** y luego **2 agentes**; la niebla se abre en la colina y aparece la ciudad sobre su llanura; Jon sale de plano con un dash y se abre el menú (`TutorialComplete`) | CP18–CP29 |
 
 **Sigilo**: cada guardia proyecta su cono en el suelo (blanco → amarillo →
 rojo según lo que te ha visto) y el indicador de arriba muestra el máximo.
@@ -425,33 +429,62 @@ el bloom y la resolución de render permiten bajar el coste en equipos
 modestos: en render por software (sin GPU) los reflejos del cielo son lo más
 costoso por píxel (quitarlos duplica los FPS) y después el MSAA.
 
-## Rediseño de mapas (propuesta)
+## Rediseño de mapas
 
-Antes de rehacer los mapas se presenta una propuesta visual con capturas de
-prototipos hechos con el motor (`src/world/proto/`, se cargan con
-`http://localhost:5173/?proto` y `__ascend.startMap('proto-bosque')`, etc.):
+Los mapas se rehicieron siguiendo la propuesta visual aprobada (capturas de
+prototipos hechos con el motor), con las piezas del kit de escenarios
+(`src/world/kit/`). Se mantienen todas las coordenadas del guion, las rutas
+del sigilo, la misión del Distrito y las rutas de azoteas que comprueban las
+pruebas.
 
-- **Pueblo costero** y **Distrito Cero**: aprobados en la primera versión.
-- **Bosque** (rehecho): un recorrido jugable con relieve real — arroyo con
-  piedras para saltar, barricada de tablones que se rompe a golpes, cuesta,
-  roca con vetas azules que solo rompe la Energía, barranco con pilares,
-  cascada con una cueva detrás, pared de escalada marcada, torre de caza y
-  mirador sobre el cañón.
-- **Gran cañón** (replanteado): cada tramo roto del puente pide un movimiento
-  — tramo entero (combate), hueco de 9 m (dash), tramo caído e inclinado que
-  se baja corriendo, pila partida, salto al tramo descolgado y escalada por sus
-  vigas marcadas, bloqueo de la PDC y colina con la ciudad.
-- **Base de la PDC** (replanteada): muro con pasarela y torres, puesto de
-  control, patio de contenedores con grúa, edificio brutalista con franjas de
-  luz azul, helipuerto, garaje y depósitos; charcos de luz y zonas oscuras
-  para el sigilo, manteniendo la infiltración de la M01.
+- **Pueblo costero** (noche y día): casas de pescadores con tejados planos
+  para la ruta de M01 y a dos aguas en el resto, iglesia, faro sobre la
+  escollera, muelle con barcas, puestos con toldo, tendederos y farolas; la
+  playa es una pendiente de arena y alrededor hay colinas con pinos hasta el
+  horizonte.
+- **Base de la PDC** (meseta del pueblo de noche): muro con torres de
+  vigilancia, puesto de control, valla metálica con el hueco de la M01, patio
+  de contenedores con grúa pórtico, edificio brutalista con franjas de luz
+  azul, helipuerto con helicóptero, garaje, depósitos, camiones y charcos de
+  luz bajo los focos (las zonas oscuras siguen siendo las del sigilo).
+- **Bosque**: un recorrido con relieve real — arroyo, barricada, cuesta, roca
+  con vetas, barranco con pilares, cascada con una cueva detrás, pared de
+  escalada marcada en blanco, torre de caza en la meseta y mirador.
+- **Gran cañón**: puente de celosía roja a 13 m sobre un cañón de estratos;
+  tramo oeste entero (drones), un único hueco de 9 m (dash), tramo caído que
+  se baja corriendo, pila partida con generador, tramo descolgado que se
+  trepa por sus vigas, tramo este con los bloqueos de la PDC y la colina. Al
+  subir a ella la niebla se abre y se ve la ciudad sobre su llanura, con las
+  luces de las calles: la tierra lejana baja hasta la llanura sin lomas que
+  la tapen y la ciudad está velada por la bruma (`softFog`), sin recortarse
+  contra ella ni verse flotando desde el bosque.
+- **Distrito Cero**: de noche bajo la lluvia, edificios de ladrillo y hormigón
+  con planta baja comercial (escaparates, toldos, rótulos y banderolas de
+  neón), escaleras de incendios trepables en las fachadas traseras, depósitos
+  de agua, salidas de humo y vallas publicitarias en las azoteas, un
+  monorraíl elevado sobre la calle norte (sus pilares se trepan hasta la
+  viga), dos puestos de la PDC con barreras y torres de escaneo, un camión de
+  la PDC, un callejón de neón con farolillos y un puesto de fideos, y cinco
+  bloques nuevos que cierran las esquinas. Fuera del barrio la ciudad sigue
+  en todas direcciones: manzanas cercanas con niebla y rascacielos lejanos.
+- **Sin huecos de mapa**: cada mapa tiene suelo hasta el horizonte (terreno
+  lejano sin colisión, llanura bajo la ciudad, suelo urbano) y lo que rodea la
+  zona jugable continúa a la misma altura en el borde.
 
 El motor gana **terreno con relieve**: cuestas que se suben andando, laderas
 empinadas que frenan como un muro, cuevas bajo el terreno y cámara que no lo
 atraviesa (`CollisionWorld.addHeightfield`, con pruebas unitarias). Los haces
-de los focos de la base tienen ahora un sombreado volumétrico suave (más
-densos en el eje, transparentes en los bordes) y su charco de luz no tiene
-borde duro.
+de los focos de la base tienen un sombreado volumétrico suave (más densos en
+el eje, transparentes en los bordes) y su charco de luz no tiene borde duro.
+
+**Rendimiento de los mapas nuevos**: la geometría estática se fusiona por
+material **y por celda de 96 m**, así que lo que queda fuera de la vista no
+se dibuja; los pinos lejanos usan un modelo simplificado sin sombras; el
+terreno lejano usa un material barato; los focos de la base y las farolas
+pintan un charco de luz en el suelo en vez de llevar una luz real, y todos los
+charcos de un mapa son una sola malla (`lightPools`); las barcas y el
+helicóptero son estáticos; las manzanas y los rascacielos alrededor del
+Distrito son instancias (una llamada de dibujo cada grupo).
 
 ## Etapa 7 — Pulido
 
@@ -478,7 +511,7 @@ ambiente se silencia. **Ajustes**: volumen general, efectos y ambiente.
   y el Campo de Pruebas de ~440 a ~300. En la prueba con render por software,
   el Distrito pasó de 0.5 a 2.3 FPS (×4.6); en una GPU real el margen es mucho
   mayor.
-- Las 46 siluetas del horizonte comparten un material.
+- Los rascacielos del horizonte son instancias de una sola malla.
 - **Ajustes → Resolución de render** (50–100 %) para equipos modestos.
 - La lógica del juego cuesta ~1 ms por frame (medido).
 
@@ -789,11 +822,13 @@ colisión con la geometría y ligero aumento de FOV al esprintar.
   cornisas, y el circuito de parkour (Etapa 5).
 - Zonas C–F: delimitadas y señalizadas con la etapa en la que recibirán contenido.
 
-**Distrito Cero**: barrio al atardecer con 8 edificios principales y 2 anexos,
-calles, callejones, plaza central con fuente, farolas, coches, contenedores y
-límites físicos. **Todas las azoteas son accesibles** sin escalada:
-escaleras de incendios (B1, B5, B6), pasarelas entre azoteas y cadenas de
-contenedores y cajas (A1, A2).
+**Distrito Cero**: barrio de noche bajo la lluvia con 8 edificios principales,
+2 anexos y 5 bloques en las esquinas, calles, callejones (uno de neón), plaza
+central con fuente, farolas, coches, contenedores, monorraíl, puestos de la
+PDC y límites físicos. **Todas las azoteas son accesibles** sin escalada:
+escaleras (B1, B5, B6), pasarelas entre azoteas y cadenas de contenedores y
+cajas (A1, A2); además, escaleras de incendios trepables en las fachadas
+traseras y los pilares del monorraíl.
 
 ## Qué se ha probado realmente (Etapas 1 a 8)
 
@@ -814,8 +849,9 @@ contenedores y cajas (A1, A2).
   banderas de cada punto, qué poderes se permiten en cada tramo, el estado
   (las banderas no retroceden, la elección solo admite KILL/SPARE, completar),
   el guardado de la historia, el cálculo del sigilo y, **con el motor real**,
-  que ningún hueco del puente se cruza con un salto con carrera y los tres se
-  cruzan con salto + dash en el aire, y el dash asistido.
+  que el hueco de 9 m del puente no se cruza con un salto con carrera y sí con
+  salto + dash en el aire (aterrizando en la rampa del tramo caído), y el
+  dash asistido.
 - `npm run test:e2e` — en Chromium (render por software), con teclado y ratón:
   - Etapa 1: menú, ambos mapas, movimiento, sprint, salto, esquiva, pausa,
     reinicio, ajustes persistentes y rutas completas (las 10 azoteas del
@@ -930,7 +966,8 @@ contenedores y cajas (A1, A2).
     rompe a golpes y sí a disparos; el generador recarga; exactamente 3
     drones, de uno en uno; R y G se desbloquean tras ellos y Q en el puente;
     caer al cañón recarga CP23; **un salto real con teclado + dash cruza el
-    primer hueco**; 2 agentes + 1 dron; un reforzado y luego 2 agentes; CP28;
+    hueco de 9 m** y aterriza en el tramo caído; la pila partida guarda
+    CP24; 2 agentes + 1 dron; un reforzado y luego 2 agentes; CP28;
     la colina, la ciudad, el dash final y el menú principal con
     `TutorialComplete`, la Energía en el perfil libre y «Prólogo completado».
   - Gráficos: la cadena de postproceso (render, oclusión, bloom, salida,
@@ -962,7 +999,8 @@ cada sonido se genera, no su calidad). Conviene una sesión de juego manual.
   no hay esqueletos con animaciones capturadas, ni expresiones faciales, ni
   ropa con física. El pelo es una forma rígida.
 - El sonido es sintético (no hay grabaciones ni música).
-- No hay límite de pendiente: cualquier rampa es transitable.
+- Las rampas de cajas no tienen límite de pendiente (cualquiera es
+  transitable); el terreno con relieve sí (≈50°).
 - La cámara puede quedar dentro de la parte inferior de una pasarela si se
   mira desde muy abajo.
 - Navegación enemiga sencilla (sin malla de navegación): van en línea recta,

@@ -164,9 +164,200 @@ export class FragileDebris {
   }
 }
 
+/**
+ * Roca con vetas de Energía (bosque, M05): bloquea la senda hasta que la
+ * revientan los disparos de Energía (los golpes no le hacen nada). Las vetas
+ * azules laten para indicar que se puede romper. Misma interfaz que
+ * FragileDebris (`alive`, `hint`, `takeDamage`, `reset`).
+ */
+export class VeinBoulder {
+  constructor(ctx, { x, z, y = 0, r = 1.8, health = 20, rockMat, veinMat }) {
+    this.ctx = ctx;
+    this.alive = true;
+    this.faction = 'neutral';
+    this.health = health;
+    this.maxHealth = health;
+    this.radius = r;
+    this.center = { x, y: y + r * 0.6, z };
+    this.box = { x, z, y, h: r * 1.4 };
+    this.veinMat = veinMat;
+    this._hint = 1;
+    this._t = 0;
+    this.group = new THREE.Group();
+    const add = (geo, mat, px, py, pz) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(px, py, pz);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      this.group.add(m);
+      return m;
+    };
+    add(boulderGeometry(r, r * 0.9, r * 0.85, 7), veinMat, x, y + r * 0.55, z);
+    for (let i = 0; i < 3; i++) {
+      const s = r * (0.35 + i * 0.1);
+      add(boulderGeometry(s, s * 0.8, s, 17 + i), i === 1 ? veinMat : rockMat, x + Math.cos(i * 2.2) * r * 0.95, y + s * 0.35, z + Math.sin(i * 2.2) * r * 0.95);
+    }
+    this.light = new THREE.PointLight(0x6fc3ff, 5, r * 5, 1.6);
+    this.light.position.set(x, y + r * 1.2, z);
+    this.group.add(this.light);
+    ctx.group.add(this.group);
+    this.collider = ctx.world.addBox({ x: x - r * 0.9, y, z: z - r * 0.9 }, { x: x + r * 0.9, y: y + r * 1.4, z: z + r * 0.9 }, { owner: this, tag: 'debris', climbable: false });
+    this._unreg = ctx.combat?.register(this);
+  }
+
+  /** Intensidad del brillo de las vetas (1 = normal). */
+  hint(v) {
+    this._hint = v;
+  }
+
+  update(dt) {
+    if (!this.alive) return;
+    this._t += dt;
+    const k = this._hint * (0.75 + 0.25 * Math.sin(this._t * 2.4));
+    this.veinMat.emissiveIntensity = 2.2 * k;
+    this.light.intensity = 5 * k;
+  }
+
+  takeDamage(amount, info = {}) {
+    if (!this.alive || !ENERGY_KINDS.has(info.kind)) return 0;
+    this.health -= amount;
+    this.group.position.x = (Math.random() - 0.5) * 0.08;
+    if (this.health <= 0) this.shatter();
+    return amount;
+  }
+
+  shatter() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.collider.enabled = false;
+    this.group.visible = false;
+    this._unreg?.();
+    const { x, y, z, h } = this.box;
+    this.ctx.vfx?.particles.burst({ x, y: y + h / 2, z }, { count: 70, speed: 9, color: new THREE.Color(0x6e6a64), size: 0.28, life: 1.2, drag: 1.4, gravity: 14 });
+    this.ctx.vfx?.particles.burst({ x, y: y + h / 2, z }, { count: 40, speed: 6, color: new THREE.Color(0x6fc3ff), size: 0.18, life: 0.8, drag: 2 });
+    this.ctx.vfx?.lights?.flash({ x, y: y + h / 2, z }, '#6fc3ff', 40, 12, 0.4);
+    this.ctx.events?.emit('story:debris-broken', {});
+  }
+
+  /** Ya roto (al cargar un punto de control posterior): sin efectos ni eventos. */
+  clear() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.collider.enabled = false;
+    this.group.visible = false;
+    this._unreg?.();
+  }
+
+  reset() {
+    this.alive = true;
+    this.health = this.maxHealth;
+    this.collider.enabled = true;
+    this.group.visible = true;
+    this.group.position.x = 0;
+    this._unreg = this.ctx.combat?.register(this);
+  }
+}
+
+/** Roca de caras planas (deformación determinista de un icosaedro). */
+function boulderGeometry(sx, sy, sz, seed) {
+  const r = mulberry(seed);
+  const geo = new THREE.IcosahedronGeometry(1, 1);
+  const pos = geo.attributes.position;
+  const ph = [r() * 6, r() * 6, r() * 6];
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const k = 1 + 0.18 * Math.sin(x * 3.1 + ph[0]) * Math.cos(z * 2.7 + ph[1]) + 0.1 * Math.sin(y * 4.3 + ph[2]);
+    pos.setXYZ(i, x * sx * k, Math.max(y, -0.35) * sy * k, z * sz * k);
+  }
+  const out = geo.toNonIndexed();
+  geo.dispose();
+  out.computeVertexNormals();
+  const uv = out.attributes.uv;
+  const p = out.attributes.position;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, (p.getX(i) + p.getZ(i)) / 4, p.getY(i) / 4);
+  return out;
+}
+
+/**
+ * Barricada de tablones de la PDC (bosque, M05): se rompe a golpes (o con
+ * cualquier daño). Los postes quedan en pie; los tablones saltan en astillas.
+ * Cruza la senda a lo largo de z (ancho `w`) en `x`.
+ */
+export class Barricade {
+  constructor(ctx, { x, y = 0, z, w = 6, h = 2.4, health = 40, plankMat, postMat, tapeMat, signMat }) {
+    this.ctx = ctx;
+    this.alive = true;
+    this.faction = 'neutral';
+    this.health = health;
+    this.maxHealth = health;
+    this.radius = 1.2;
+    this.center = { x, y: y + 1.1, z };
+    this.box = { x, y, z, w, h };
+    const box = (g, mat, bw, bh, bd, px, py, pz, rx = 0) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), mat);
+      m.position.set(px, py, pz);
+      m.rotation.x = rx;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      g.add(m);
+      return m;
+    };
+    // Postes (se quedan) y tablones (se rompen)
+    this.posts = new THREE.Group();
+    for (const dz of [-w / 2, 0, w / 2]) box(this.posts, postMat, 0.22, h + 0.5, 0.22, x, y + (h + 0.5) / 2 - 0.3, z + dz);
+    this.planks = new THREE.Group();
+    for (let i = 0; i < 4; i++) box(this.planks, plankMat, 0.06, 0.32, w + 0.4, x + 0.14, y + 0.5 + i * 0.52, z, i % 2 ? 0.05 : -0.04);
+    for (const sgn of [-1, 1]) box(this.planks, plankMat, 0.06, 0.26, Math.hypot(w, h) * 0.95, x + 0.22, y + h / 2 - 0.2, z, sgn * Math.atan2(h, w));
+    box(this.planks, tapeMat, 0.02, 0.12, w + 0.2, x + 0.3, y + 1.1, z);
+    box(this.planks, signMat, 0.04, 0.6, 1.6, x + 0.3, y + 1.85, z - 0.6);
+    ctx.group.add(this.posts, this.planks);
+    this.collider = ctx.world.addBox({ x: x - 0.2, y, z: z - w / 2 - 0.2 }, { x: x + 0.4, y: y + h, z: z + w / 2 + 0.2 }, { owner: this, tag: 'barricade', climbable: false });
+    this._unreg = ctx.combat?.register(this);
+  }
+
+  takeDamage(amount) {
+    if (!this.alive) return 0;
+    this.health -= amount;
+    this.planks.position.x = (Math.random() - 0.5) * 0.1;
+    if (this.health <= 0) this.shatter();
+    return amount;
+  }
+
+  shatter() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.collider.enabled = false;
+    this.planks.visible = false;
+    this._unreg?.();
+    const { x, y, z, h } = this.box;
+    this.ctx.vfx?.particles.burst({ x, y: y + h / 2, z }, { count: 60, speed: 7, color: new THREE.Color(0xb08a5a), size: 0.18, life: 1, drag: 1.6, gravity: 14 });
+    this.ctx.events?.emit('story:barricade-broken', {});
+  }
+
+  /** Ya roto (al cargar un punto de control posterior): sin efectos ni eventos. */
+  clear() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.collider.enabled = false;
+    this.planks.visible = false;
+    this._unreg?.();
+  }
+
+  reset() {
+    this.alive = true;
+    this.health = this.maxHealth;
+    this.collider.enabled = true;
+    this.planks.visible = true;
+    this.planks.position.x = 0;
+    this._unreg = this.ctx.combat?.register(this);
+  }
+}
+
 /** Lluvia: partículas que caen alrededor de la cámara (una sola llamada de dibujo). */
 export class Rain {
-  constructor(ctx, { count = 2600, area = 46, height = 26, color = 0xa8c0d8 } = {}) {
+  constructor(ctx, { count = 2600, area = 46, height = 26, color = 0xa8c0d8, follow = false } = {}) {
     this.area = area;
     this.height = height;
     const pos = new Float32Array(count * 6);
@@ -182,6 +373,14 @@ export class Rain {
     ctx.group.add(this.lines);
     this.center = { x: 0, y: 0, z: 0 };
     this.intensity = 1;
+    // `follow`: sigue a la cámara que la dibuja (mapas sin director de historia)
+    if (follow) {
+      this.lines.onBeforeRender = (r, s, cam) => {
+        this.center.x = cam.position.x;
+        this.center.y = cam.position.y - height / 2;
+        this.center.z = cam.position.z;
+      };
+    }
     // Lo que tapa la lluvia (tejados, voladizos): altura de la superficie más
     // alta en celdas de 1 m, calculada al pasar por ellas y guardada
     this.world = ctx.world;
@@ -508,17 +707,45 @@ function pineFoliageGeometry() {
   return _pineFoliage;
 }
 
+/** Copa simplificada para los pinos lejanos: tres conos de 6 lados con el mismo degradado. */
+let _farFoliage = null;
+function farFoliageGeometry() {
+  if (_farFoliage) return _farFoliage;
+  const parts = [];
+  const dark = new THREE.Color(0x203826);
+  const light = new THREE.Color(0x4f7a52);
+  [[2.3, 3.6, 3.6], [1.6, 3.2, 5.6], [0.9, 2.6, 7.6]].forEach(([r, h, y], li) => {
+    const g = new THREE.ConeGeometry(r, h, 6, 1).toNonIndexed();
+    const pos = g.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const t = (pos.getY(i) + h / 2) / h;
+      c.copy(dark).lerp(light, Math.min(1, 0.3 + t * 0.5 + li * 0.08));
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.deleteAttribute('uv');
+    g.translate(0, y, 0);
+    g.computeVertexNormals();
+    parts.push(g);
+  });
+  _farFoliage = mergeGeometries(parts, false);
+  return _farFoliage;
+}
+
 /**
  * Bosque de pinos con InstancedMesh: tronco y copa (dos llamadas de dibujo
  * para cientos de árboles). Cada árbol tiene un verde algo distinto.
  * `positions`: [{x, y, z, s}]. Sin colisión salvo que se pida (`colliders`).
  */
-export function pineForest(ctx, positions, { colliders = false, snow = false } = {}) {
+export function pineForest(ctx, positions, { colliders = false, snow = false, far = false } = {}) {
   const n = positions.length;
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1f, roughness: 0.95 });
   const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true });
-  const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.3, 3.4, 7).translate(0, 1.7, 0), trunkMat, n);
-  const crown = new THREE.InstancedMesh(pineFoliageGeometry(), leafMat, n);
+  // `far`: pinos de fondo (copa de pocas caras y sin sombra): miles cuestan como unos pocos cercanos
+  const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.3, 3.4, far ? 4 : 7).translate(0, 1.7, 0), trunkMat, n);
+  const crown = new THREE.InstancedMesh(far ? farFoliageGeometry() : pineFoliageGeometry(), leafMat, n);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const s = new THREE.Vector3();
@@ -541,7 +768,7 @@ export function pineForest(ctx, positions, { colliders = false, snow = false } =
     if (colliders) ctx.world.addBox({ x: t.x - 0.3, y: t.y ?? 0, z: t.z - 0.3 }, { x: t.x + 0.3, y: (t.y ?? 0) + 3, z: t.z + 0.3 }, { climbable: false, cameraBlocking: false });
   });
   for (const im of [trunk, crown]) {
-    im.castShadow = true;
+    im.castShadow = !far;
     im.receiveShadow = true;
     ctx.group.add(im);
   }

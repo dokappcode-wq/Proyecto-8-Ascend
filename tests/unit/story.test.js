@@ -5,7 +5,7 @@ import { StoryState, createStoryState } from '../../src/story/StoryState.js';
 import { detectionRate, stepMeter, STEALTH } from '../../src/story/stealthMath.js';
 import { BEATS } from '../../src/story/prologue.js';
 import { StoryDirector, lineTime } from '../../src/story/StoryDirector.js';
-import { BRIDGE_SPANS, BRIDGE_GAPS, DECK_Y } from '../../src/world/maps/Forest.js';
+import { BRIDGE_SPANS, BRIDGE_GAPS, DECK_Y, FALLEN } from '../../src/world/maps/Forest.js';
 import { CollisionWorld } from '../../src/physics/CollisionWorld.js';
 import { CharacterMotor } from '../../src/physics/CharacterMotor.js';
 import { SaveSystem } from '../../src/core/SaveSystem.js';
@@ -141,6 +141,8 @@ test('sigilo: de cerca le oyen (salvo agachado) y el medidor sube, se limita y b
 function bridgeWorld() {
   const w = new CollisionWorld();
   for (const s of BRIDGE_SPANS) w.addBox({ x: s.x0, y: DECK_Y - 0.6, z: -3.5 }, { x: s.x1, y: DECK_Y, z: 3.5 }, { climbable: false });
+  // Tramo caído: la rampa que recibe al jugador al otro lado del hueco (como en el mapa)
+  w.addRamp({ minX: FALLEN.x0, maxX: FALLEN.x1, minZ: -4, maxZ: 4, axis: 'x', y0: FALLEN.y0, y1: FALLEN.y1, base: FALLEN.y1 - 1.2 });
   return w;
 }
 
@@ -160,17 +162,19 @@ function tryGap(gap, { dash }) {
     if (dash && jumped && !dashed && m.velocity.y <= 0.5) {
       dashed = m.startBurst({ x: 1, z: 0, speed: ENERGY_CONFIG.dash.speed, duration: ENERGY_CONFIG.dash.duration, gravityScale: 0, exitFactor: 0.5 });
     }
-    if (m.position.y < DECK_Y - 4) return { crossed: false, x: m.position.x };
+    // Por debajo del borde de la rampa sin haber pasado el hueco: cae al cañón
+    if (m.position.x < gap.to && m.position.y < FALLEN.y0 - 2) return { crossed: false, x: m.position.x };
     if (jumped && m.grounded && m.position.x > gap.to) return { crossed: true, x: m.position.x };
   }
   return { crossed: false, x: m.position.x };
 }
 
-test('puente: tres huecos de anchura creciente (8.5, 9.5 y 10.5 m)', () => {
-  assert.deepEqual(BRIDGE_GAPS.map((g) => g.width), [8.5, 9.5, 10.5]);
+test('puente: un único hueco de 9 m entre el tramo oeste y el tramo caído', () => {
+  assert.deepEqual(BRIDGE_GAPS.map((g) => g.width), [9]);
+  assert.equal(BRIDGE_GAPS[0].to, FALLEN.x0, 'el hueco termina donde empieza la rampa');
 });
 
-test('puente: un salto con carrera no basta para ningún hueco; con el dash en el aire se cruzan los tres', () => {
+test('puente: un salto con carrera no basta para el hueco; con el dash en el aire se cruza', () => {
   for (const gap of BRIDGE_GAPS) {
     const plain = tryGap(gap, { dash: false });
     assert.equal(plain.crossed, false, `hueco de ${gap.width} m saltado sin dash`);

@@ -1211,12 +1211,27 @@ async function busRide(S) {
 }
 
 // ================================================================== M05
-/** Estado del valle tras el accidente. */
+const smooth01 = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/** Estado del valle tras el accidente (y lo que ya se rompió sigue roto). */
 function forestState(S) {
   const v = S.map.viaduct;
   v.setBroken(true);
   v.placeWreck();
   for (const m of S.map.bridge.markers) m.setVisible(false);
+  const i = S.d.current?.index ?? 0;
+  if (i >= 19) S.map.barricade?.clear(); // desde CP20
+  if (i >= 20) S.map.debris?.clear(); // desde CP21
+}
+
+/** La niebla se abre al subir a la colina: la ciudad se ve sobre su llanura (k 0…1). */
+function clearFog(S, k) {
+  const f = S.g.scene.fog;
+  const base = S.g.mapManager.current?.def.fog;
+  if (f && base) f.density = base + (0.0011 - base) * k;
 }
 
 /** CP18 · Despertar en el bosque. */
@@ -1244,27 +1259,37 @@ async function forest(S, { entered }) {
   await S.say('JON', '¿Cómo he llegado hasta aquí?', 2.6);
   cine(S, false);
   S.tutorial('Cámara', 'Mueve el ratón para mirar alrededor · El autobús ha caído del viaducto');
-  S.objective('Sal del valle hacia el este', ['Busca un camino entre los árboles']);
-  S.markers([{ ...P.climb, label: 'Rocas' }]);
-  await S.until(() => S.pos.x > -22);
+  S.objective('Sal del valle hacia el este', ['Sigue el arroyo entre los árboles']);
+  S.markers([{ ...P.creek, label: 'Arroyo' }]);
+  await S.until(() => S.pos.x > P.cp19.x + 0.5);
 }
 
-/** CP19 · La ladera: trepar hasta el sendero. */
+/** CP19 · El arroyo (saltos), la barricada de la PDC (a golpes) y la cuesta. */
 async function climb(S) {
   const P = S.points;
+  const bar = S.map.barricade;
   forestState(S);
   await S.fadeIn();
-  S.objective('Trepa por las rocas');
-  S.markers([{ ...P.terrace, label: 'Sendero' }]);
-  S.tutorial('Escalada', 'Salta hacia la roca con [W] pulsado para agarrarte · [Espacio] para subir');
-  await S.until(() => S.pos.y > 2.6 && S.pos.x > -4.5);
+  S.objective('Cruza el arroyo', ['Salta de piedra en piedra']);
+  S.markers([{ ...P.creekEnd, label: 'Otra orilla' }]);
+  S.tutorial('Saltar', '[Espacio] saltar · Corriendo con [Shift] llegas más lejos · Río arriba hay un tronco caído');
+  await S.until(() => S.pos.x > P.creekEnd.x - 1);
   S.tutorial(null);
-  S.objective('Sigue el sendero');
-  S.markers([{ ...P.debris, y: 3, label: '???' }]);
-  await S.until(() => S.pos.x > 4);
+  if (bar.alive) {
+    S.objective('Abre paso', ['La PDC ha cerrado la senda con tablones']);
+    S.markers([{ ...P.barricade, y: P.barricade.y + 1, label: 'Barricada' }]);
+    await S.until(() => hdist(S.pos, P.barricade) < 6 || !bar.alive);
+    S.tutorial('Golpear', '[F] golpear · La madera clara y astillada se puede romper');
+    await S.until(() => !bar.alive);
+    S.tutorial(null);
+    await S.say('JON', 'Hasta el bosque lo tienen cerrado...', 2.4);
+  }
+  S.objective('Sube la cuesta', ['Sigue el sendero entre los árboles']);
+  S.markers([{ ...P.terrace, label: 'Sendero' }]);
+  await S.until(() => S.pos.x > P.cp20.x);
 }
 
-/** CP20 · El escombro (primer disparo) y la absorción del generador. */
+/** CP20 · La roca de vetas (primer disparo) y la absorción del generador. */
 async function debris(S) {
   const P = S.points;
   const g = S.g;
@@ -1273,8 +1298,8 @@ async function debris(S) {
   await S.fadeIn();
   if (deb.alive) {
     deb.hint(1.2);
-    S.objective('Despeja el paso', ['Un montón de rocas bloquea el sendero']);
-    S.markers([{ ...P.debris, y: 3, label: 'Escombro' }]);
+    S.objective('Despeja el paso', ['Una roca con vetas azules bloquea el sendero']);
+    S.markers([{ ...P.debris, y: P.debris.y + 2, label: 'Roca' }]);
     await S.until(() => hdist(S.pos, P.debris) < 11);
     S.tutorial('Disparo de Energía', '[Clic derecho] apuntar · [Clic izquierdo] disparar · Cada disparo gasta carga');
     // Nunca bloquearse por falta de carga
@@ -1309,22 +1334,42 @@ async function debris(S) {
   S.tutorial(null);
   S.markers([]);
   await S.say('JON', 'Vale... creo que empiezo a entenderlo.', 2.6);
-  S.objective('Sigue el sendero');
-  S.markers([{ ...P.clearing, label: 'Claro' }]);
-  await S.until(() => S.pos.x > 36);
+  S.objective('Sigue el sendero', ['Un barranco corta el camino']);
+  S.markers([{ ...P.ravine, label: 'Barranco' }]);
+  await S.until(() => S.pos.x > P.cp21.x + 1.5);
 }
 
-/** CP21 · Tres drones: proyectil, descarga (R) y onda (G), de uno en uno. */
+/**
+ * CP21 · Del barranco al puente (pilares, pared de escalada y meseta) y, en
+ * el tramo oeste, tres drones: proyectil, descarga (R) y onda (G), de uno en uno.
+ */
 async function drones(S) {
   const g = S.g;
+  const P = S.points;
   forestState(S);
   g.factions.reputation.reset({ pdc: 100 });
   await S.fadeIn();
+  if (S.pos.x < P.clearing.x) {
+    S.objective('Cruza el barranco', ['Salta de pilar en pilar']);
+    S.markers([{ ...P.ravine, label: 'Pilares' }]);
+    S.tutorial('Saltos', 'Corre [Shift] y salta [Espacio] de pilar en pilar · Si caes al río, vuelves al borde');
+    await S.until(() => S.pos.x > 16 && S.pos.y > 4.5);
+    S.tutorial(null);
+    S.objective('Sube a la meseta', ['Trepa por la pared marcada en blanco']);
+    S.markers([{ ...P.climb, label: 'Pared' }]);
+    S.tutorial('Escalada', 'Salta hacia la pared con [W] pulsado para agarrarte · [Espacio] subir · Las repisas marcadas en blanco son la ruta · Detrás de la cascada hay algo escondido');
+    await S.until(() => S.pos.y > P.climb.y - 1 && S.pos.x > P.climb.x);
+    S.tutorial(null);
+    S.objective('Sigue hacia el puente');
+    S.markers([{ ...P.clearing, label: 'Puente' }]);
+    await S.until(() => S.pos.x > P.clearing.x);
+  }
   S.markers([]);
-  const spawnDrone = (x, z) => g.enemies.spawn('dronTutorial', { x, y: 3.1, z, yaw: -PI / 2, tag: 'drones', patrol: [{ x, z }, { x: x - 4, z: z + 3 }] });
+  const Y = (P.deckY ?? 3) + 0.1;
+  const spawnDrone = (x, z) => g.enemies.spawn('dronTutorial', { x, y: Y, z, yaw: -PI / 2, tag: 'drones', patrol: [{ x, z }, { x: x - 4, z: z + 1.5 }] });
   S.objective('Neutraliza los drones (0/3)');
   // Dron 1: proyectil
-  const d1 = spawnDrone(60, 0);
+  const d1 = spawnDrone(P.clearing.x + 18, 0);
   S.g.events.emit('story:drone', { n: 1 });
   await S.say('DRON', 'Individuo no identificado. Permanezca inmóvil.');
   await S.say('JON', 'No, gracias.', 1.6);
@@ -1335,14 +1380,14 @@ async function drones(S) {
   // Dron 2: descarga concentrada
   S.allow('charged');
   S.tutorial('Descarga concentrada', 'Mantén [R] para cargar y suelta para disparar · Más carga, más daño · Recarga en el generador [E]');
-  const d2 = spawnDrone(72, -6);
+  const d2 = spawnDrone(P.clearing.x + 23, -2);
   S.g.events.emit('story:drone', { n: 2 });
   await S.until(() => !d2.alive);
   S.objective('Neutraliza los drones (2/3)');
   // Dron 3: onda expansiva
   S.allow('wave');
   S.tutorial('Onda expansiva', 'Acércate y pulsa [G]: la onda golpea a todo lo que tienes cerca · En el aire, [G] cae en forma de rayo');
-  const d3 = spawnDrone(66, 6);
+  const d3 = spawnDrone(P.clearing.x + 14, 2.2);
   S.g.events.emit('story:drone', { n: 3 });
   await S.until(() => !d3.alive);
   S.objective('Neutraliza los drones (3/3)');
@@ -1357,7 +1402,7 @@ async function toBridge(S) {
   await S.fadeIn();
   S.objective('Cruza el puente destruido');
   S.markers([{ ...P.bridgeStart, label: 'Puente' }]);
-  await S.until(() => S.pos.x > 96);
+  await S.until(() => S.pos.x > P.bridgeStart.x - 1);
 }
 
 /** Muestra el marcador de aterrizaje del hueco `i` y activa el dash asistido. */
@@ -1366,42 +1411,47 @@ function gapGuide(S, i) {
   br.markers.forEach((m, k) => m.setVisible(k === i));
   S.d.dashAssist = { gaps: br.gaps };
   const m = br.markers[i];
-  S.markers([{ ...m.point, label: `Salto ${i + 1}/3` }]);
+  S.markers([{ ...m.point, label: br.gaps.length > 1 ? `Salto ${i + 1}/${br.gaps.length}` : 'Aterrizaje' }]);
 }
 
-/** CP23 · El puente: primer y segundo salto con el dash. */
+/** CP23 · El hueco del puente (dash) y el tramo caído hasta la pila partida. */
 async function dash(S) {
+  const P = S.points;
+  const br = S.map.bridge;
   forestState(S);
   await S.fadeIn();
-  S.objective('Cruza los huecos del puente');
+  S.objective('Cruza el hueco del puente');
   await S.say('JON', 'Tiene que haber alguna manera de cruzar...', 2.6);
   S.tutorial('Dash de Energía', 'Corre hacia el borde, salta con [Espacio] y pulsa [Q] en el aire: el dash te lleva hacia el círculo azul · Recarga en el generador [E] antes de saltar');
   gapGuide(S, 0);
-  const gaps = S.map.bridge.gaps;
-  await S.until(() => S.pos.x > gaps[0].to + 0.5 && S.pos.y > 2.4);
+  await S.until(() => S.pos.x > br.gaps[0].to + 0.5 && S.pos.y > br.pier.top + 3);
+  br.markers.forEach((m) => m.setVisible(false));
+  S.d.dashAssist = null;
+  S.tutorial(null);
   await S.say('JON', '¡WOAH!', 1.2);
   await S.say('JON', 'Eso ha sido... increíble.', 2.2);
-  gapGuide(S, 1);
-  S.tutorial('Dash de Energía', 'El siguiente hueco es más ancho: salta lo más tarde posible y haz el dash en lo alto del salto');
-  await S.until(() => S.pos.x > gaps[1].to + 0.5 && S.pos.y > 2.4);
+  S.objective('Baja por el tramo caído', ['El puente se ha partido: sigue hacia abajo']);
+  S.markers([{ ...P.pier, label: 'Pila' }]);
+  await S.until(() => S.pos.x > br.pier.x0 + 0.5 && S.pos.y < br.pier.top + 1.5);
 }
 
-/** CP24 · Mitad del puente: el salto más largo. */
+/** CP24 · De la pila partida al tramo descolgado: salto y escalada por sus vigas. */
 async function dash2(S) {
+  const P = S.points;
+  const br = S.map.bridge;
   forestState(S);
   await S.fadeIn();
-  S.objective('Cruza el último hueco');
-  S.tutorial('Dash de Energía', 'El último hueco es el más largo · Apunta [clic derecho] y mantén [Q] para un dash dirigido si lo necesitas');
-  gapGuide(S, 2);
-  const gaps = S.map.bridge.gaps;
-  await S.until(() => S.pos.x > gaps[2].to + 0.5 && S.pos.y > 2.4);
-  S.map.bridge.markers.forEach((m) => m.setVisible(false));
-  S.d.dashAssist = null;
+  S.objective('Sube al otro lado', ['Salta al tramo descolgado y trepa por sus vigas', 'Recarga en el generador [E] si lo necesitas']);
+  S.markers([{ ...P.hangTop, label: 'Arriba' }]);
+  S.tutorial('Trepar', 'Corre y salta hacia las vigas con [W] pulsado para agarrarte · [Espacio] subir · Las vigas marcadas en blanco son los asideros');
+  await S.until(() => S.pos.x > br.hang.hinge.x - 1.5 && S.pos.y > P.deckY - 0.5);
+  S.tutorial(null);
 }
 
 /** Enemigos de un tramo de combate (con el diálogo antes de que disparen). */
 function spawnSquad(S, tag, list) {
-  return list.map(([type, x, z]) => S.g.enemies.spawn(type, { x, y: 3.1, z, yaw: -PI / 2, tag, patrol: [{ x, z }, { x: x - 3, z }] }));
+  const y = (S.points.deckY ?? 3) + 0.1;
+  return list.map(([type, x, z]) => S.g.enemies.spawn(type, { x, y, z, yaw: -PI / 2, tag, patrol: [{ x, z }, { x: x - 3, z }] }));
 }
 
 /** CP25 · Primer bloqueo: 2 agentes y 1 dron. */
@@ -1410,14 +1460,16 @@ async function block1(S) {
   forestState(S);
   await S.fadeIn();
   S.markers([]);
+  const P = S.points;
   S.objective('Sigue por el puente');
-  await S.until(() => S.pos.x > 177);
+  await S.until(() => S.pos.x > P.cp25.x + 3);
   // Vigilantes: se detienen y apuntan mientras hablan
   g.factions.reputation.reset({ pdc: 40 });
-  const squad = spawnSquad(S, 'block1', [['pdc', 195, -1.5], ['pdc', 198.5, 1.6], ['dron', 192, 0]]);
+  const b = P.block1;
+  const squad = spawnSquad(S, 'block1', [['pdc', b.x, -1.5], ['pdc', b.x + 3.5, 1.6], ['dron', b.x - 3, 0]]);
   g.events.emit('story:encounter', { id: 'block1', types: squad.map((e) => e.type.id) });
   cine(S, true);
-  S.shot(overShoulder(S.pos, { x: 196, y: 3, z: 0 }, { back: 3.2, side: 1 }));
+  S.shot(overShoulder(S.pos, { x: b.x + 1, y: b.y, z: 0 }, { back: 3.2, side: 1 }));
   await S.say('AGENTE 1', '¡Al suelo!', 1.4);
   await S.say('JON', 'No quiero problemas.', 1.8);
   await S.say('AGENTE 2', '¡Está marcado! ¡Fuego!', 1.6);
@@ -1439,8 +1491,9 @@ async function toBlock2(S) {
   S.g.enemies.clear('block1');
   await S.fadeIn();
   S.objective('Sigue por el puente');
-  S.markers([{ x: 214, y: 3, z: -2.4, label: 'Generador' }]);
-  await S.until(() => S.pos.x > 206);
+  const gen = S.map.generators.s4.position;
+  S.markers([{ ...gen, label: 'Generador' }]);
+  await S.until(() => S.pos.x > S.points.cp27.x - 1);
 }
 
 /** CP27 · Último bloqueo: agente reforzado y después 2 agentes. */
@@ -1449,8 +1502,9 @@ async function block2(S) {
   forestState(S);
   await S.fadeIn();
   S.markers([]);
+  const P = S.points;
   g.factions.reputation.reset({ pdc: 40 });
-  const [heavy] = spawnSquad(S, 'block2', [['reforzado', 232, 0]]);
+  const [heavy] = spawnSquad(S, 'block2', [['reforzado', P.block2.x - 3, 0]]);
   g.events.emit('story:encounter', { id: 'block2a', types: ['reforzado'] });
   cine(S, true);
   S.shot(overShoulder(S.pos, heavy.position, { back: 3.4, side: -1 }));
@@ -1462,14 +1516,14 @@ async function block2(S) {
   await S.until(() => !heavy.alive);
   S.tutorial(null);
   await S.say('AGENTE (RADIO)', '¡El sujeto sigue avanzando! ¡Necesitamos refuerzos!', 2.6);
-  const wave = spawnSquad(S, 'block2', [['pdc', 243, -1.6], ['pdc', 245, 1.6]]);
+  const wave = spawnSquad(S, 'block2', [['pdc', P.block2.x + 5.5, 2.2], ['pdc', P.block2.x + 11.5, -2.2]]);
   g.events.emit('story:encounter', { id: 'block2b', types: wave.map((e) => e.type.id) });
   S.line('JON', '¡No pienso volver a ese autobús!', 2.4);
   S.objective('Derrota a los refuerzos');
   await S.until(() => wave.every((e) => !e.alive));
   S.objective('Sal del puente');
-  S.markers([{ ...S.points.bridgeEnd, label: 'Salida' }]);
-  await S.until(() => S.pos.x > 251);
+  S.markers([{ ...P.bridgeEnd, label: 'Salida' }]);
+  await S.until(() => S.pos.x > P.bridgeEnd.x - 2);
 }
 
 /** CP28 · Fuera del puente: subir a la colina. */
@@ -1480,22 +1534,25 @@ async function leaveBridge(S) {
   await S.fadeIn();
   S.objective('Sube a la colina');
   S.markers([{ ...P.hill, label: 'Colina' }]);
-  await S.until(() => S.pos.x > 290 && S.pos.y > 9.5);
+  S.every(() => clearFog(S, smooth01(P.bridgeEnd.x, P.hill.x + 4, S.pos.x)));
+  await S.until(() => S.pos.x > P.hill.x && S.pos.y > P.hill.y - 2);
 }
 
 /** CP29 · La ciudad: cámara fija, dash fuera de plano, menú principal. */
 async function city(S) {
   const g = S.g;
+  const top = S.points.hillTop;
   forestState(S);
+  clearFog(S, 1);
   S.markers([]);
   S.objective(null);
   S.tutorial(null);
   await S.fadeIn();
   cine(S, true);
-  // Cámara panorámica fija: Jon de espaldas y la ciudad al fondo
-  const cam = { pos: { x: 296.5, y: 15.6, z: 3.4 }, look: { x: 520, y: 40, z: -12 } };
+  // Cámara panorámica fija: Jon de espaldas y la ciudad al fondo, sobre su llanura
+  const cam = { pos: { x: top.x - 7.5, y: top.y + 2.6, z: 3.4 }, look: { x: top.x + 300, y: top.y + 22, z: -10 } };
   S.shot(cam);
-  await S.walkTo({ x: 303.5, z: 0.6 });
+  await S.walkTo({ x: top.x - 0.5, z: 0.6 });
   S.place({ x: S.pos.x, y: S.pos.y, z: S.pos.z, yaw: PI / 2 });
   S.shot(cam);
   const t0 = S.d.time;

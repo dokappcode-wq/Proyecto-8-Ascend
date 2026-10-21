@@ -72,6 +72,15 @@ export default {
 
     // --- Suelo y límites ---
     B.block({ x: 0, z: 0, w: HALF * 2, d: HALF * 2, y: -1, h: 1, mat: M.floor, cast: false });
+    // Fuera del recinto el suelo sigue hasta el horizonte (sin vacío desde las plataformas altas)
+    const outer = new THREE.PlaneGeometry(2400, 2400).rotateX(-Math.PI / 2);
+    const uv = outer.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 300, uv.getY(i) * 300);
+    const apron = new THREE.Mesh(outer, M.dark);
+    apron.position.y = -0.05;
+    apron.receiveShadow = true;
+    apron.userData.levelStatic = true;
+    group.add(apron);
     for (const [x, z, w, d] of [
       [0, -HALF, HALF * 2, 1], [0, HALF, HALF * 2, 1], [-HALF, 0, 1, HALF * 2], [HALF, 0, 1, HALF * 2],
     ]) {

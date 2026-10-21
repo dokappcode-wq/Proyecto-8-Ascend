@@ -231,12 +231,55 @@ export function createMountains(peaks, { rock = '#5d636b', low = '#3e4a3a', snow
  * que todas las torres tengan plantas del mismo tamaño, y cada torre lleva
  * su propio tono de fachada. Sin niebla: se ve desde muy lejos.
  *
- * @param {object} o { origin, heading (rad; 0 = +X), spread (rad), dist: [min, max], count, seed, lit (0..1) }
+ * @param {object} o { origin, heading (rad; 0 = +X), spread (rad), dist: [min, max], count, seed, lit (0..1), fog (false | true | escala de la niebla suave) }
  */
-export function createCity({ origin = { x: 0, y: 0, z: 0 }, heading = 0, spread = 1.2, dist = [640, 900], count = 180, seed = 33, lit = 0.26, intensity = 0.9 } = {}) {
+export function createCity({ origin = { x: 0, y: 0, z: 0 }, heading = 0, spread = 1.2, dist = [640, 900], count = 180, seed = 33, lit = 0.26, intensity = 0.9, fog = false } = {}) {
   const r = rng(seed);
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    const a = (r() - 0.5) * spread;
+    const d = dist[0] + r() * (dist[1] - dist[0]);
+    const h = 30 + Math.pow(r(), 2) * 190 + (Math.abs(a) < spread * 0.15 ? 80 : 0);
+    const w = 14 + r() * 22;
+    list.push({ x: origin.x + Math.cos(heading + a) * d, y: origin.y, z: origin.z + Math.sin(heading + a) * d, ry: r() * 0.5, w, h, d: w * (0.7 + r() * 0.6), tone: 0.85 + r() * 0.3 });
+  }
+  return cityTowers(list, { lit, intensity, fog });
+}
+
+/**
+ * Niebla suave: la niebla exponencial del mapa con la densidad multiplicada
+ * por `k` en este material. Para lo muy lejano (ciudad, horizonte) que debe
+ * verse velado por la bruma y no recortado contra ella, sin desaparecer.
+ */
+export function softFog(mat, k = 0.3) {
+  mat.fog = true;
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, renderer) => {
+    prev?.call(mat, sh, renderer);
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <fog_fragment>',
+      `#ifdef USE_FOG
+        #ifdef FOG_EXP2
+          float fogFactor = 1.0 - exp( - fogDensity * fogDensity * ${(k * k).toFixed(5)} * vFogDepth * vFogDepth );
+        #else
+          float fogFactor = smoothstep( fogNear, fogFar / ${k.toFixed(4)}, vFogDepth );
+        #endif
+        gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+      #endif`,
+    );
+  };
+  mat.customProgramCacheKey = () => `${prev.toString()}|softFog${k}`;
+  return mat;
+}
+
+/**
+ * Torres de ciudad en una sola llamada de dibujo (instancias) en las
+ * posiciones dadas: [{ x, y, z, w, h, d, ry, tone }]. `fog`: si les afecta la
+ * niebla (las cercanas sí; el horizonte lejano, no).
+ */
+export function cityTowers(list, { lit = 0.26, intensity = 0.9, fog = false } = {}) {
   const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffc98a, emissiveMap: cityWindows(lit), emissiveIntensity: intensity, roughness: 0.55, metalness: 0.2, fog: false });
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffc98a, emissiveMap: cityWindows(lit), emissiveIntensity: intensity, roughness: 0.55, metalness: 0.2, fog: fog === true });
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vCityP;\nvarying vec3 vCityN;')
@@ -261,7 +304,8 @@ export function createCity({ origin = { x: 0, y: 0, z: 0 }, heading = 0, spread 
         diffuseColor.rgb *= 0.75 + 0.25 * smoothstep(0.0, 40.0, vCityP.y);`,
       );
   };
-  const towers = new THREE.InstancedMesh(geo, mat, count);
+  if (typeof fog === 'number') softFog(mat, fog);
+  const towers = new THREE.InstancedMesh(geo, mat, list.length);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const s = new THREE.Vector3();
@@ -269,18 +313,14 @@ export function createCity({ origin = { x: 0, y: 0, z: 0 }, heading = 0, spread 
   const col = new THREE.Color();
   const up = new THREE.Vector3(0, 1, 0);
   const tones = [0x262d38, 0x2f3642, 0x38332f, 0x22282e, 0x3b4250];
-  for (let i = 0; i < count; i++) {
-    const a = (r() - 0.5) * spread;
-    const d = dist[0] + r() * (dist[1] - dist[0]);
-    const h = 30 + Math.pow(r(), 2) * 190 + (Math.abs(a) < spread * 0.15 ? 80 : 0);
-    const w = 14 + r() * 22;
-    p.set(origin.x + Math.cos(heading + a) * d, origin.y, origin.z + Math.sin(heading + a) * d);
-    q.setFromAxisAngle(up, r() * 0.5);
-    s.set(w, h, w * (0.7 + r() * 0.6));
+  list.forEach((t, i) => {
+    p.set(t.x, t.y ?? 0, t.z);
+    q.setFromAxisAngle(up, t.ry ?? 0);
+    s.set(t.w, t.h, t.d ?? t.w);
     m.compose(p, q, s);
     towers.setMatrixAt(i, m);
-    towers.setColorAt(i, col.setHex(tones[i % tones.length]).multiplyScalar(0.85 + r() * 0.3));
-  }
+    towers.setColorAt(i, col.setHex(tones[i % tones.length]).multiplyScalar(t.tone ?? 1));
+  });
   towers.userData.city = true;
   towers.name = 'Ciudad';
   return towers;

@@ -3,11 +3,12 @@ import {
   concreteTexture, metalPlateTexture, hazardTexture, corrugatedTexture, pdcBannerTexture, helipadTexture,
   windowTextures, textTexture, rng,
 } from '../textures.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { deco, staticMesh } from './common.js';
-import { glowSprite } from '../../vfx/glowTexture.js';
+import { glowSprite, glowTexture } from '../../vfx/glowTexture.js';
 
 /**
- * KIT DE LA PDC (propuesta de rediseño de la base y del bloqueo del puente):
+ * KIT DE LA PDC (base del pueblo de noche, bloqueos del puente y Distrito):
  * hormigón brutalista con franjas de luz azul (los puestos de la DUP de
  * inFamous Second Son), muro perimetral con pasarela, torres de vigilancia
  * con foco, patio de contenedores con grúa pórtico, camiones, helipuerto con
@@ -189,7 +190,7 @@ export function watchtower(ctx, B, M, { x, z, y = 0, h = 9, night = true }) {
 }
 
 /** Torre de focos (charcos de luz en el suelo, con zonas oscuras entre ellos). */
-export function floodlight(ctx, B, M, { x, z, y = 0, h = 10, aim = { x: 0, z: 0 }, night = true, light = true, color = 0xfff0d8, intensity = 60 }) {
+export function floodlight(ctx, B, M, { x, z, y = 0, h = 10, aim = { x: 0, z: 0 }, night = true, light = false, color = 0xfff0d8, intensity = 60 }) {
   const { group } = ctx;
   B.block({ x, z, w: 0.5, d: 0.5, y, h, mat: M.metal, cameraBlocking: false });
   deco(group, { x, y: y + h, z, w: 2.4, h: 0.15, d: 0.3, mat: M.metal });
@@ -210,7 +211,39 @@ export function floodlight(ctx, B, M, { x, z, y = 0, h = 10, aim = { x: 0, z: 0 
     group.add(s, s.target);
     return s;
   }
+  // Sin luz real (barato): un charco de luz pintado en el suelo
+  if (night) lightPool(group, { x: aim.x, y, z: aim.z, r: h * 0.9, color });
   return null;
+}
+
+/** Charco de luz en el suelo (disco aditivo de borde suave). */
+export function lightPool(group, { x, y, z, r = 8, color = 0xfff0d8, opacity = 0.32 }) {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTexture(), color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  m.position.set(x, y + 0.06, z);
+  m.renderOrder = 1;
+  group.add(m);
+  return m;
+}
+
+/**
+ * Muchos charcos de luz en una sola malla (una llamada de dibujo): discos
+ * aditivos con el color de cada uno en los vértices. `pools`: [{ x, y, z, r, color, opacity }].
+ */
+export function lightPools(group, pools) {
+  const geos = pools.map(({ x, y = 0, z, r = 6, color = 0xfff0d8, opacity = 0.32 }) => {
+    const g = new THREE.CircleGeometry(r, 20).rotateX(-Math.PI / 2).translate(x, y + 0.06, z);
+    const c = new THREE.Color(color).multiplyScalar(opacity);
+    const n = g.attributes.position.count;
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return g;
+  });
+  const m = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshBasicMaterial({ map: glowTexture(), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  m.renderOrder = 1;
+  m.name = 'Charcos de luz';
+  group.add(m);
+  return m;
 }
 
 /** Camión de la PDC: cabina, caja con lona, seis ruedas y faros. */
@@ -264,6 +297,7 @@ export function helicopter(ctx, M, { x, y = 0, z, ry = 0 }) {
     m.position.set(px, py, pz);
     m.rotation.set(rx, 0, rz);
     m.castShadow = true;
+    m.userData.levelStatic = true;
     g.add(m);
     return m;
   };
@@ -388,81 +422,66 @@ export function gatehouse(ctx, B, M, { x, z, y = 0, w = 10, night = true }) {
     deco(group, { x: x - w / 2 + 0.2, y, z: z + sz, w: 0.4, h: 1.1, d: 0.4, mat: M.pdcDark });
     deco(group, { x: x + 0.2, y: y + 0.95, z: z + sz, w: w - 0.4, h: 0.14, d: 0.1, mat: M.hazard, cast: false });
   }
-  if (night) {
-    const l = new THREE.PointLight(0xe6f0ff, 14, 16, 1.4);
-    l.position.set(x, y + 4.6, z);
-    group.add(l);
-  }
-}
-
-/**
- * Edificio brutalista de la PDC: masa de hormigón con forjados que asoman,
- * bandas de ventanas encendidas, aletas verticales, franjas de luz azul,
- * rejillas de ventilación (rutas de sigilo) y azotea con lucernario y equipos.
- * Planta x0…x1, z0…z1; `floors` plantas de `fh` m.
- */
-export function facility(ctx, B, M, { x0, x1, z0, z1, y = 0, floors = 2, fh = 4, vents = [], night = true }) {
-  const { group } = ctx;
-  const W = x1 - x0;
-  const D = z1 - z0;
-  const cx = (x0 + x1) / 2;
-  const cz = (z0 + z1) / 2;
-  const H = floors * fh;
-  B.block({ x: cx, z: cz, w: W, d: D, y, h: H, mat: M.concrete, climbable: false });
-  // Forjados que asoman y bandas de ventanas en las cuatro fachadas
-  for (let f = 0; f < floors; f++) {
-    const fy = y + f * fh;
-    deco(group, { x: cx, y: fy + fh - 0.35, z: cz, w: W + 0.6, h: 0.35, d: D + 0.6, mat: M.concreteDark });
-    for (const [nx, nz, len] of [[1, 0, D], [-1, 0, D], [0, 1, W], [0, -1, W]]) {
-      const px = cx + nx * (W / 2 + 0.02);
-      const pz = cz + nz * (D / 2 + 0.02);
-      const n = Math.floor(len / 3.2);
-      for (let i = 0; i < n; i++) {
-        const t = -len / 2 + (i + 0.5) * (len / n);
-        if (vents.some((v) => Math.abs(v.x - (nx ? px : cx + t)) < 2 && Math.abs(v.z - (nz ? pz : cz + t)) < 2 && f === 0)) continue;
-        const lit = ((i * 7 + f * 3 + Math.round(len)) % 5) !== 0;
-        deco(group, { x: nx ? px : cx + t, y: fy + 1.2, z: nz ? pz : cz + t, w: nx ? 0.06 : 1.9, h: 1.6, d: nx ? 1.9 : 0.06, mat: lit ? M.window : M.windowDark, cast: false });
-        // Aleta vertical entre ventanas
-        deco(group, { x: nx ? px + nx * 0.3 : cx + t + len / n / 2, y: fy, z: nz ? pz + nz * 0.3 : cz + t + len / n / 2, w: nx ? 0.6 : 0.3, h: fh - 0.35, d: nx ? 0.3 : 0.6, mat: M.concreteWarm });
-      }
-    }
-  }
-  // Coronación: franja azul y pretil
-  deco(group, { x: cx, y: y + H, z: cz, w: W + 0.8, h: 0.9, d: D + 0.8, mat: M.concreteDark });
-  for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    deco(group, { x: cx + nx * (W / 2 + 0.42), y: y + H + 0.3, z: cz + nz * (D / 2 + 0.42), w: nx ? 0.04 : W + 0.8, h: 0.14, d: nz ? 0.04 : D + 0.8, mat: M.strip, cast: false });
-  }
-  // Rejillas de ventilación a ras de suelo (entradas de sigilo)
-  for (const v of vents) {
-    const onX = Math.abs(v.x - x0) < 0.5 || Math.abs(v.x - x1) < 0.5;
-    deco(group, { x: v.x + (onX ? (v.x < cx ? -0.05 : 0.05) : 0), y, z: v.z + (onX ? 0 : (v.z < cz ? -0.05 : 0.05)), w: onX ? 0.12 : 1.6, h: 1.2, d: onX ? 1.6 : 0.12, mat: M.plate });
-    for (let k = 0; k < 5; k++) deco(group, { x: v.x + (onX ? (v.x < cx ? -0.12 : 0.12) : 0), y: y + 0.15 + k * 0.22, z: v.z, w: onX ? 0.05 : 1.5, h: 0.05, d: onX ? 1.5 : 0.05, mat: M.metal, cast: false });
-  }
-  // Azotea: lucernario, climatizadores, mástil con balizas
-  const roofY = y + H + 0.9;
-  B.block({ x: cx - W * 0.2, z: cz, w: 4, d: 6, y: roofY, h: 0.5, mat: M.concreteDark });
-  deco(group, { x: cx - W * 0.2, y: roofY + 0.5, z: cz, w: 3.4, h: 0.6, d: 5.4, mat: M.skylight, cast: false });
-  for (const [dx, dz] of [[W * 0.25, -D * 0.25], [W * 0.25, D * 0.1], [-W * 0.35, -D * 0.3]]) {
-    B.block({ x: cx + dx, z: cz + dz, w: 2.4, d: 1.6, y: roofY, h: 1.3, mat: M.plate });
-    deco(group, { x: cx + dx, y: roofY + 1.3, z: cz + dz, w: 1.2, h: 0.2, d: 1.2, mat: M.metal });
-  }
-  const mx = x0 + 2.5;
-  const mz = z0 + 2.5;
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) deco(group, { x: mx + sx * 0.5, y: roofY, z: mz + sz * 0.5, w: 0.1, h: 9, d: 0.1, mat: M.metal });
-  for (let k = 1; k < 9; k += 1.5) deco(group, { x: mx, y: roofY + k, z: mz, w: 1.1, h: 0.06, d: 1.1, mat: M.metal, cast: false });
-  for (const k of [4.5, 9]) {
-    deco(group, { x: mx, y: roofY + k, z: mz, w: 0.3, h: 0.3, d: 0.3, mat: M.redLight, cast: false });
-    if (night) {
-      const g = glowSprite(new THREE.Color(0xff3020), 1.4, 0.75);
-      g.position.set(mx, roofY + k + 0.15, mz);
-      group.add(g);
-    }
-  }
-  return { roofY, mast: { x: mx, z: mz } };
+  if (night) lightPool(group, { x, y, z, r: 7, color: 0xe6f0ff, opacity: 0.28 });
 }
 
 /** Puerta enrollable de un garaje o almacén (con franja de aviso). */
 export function rollDoor(ctx, M, { x, y = 0, z, w = 4, h = 4, face = 'z' }) {
   deco(ctx.group, { x, y, z, w: face === 'z' ? w : 0.1, h, d: face === 'z' ? 0.1 : w, mat: M.plate, cast: false });
   deco(ctx.group, { x, y: y + h - 0.3, z, w: face === 'z' ? w + 0.02 : 0.12, h: 0.3, d: face === 'z' ? 0.12 : w + 0.02, mat: M.hazard, cast: false });
+}
+
+/**
+ * Piel brutalista para un edificio con interior jugable (la base de la M01):
+ * solo decorado por fuera de los muros, sin colisión. Forjados que asoman,
+ * bandas de ventanas, aletas entre vanos, franjas de luz azul y coronación.
+ * `skip`: huecos que hay que respetar en cada fachada
+ * ([{ face: 'x0' | 'x1' | 'z0' | 'z1', a0, a1, y0, y1 }]: a lo largo de la fachada, en metros de mundo).
+ */
+export function facilitySkin(ctx, M, { x0, x1, z0, z1, y = 0, floors = 2, fh = 4, skip = [] }) {
+  const { group } = ctx;
+  const W = x1 - x0;
+  const D = z1 - z0;
+  const cx = (x0 + x1) / 2;
+  const cz = (z0 + z1) / 2;
+  const H = floors * fh;
+  const blocked = (face, a, yy, half = 1.2) => skip.some((s) => s.face === face && a + half > s.a0 && a - half < s.a1 && yy + 1.8 > s.y0 && yy < s.y1);
+  const faces = [
+    { face: 'x0', nx: -1, nz: 0, len: D, from: z0 }, { face: 'x1', nx: 1, nz: 0, len: D, from: z0 },
+    { face: 'z0', nx: 0, nz: -1, len: W, from: x0 }, { face: 'z1', nx: 0, nz: 1, len: W, from: x0 },
+  ];
+  for (const f of faces) {
+    const px = f.nx ? (f.nx > 0 ? x1 : x0) : 0;
+    const pz = f.nz ? (f.nz > 0 ? z1 : z0) : 0;
+    const at = (a, out) => (f.nx ? { x: px + f.nx * out, z: a } : { x: a, z: pz + f.nz * out });
+    const thin = (along, across) => (f.nx ? { w: across, d: along } : { w: along, d: across });
+    const n = Math.max(1, Math.round(f.len / 3.6));
+    const bay = f.len / n;
+    for (let fl = 0; fl < floors; fl++) {
+      const fy = y + fl * fh;
+      // Forjado que asoma y franja de luz debajo
+      const s = at(f.from + f.len / 2, 0.18);
+      deco(group, { ...s, y: fy + fh - 0.4, ...thin(f.len + 0.7, 0.36), h: 0.4, mat: M.concreteDark });
+      const l = at(f.from + f.len / 2, 0.37);
+      deco(group, { ...l, y: fy + fh - 0.42, ...thin(f.len + 0.7, 0.03), h: 0.07, mat: M.strip, cast: false });
+      for (let i = 0; i < n; i++) {
+        const a = f.from + (i + 0.5) * bay;
+        if (!blocked(f.face, a, fy + 1.1)) {
+          const lit = ((i * 7 + fl * 3 + Math.round(f.len)) % 5) !== 0;
+          const g = at(a, 0.04);
+          deco(group, { ...g, y: fy + 1.15, ...thin(bay * 0.62, 0.05), h: 1.7, mat: lit ? M.window : M.windowDark, cast: false });
+        }
+        if (i > 0) {
+          const b = at(f.from + i * bay, 0.3);
+          if (!blocked(f.face, f.from + i * bay, fy + 0.5, 0.4)) deco(group, { ...b, y: fy, ...thin(0.32, 0.6), h: fh - 0.4, mat: M.concreteWarm });
+        }
+      }
+    }
+    // Coronación con franja azul
+    const c = at(f.from + f.len / 2, 0.2);
+    deco(group, { ...c, y: y + H, ...thin(f.len + 0.8, 0.4), h: 0.9, mat: M.concreteDark });
+    const cl = at(f.from + f.len / 2, 0.41);
+    deco(group, { ...cl, y: y + H + 0.3, ...thin(f.len + 0.8, 0.03), h: 0.12, mat: M.strip, cast: false });
+  }
+  return { roofY: y + H + 0.9, cx, cz };
 }

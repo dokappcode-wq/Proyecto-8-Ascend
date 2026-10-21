@@ -1,10 +1,19 @@
 import * as THREE from 'three';
 import { createSky, createSun, createMountains } from '../environment.js';
-import { concreteTexture, stoneWallTexture, roofTileTexture, cobbleTexture, rockTexture, grassTexture, sandTexture, woodTexture, windowTextures } from '../textures.js';
+import { concreteTexture, stoneWallTexture, roofTileTexture, cobbleTexture, rockTexture, grassTexture, sandTexture, woodTexture, windowTextures, awningTexture } from '../textures.js';
 import { createWater } from '../water.js';
+import { scaleBoxUVs } from '../LevelBuilder.js';
 import { EnergySource } from '../entities/EnergySource.js';
 import { StealthGuard, Searchlight } from '../../story/actors.js';
 import { Shutter, Zipline, Rain, AlarmLights, CardVitrines, mulberry, pineForest, scatterBushes, scatterRocks } from '../../story/props.js';
+import { villageMaterials, fishermanHouse, lighthouse, fishingBoat, quay, church, laundryLine } from '../kit/village.js';
+import { lampPost, climbMark, deco, staticMesh, rockGeometry, gableRoof } from '../kit/common.js';
+import { terrain } from '../kit/terrain.js';
+import {
+  baseMaterials, container, perimeterWall, chainFence, watchtower, floodlight, truck, helicopter, dish, radar,
+  banner, jersey, gatehouse, rollDoor, facilitySkin, lightPool,
+} from '../kit/base.js';
+import { glowSprite } from '../../vfx/glowTexture.js';
 
 /**
  * PUEBLO COSTERO (prólogo, mapas nuevos): el pueblo de Jon junto al mar y la
@@ -17,7 +26,14 @@ import { Shutter, Zipline, Rain, AlarmLights, CardVitrines, mulberry, pineForest
  *
  * Disposición (x hacia el este, z hacia el mar):
  *   pueblo x −80…50 · plaza (0,0) · casa de Jon (−30, 18) · puerto z 44
- *   acantilado x 55 · base (meseta a 10 m) x 55…125, z −100…10 · playa al sur de la base.
+ *   acantilado x 55 · base (meseta a 10 m) x 55…152, z −106…10 · playa al sur de la base.
+ *
+ * Aspecto (propuesta aprobada): casas de pescadores de la costa vasca (kit
+ * `world/kit/village.js`) sobre los mismos solares que pide el guion, iglesia,
+ * faro en su espigón, barcas y muelle; la base de la PDC con muro, torres,
+ * puesto de control, contenedores, grúa, helipuerto y edificio brutalista
+ * (kit `world/kit/base.js`). El terreno sigue hasta el horizonte: no hay
+ * bordes de mapa a la vista.
  */
 
 const PLATEAU = 10; // altura de la meseta de la base
@@ -65,7 +81,7 @@ export const VillageNight = {
   grade: { contrast: 1.0, saturation: 0.95, shadows: '#1a2c4a', highlights: '#d2e0ff', split: 0.07, lift: 0.035, vignette: 0.3 },
   /** Luz de relleno suave que acompaña a la cámara (se lee lo que se tiene cerca). */
   fillLight: { color: 0xa8bfe8, intensity: 0.8 },
-  bounds: { minX: -100, maxX: 130, minZ: -110, maxZ: 70 },
+  bounds: { minX: -100, maxX: 156, minZ: -110, maxZ: 70 },
   waypoints: [
     { id: 'tejado', name: 'Tejado (CP01)', x: -21, y: 5.3, z: -9, yaw: Math.PI / 2 },
     { id: 'acantilado', name: 'Pie del acantilado (CP02)', x: 49, y: 0.3, z: -20, yaw: Math.PI / 2 },
@@ -90,7 +106,7 @@ export const VillageDay = {
   grade: { contrast: 1.05, saturation: 1.08, shadows: '#283448', highlights: '#ffe6c4', vignette: 0.28 },
   /** Relleno apagado: solo se enciende con la tormenta (M04). */
   fillLight: { color: 0xb8c8e0, intensity: 0 },
-  bounds: { minX: -100, maxX: 130, minZ: -110, maxZ: 70 },
+  bounds: { minX: -100, maxX: 156, minZ: -110, maxZ: 70 },
   waypoints: [
     { id: 'casa', name: 'Casa de Jon', x: -30, y: 0.3, z: 12, yaw: Math.PI },
     { id: 'plaza', name: 'Plaza', x: 0, y: 0.3, z: 6, yaw: Math.PI },
@@ -147,23 +163,33 @@ function buildVillage(ctx, night) {
     fence: new THREE.MeshStandardMaterial({ color: 0x59636e, metalness: 0.6, roughness: 0.4 }),
     stripe: new THREE.MeshStandardMaterial({ color: 0xc9a13a, roughness: 0.6 }),
   };
+  // Kit del pueblo (casas, faro, barcas, muelle) y de la PDC (base)
+  const V = villageMaterials(night);
+  const P = baseMaterials(night);
 
   // --- Terreno: pueblo, colina norte, acantilado de la base, playa y mar ---
   B.block({ x: -15, z: -20, w: 140, d: 128, y: -1, h: 1, mat: M.ground, cast: false }); // x −85…55, z −84…44
-  B.block({ x: 0, z: 0, w: 20, d: 20, y: 0, h: 0.06, mat: M.paving, cast: false, collide: false }); // plaza
+  B.block({ x: 0, z: 0, w: 22, d: 22, y: 0, h: 0.06, mat: V.paving, cast: false, collide: false }); // plaza
   B.block({ x: -15, z: -95, w: 140, d: 30, y: -1, h: 4, mat: M.grass, cast: false }); // colina norte
-  B.block({ x: 90, z: -45, w: 70, d: 110, y: -1, h: PLATEAU + 1, mat: M.cliff, tag: 'cliff' }); // meseta x 55…125, z −100…10
-  B.block({ x: 90, z: 32, w: 70, d: 44, y: -1.4, h: 1.3, mat: M.sand, cast: false }); // playa x 55…125, z 10…54
+  B.block({ x: 103.5, z: -48, w: 97, d: 116, y: -1, h: PLATEAU + 1, mat: M.cliff, tag: 'cliff' }); // meseta x 55…152, z −106…10
+  // Playa x 55…152, z 10…54: arena (mojada de noche) que baja hasta el agua, con rocas al pie del acantilado
+  B.ramp({ x: 103.5, z: 32, w: 97, d: 44, axis: 'z', dir: -1, y0: -1.9, y1: -0.1, base: -3, mat: night ? new THREE.MeshStandardMaterial({ map: tex(sandTexture('#6e665a', 68)), roughness: 0.45 }) : M.sand });
+  for (let i = 0; i < 40; i++) {
+    const rr = mulberry(200 + i);
+    const m = staticMesh(group, rockGeometry(1 + rr() * 1.6, 0.6 + rr() * 0.9, 1 + rr() * 1.4, 300 + i, 1), M.cliff);
+    m.position.set(57 + i * 2.4 + rr() * 2, -0.6, 11 + rr() * (i % 3 === 0 ? 30 : 4));
+  }
+  surroundings(ctx, night);
   B.block({ x: -15, z: 47, w: 140, d: 6, y: -3, h: 3, mat: M.stoneDark, cast: false }); // muelle (borde del puerto)
   const sea = createWater({ width: 900, depth: 700, color: night ? 0x0b1828 : 0x24506a, night, repeat: 90 });
   sea.position.set(0, -1.6, 380);
   group.add(sea);
   ctx.world.addBox({ x: -200, y: -60, z: 50 }, { x: 300, y: -1.9, z: 800 }, { tag: 'sea' }); // fondo
   // Límites del mapa (muros invisibles)
-  B.invisibleWall({ x: 15, z: -112, w: 240, d: 2 });
+  B.invisibleWall({ x: 28, z: -112, w: 266, d: 2 });
   B.invisibleWall({ x: -100, z: -20, w: 2, d: 200 });
-  B.invisibleWall({ x: 130, z: -20, w: 2, d: 200 });
-  B.invisibleWall({ x: 15, z: 72, w: 240, d: 2 });
+  B.invisibleWall({ x: 156, z: -20, w: 2, d: 200 });
+  B.invisibleWall({ x: 28, z: 72, w: 266, d: 2 });
   // Pasaderas al sur del muelle (no se cae al agua: barandilla de piedra baja)
   B.block({ x: -15, z: 44.6, w: 140, d: 0.5, y: 0, h: 0.6, mat: M.stone, climbable: false });
 
@@ -171,42 +197,49 @@ function buildVillage(ctx, night) {
   backdrop(group, night);
 
   // --- Casas ---
-  const houses = [...ROOF_ROUTE, ...OTHER_HOUSES];
-  for (const h of houses) house(B, M, h);
-  const jonHouse = buildJonHouse(ctx, M);
+  // Los tejados del tutorial son azoteas (se corre por ellas); el resto, a dos aguas
+  ROOF_ROUTE.forEach((h, i) => fishermanHouse(ctx, B, V, h, { front: 1, roof: 'flat', seed: 400 + i, balcony: i % 2 === 0, shop: i === 2 }));
+  OTHER_HOUSES.forEach((h, i) => fishermanHouse(ctx, B, V, h, { front: h.z > 4 ? -1 : 1, roof: 'gable', seed: 500 + i, shop: Math.abs(h.x) < 20 && Math.abs(h.z) < 26 }));
+  // Tendederos entre fachadas (callejones)
+  laundryLine(group, V, { x0: -14, z0: 16.4, x1: -14, z1: 23.6, y: 3.6 });
+  laundryLine(group, V, { x0: -42, z0: -20, x1: -42, z1: -8.6, y: 4.2 });
+  const jonHouse = buildJonHouse(ctx, M, V);
   // Escaleras y cajas para subir a los tejados
   B.block({ x: -24, z: -2.6, w: 1.4, d: 1.4, h: 1.6, mat: M.crate }); // junto a R1
   B.block({ x: -26, z: -2.6, w: 1.4, d: 1.4, h: 3.2, mat: M.crate });
   B.block({ x: -6, z: -6.6, w: 1.4, d: 1.4, h: 2.6, mat: M.crate }); // junto a R2 (ruta de la tormenta)
   B.block({ x: 45.8, z: -20, w: 1.4, d: 1.6, h: 1.8, mat: M.crate }); // bajada de R7
 
-  // Torre del campanario (con luz arriba), depósito de agua y faro
-  B.block({ x: -40, z: -40, w: 5, d: 5, h: 16, mat: M.stone });
-  B.block({ x: -40, z: -40, w: 5.6, d: 5.6, y: 16, h: 0.4, mat: M.stoneDark });
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(3.6, 5, 4), M.roof);
-  cone.position.set(-40, 18.9, -40);
-  cone.rotation.y = Math.PI / 4;
-  cone.castShadow = true;
-  cone.userData.levelStatic = true;
-  group.add(cone);
-  B.block({ x: -40, z: -37.45, w: 1.2, d: 0.1, y: 12.5, h: 1.8, mat: M.window, collide: false });
-  const tank = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 6, 18), M.stone);
+  // Iglesia con campanario (hito de la parte alta) y depósito de agua en la colina
+  church(ctx, B, V, { x: -44, z: -36 });
+  const tank = staticMesh(group, new THREE.CylinderGeometry(3.2, 3.2, 6, 18), V.stone);
   tank.position.set(-20, 3 + 14, -80);
-  tank.castShadow = true;
-  tank.userData.levelStatic = true;
-  group.add(tank);
-  B.block({ x: -20, z: -80, w: 4, d: 4, y: 3, h: 11, mat: M.stoneDark });
-  B.block({ x: -72, z: 50, w: 4, d: 4, y: -2, h: 16, mat: M.stone }); // faro
-  B.block({ x: -72, z: 50, w: 2.6, d: 2.6, y: 14, h: 2, mat: M.lamp, collide: false });
+  deco(group, { x: -20, y: 20, z: -80, w: 6.8, h: 0.4, d: 6.8, mat: V.stoneDark });
+  B.block({ x: -20, z: -80, w: 4, d: 4, y: 3, h: 11, mat: V.stoneDark });
 
-  // Puerto: pantalán y barcas
-  B.block({ x: -20, z: 56, w: 3, d: 18, y: -0.4, h: 0.4, mat: M.wood });
-  for (const [x, z, r] of [[-25, 54, 0.2], [-15, 58, -0.15], [-30, 60, 0.4]]) boat(group, M, x, z, r);
+  // Puerto: muelle de sillería, espigón con el faro, pantalán y barcas de colores
+  quay(ctx, B, V, { x0: -84, x1: 54, z: 47, night });
+  for (let i = 0; i < 12; i++) {
+    const t = i / 11;
+    const m = staticMesh(group, rockGeometry(1.8, 1.2, 1.8, 30 + i, 1), M.cliff);
+    m.position.set(-64 - t * 8 + (i % 2) * 1.2, -1.2, 48 + t * 10);
+  }
+  B.block({ x: -69, z: 54, w: 3.2, d: 13, y: -3, h: 3.6, mat: V.stoneDark });
+  const lh = lighthouse(ctx, V, { x: -72, z: 61, y: 0.6, night });
+  B.block({ x: -72, z: 61, w: 4.4, d: 4.4, y: -3, h: 3.6, mat: V.stoneDark });
+  ctx.addEntity({ update: lh.update });
+  B.block({ x: -20, z: 56, w: 3, d: 18, y: -0.4, h: 0.4, mat: V.wood });
+  for (let z = 48; z < 65; z += 3) for (const sx of [-1.6, 1.6]) deco(group, { x: -20 + sx, y: -2.2, z, w: 0.22, h: 2.6, d: 0.22, mat: V.wood });
+  fishingBoat(ctx, V, { x: -25.5, z: 57, ry: Math.PI / 2 + 0.1, color: 'hullRed' });
+  fishingBoat(ctx, V, { x: -14.6, z: 60, ry: -Math.PI / 2 - 0.08, color: 'hullBlue', len: 7 });
+  fishingBoat(ctx, V, { x: -36, z: 54.5, ry: 0.05, color: 'hullGreen' });
+  fishingBoat(ctx, V, { x: 4, z: 54, ry: -0.1, color: 'hullWhite', len: 5 });
+  fishingBoat(ctx, V, { x: 22, z: 55.5, ry: 0.15, color: 'hullRed', len: 6.5 });
 
-  // Farolas y árboles
+  // Farolas (globo luminoso; de noche marcan las calles)
   for (const [x, z] of [[-12, -2], [12, -2], [-12, 12], [12, 12], [-30, 8], [-48, 8], [24, 10], [-38, -16], [40, -6]]) {
-    B.block({ x, z, w: 0.18, d: 0.18, h: 4.2, mat: M.metal, cameraBlocking: false });
-    B.block({ x, z, w: 0.45, d: 0.45, y: 4.2, h: 0.2, mat: M.lamp, collide: false });
+    lampPost(group, { x, z, metal: V.metal, glow: V.lantern });
+    ctx.world.addBox({ x: x - 0.1, y: 0, z: z - 0.1 }, { x: x + 0.1, y: 4.2, z: z + 0.1 }, { cameraBlocking: false, climbable: false });
   }
   const r = mulberry(11);
   const trees = [];
@@ -230,7 +263,7 @@ function buildVillage(ctx, night) {
   const stalls = [];
   if (!night) {
     for (const [i, [x, z, color]] of [[-6, -7, 0xc94f3a], [0, -8.5, 0x3a8a5a], [6, -7, 0x3a6ac9]].entries()) {
-      stall(B, M, x, z, color);
+      stall(B, M, x, z, color, i);
       stalls.push({ id: ['pan', 'patatas', 'pescado'][i], x, y: 0, z: z + 1.4 });
     }
     // Pozo de la plaza
@@ -238,7 +271,7 @@ function buildVillage(ctx, night) {
   }
 
   // --- Base PDC (meseta) ---
-  const base = buildBase(ctx, B, M, night);
+  const base = buildBase(ctx, B, M, P, night);
 
   // --- Escombros de la tormenta (M04): cortan la calle hacia la casa de Jon ---
   const storm = night ? null : buildStormBarrier(ctx, M);
@@ -351,18 +384,7 @@ function buildStormBarrier(ctx, M) {
   return handle;
 }
 
-// ---------------------------------------------------------------- Casas
-function house(B, M, h) {
-  const { x, z, w, d } = h;
-  B.block({ x, z, w, d, h: h.h, mat: [M.stone, M.stone, M.roof, M.stoneDark, M.stone, M.stone] });
-  parapet(B, x, z, w, d, h.h, M.stoneDark);
-  // Ventanas (iluminadas de noche) y puerta
-  windows(B, M, x, z, w, d, h.h);
-  B.block({ x: x + w * 0.2, z: z - d / 2 - 0.04, w: 1, d: 0.08, h: 2.1, mat: M.wood, collide: false });
-  // Chimenea
-  B.block({ x: x - w * 0.3, z: z + d * 0.25, w: 0.7, d: 0.7, y: h.h, h: 1.1, mat: M.stoneDark });
-}
-
+/** Pretil bajo alrededor de una azotea (la de la base). */
 function parapet(B, x, z, w, d, y, mat) {
   const t = 0.3;
   const hh = 0.3;
@@ -372,22 +394,70 @@ function parapet(B, x, z, w, d, y, mat) {
   B.block({ x: x + w / 2 - t / 2, z, w: t, d: d - 2 * t, y, h: hh, mat });
 }
 
-function windows(B, M, x, z, w, d, h) {
-  const rows = h > 5 ? [1.4, 3.6] : [1.6];
-  for (const y of rows) {
-    for (const fx of [-0.25, 0.25]) {
-      for (const s of [-1, 1]) {
-        B.block({ x: x + w * fx, z: z + s * (d / 2 + 0.03), w: 0.9, d: 0.06, y, h: 1, mat: (Math.abs(x * 7 + z * 3 + y) % 3) < 1.6 ? M.window : M.windowDark, collide: false, cast: false });
-      }
-    }
+// ---------------------------------------------------------------- Alrededores
+const smooth = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/** Rectángulo jugable (fuera, el terreno sigue hasta el horizonte). */
+const AREA = { x0: -86, x1: 153, z0: -107, z1: 55 };
+
+/** Altura del suelo en el borde del área jugable (pueblo, colina, meseta, playa o mar). */
+function edgeLevel(x, z) {
+  if (x > 55) return z > 54 ? -4 : z > 10 ? -0.2 - (z - 10) * 0.04 : PLATEAU;
+  if (z > 50) return -4;
+  return z < -80 ? 3 : 0;
+}
+
+function outerHeight(x, z) {
+  const cx = Math.min(AREA.x1, Math.max(AREA.x0, x));
+  const cz = Math.min(AREA.z1, Math.max(AREA.z0, z));
+  const out = Math.hypot(x - cx, z - cz);
+  const lv = edgeLevel(cx, cz);
+  if (out === 0) {
+    // Dentro: por debajo de los bloques del mapa (junto al borde, casi a ras para no dejar rendija)
+    const edge = Math.min(x - AREA.x0, AREA.x1 - x, z - AREA.z0, AREA.z1 - z);
+    return edge < 7 ? lv - 0.35 : lv - 5;
   }
+  const coast = 1 - smooth(18, 58, z);
+  const hills = (Math.min(34, 0.13 * out) + 6 * Math.sin(x * 0.021 + 1) * Math.sin(z * 0.027 + 0.4) * smooth(0, 40, out)) * coast;
+  let y = lv + Math.max(-1, hills);
+  if (z > 48) y = Math.min(y, lv - (z - 48) * 0.25, -2.5);
+  return y;
+}
+
+/**
+ * Alrededores: el terreno continúa más allá del pueblo y de la base (colinas
+ * con pinos al norte, al oeste y al este; la costa baja al mar por el sur),
+ * así que desde ningún punto se ve el borde del mapa ni el vacío.
+ */
+function surroundings(ctx, night) {
+  terrain(ctx, {
+    minX: -340, minZ: -380, maxX: 400, maxZ: 96, cell: 6, height: outerHeight, simple: true,
+    grass: grassTexture(night ? '#33432c' : '#4a5c3a', 67), dirt: sandTexture('#a89a7c', 68), rock: rockTexture('#5a5650', 66),
+    splat: (x, z, y, slope) => [z > 22 && y < 3 ? 0.9 : 0, smooth(0.7, 1.3, slope)],
+    tint: (x, z) => 0.9 + 0.1 * Math.sin(x * 0.05 + z * 0.04),
+  });
+  const r = mulberry(91);
+  const trees = [];
+  for (let i = 0; i < 6000 && trees.length < 700; i++) {
+    const x = -320 + r() * 700;
+    const z = -360 + r() * 390;
+    const outside = x < AREA.x0 - 4 || x > AREA.x1 + 4 || z < AREA.z0 - 6;
+    if (!outside || z > 24) continue;
+    const y = outerHeight(x, z);
+    if (y < 0.5) continue;
+    trees.push({ x, y: y - 0.2, z, s: 0.9 + r() * 1 });
+  }
+  pineForest(ctx, trees, { far: true });
 }
 
 /**
  * Casa de Jon: interior con cama, mesa, cocina y foto; puerta al norte.
  * Tiene dos versiones (intacta y en ruinas) que el guion alterna.
  */
-function buildJonHouse(ctx, M) {
+function buildJonHouse(ctx, M, V) {
   const { group, world } = ctx;
   const H = JON_HOUSE;
   const x0 = H.x - H.w / 2;
@@ -401,7 +471,9 @@ function buildJonHouse(ctx, M) {
   const intactBoxes = [];
   const ruinedBoxes = [];
   const box = (g, list, { x, y = 0, z, w, d, h, mat, collide = true, cast = true }) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    const geo = new THREE.BoxGeometry(w, h, d);
+    scaleBoxUVs(geo, w, h, d, mat);
+    const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y + h / 2, z);
     m.castShadow = cast;
     m.receiveShadow = true;
@@ -411,13 +483,22 @@ function buildJonHouse(ctx, M) {
   };
   // --- Intacta ---
   const door = 1.6;
-  box(intact, intactBoxes, { x: (x0 + H.x - door / 2) / 2, z: z0 + t / 2, w: H.x - door / 2 - x0, d: t, h: H.h, mat: M.stone });
-  box(intact, intactBoxes, { x: (H.x + door / 2 + x1) / 2, z: z0 + t / 2, w: x1 - H.x - door / 2, d: t, h: H.h, mat: M.stone });
-  box(intact, intactBoxes, { x: H.x, z: z0 + t / 2, y: 2.4, w: door, d: t, h: H.h - 2.4, mat: M.stone });
-  box(intact, intactBoxes, { x: H.x, z: z1 - t / 2, w: H.w, d: t, h: H.h, mat: M.stone });
-  box(intact, intactBoxes, { x: x0 + t / 2, z: H.z, w: t, d: H.d - 2 * t, h: H.h, mat: M.stone });
-  box(intact, intactBoxes, { x: x1 - t / 2, z: H.z, w: t, d: H.d - 2 * t, h: H.h, mat: M.stone });
-  box(intact, intactBoxes, { x: H.x, z: H.z, y: H.h, w: H.w, d: H.d, h: 0.3, mat: M.roof });
+  const wallM = V.plasterCream;
+  box(intact, intactBoxes, { x: (x0 + H.x - door / 2) / 2, z: z0 + t / 2, w: H.x - door / 2 - x0, d: t, h: H.h, mat: wallM });
+  box(intact, intactBoxes, { x: (H.x + door / 2 + x1) / 2, z: z0 + t / 2, w: x1 - H.x - door / 2, d: t, h: H.h, mat: wallM });
+  box(intact, intactBoxes, { x: H.x, z: z0 + t / 2, y: 2.4, w: door, d: t, h: H.h - 2.4, mat: wallM });
+  box(intact, intactBoxes, { x: H.x, z: z1 - t / 2, w: H.w, d: t, h: H.h, mat: wallM });
+  box(intact, intactBoxes, { x: x0 + t / 2, z: H.z, w: t, d: H.d - 2 * t, h: H.h, mat: wallM });
+  box(intact, intactBoxes, { x: x1 - t / 2, z: H.z, w: t, d: H.d - 2 * t, h: H.h, mat: wallM });
+  box(intact, intactBoxes, { x: H.x, z: H.z, y: H.h, w: H.w, d: H.d, h: 0.3, mat: V.terrace });
+  // Zócalo de piedra, esquinas claras, contraventanas verdes y tejado de teja (solo la casa entera)
+  for (const [x, z, w, d] of [[H.x, z0 - 0.06, H.w + 0.12, 0.12], [H.x, z1 + 0.06, H.w + 0.12, 0.12], [x0 - 0.06, H.z, 0.12, H.d], [x1 + 0.06, H.z, 0.12, H.d]]) {
+    box(intact, intactBoxes, { x, z, w, d, h: 0.8, mat: V.stone, collide: false });
+  }
+  for (const sx of [-3, 3]) for (const dx of [-0.75, 0.75]) box(intact, intactBoxes, { x: H.x + sx + dx, z: z0 - 0.07, y: 1.35, w: 0.45, d: 0.05, h: 1.1, mat: V.green, collide: false, cast: false });
+  box(intact, intactBoxes, { x: H.x, z: z0 - 0.08, y: 0, w: 1.3, d: 0.06, h: 2.4, mat: V.green, collide: false, cast: false });
+  gableRoof({ group: intact, world: ctx.world }, { x: H.x, z: H.z, w: H.w, d: H.d, y: H.h + 0.3, rise: 2.4, along: 'x', roofMat: V.roof, wallMat: wallM, collide: false });
+  intact.traverse((o) => { o.userData.levelStatic = false; });
   box(intact, intactBoxes, { x: H.x - 3, z: z0 - 0.04, y: 1.4, w: 1, d: 0.06, h: 1, mat: M.window, collide: false });
   box(intact, intactBoxes, { x: H.x + 3, z: z0 - 0.04, y: 1.4, w: 1, d: 0.06, h: 1, mat: M.window, collide: false });
   // Muebles (también en la versión en ruinas, algunos)
@@ -439,11 +520,11 @@ function buildJonHouse(ctx, M) {
   group.add(lamp);
   // --- En ruinas: muros rotos, tejado hundido y escombros ---
   const rubble = new THREE.MeshStandardMaterial({ color: 0x6d665b, roughness: 1, flatShading: true });
-  box(ruined, ruinedBoxes, { x: (x0 + H.x - door / 2) / 2, z: z0 + t / 2, w: H.x - door / 2 - x0, d: t, h: 2.2, mat: M.stoneDark });
-  box(ruined, ruinedBoxes, { x: x1 - 1.5, z: z0 + t / 2, w: 3, d: t, h: 3.1, mat: M.stoneDark });
-  box(ruined, ruinedBoxes, { x: H.x - 2, z: z1 - t / 2, w: 6, d: t, h: 2.6, mat: M.stoneDark });
-  box(ruined, ruinedBoxes, { x: x0 + t / 2, z: H.z + 1, w: t, d: 5, h: 1.8, mat: M.stoneDark });
-  box(ruined, ruinedBoxes, { x: x1 - t / 2, z: H.z - 1.5, w: t, d: 4, h: 3.4, mat: M.stoneDark });
+  box(ruined, ruinedBoxes, { x: (x0 + H.x - door / 2) / 2, z: z0 + t / 2, w: H.x - door / 2 - x0, d: t, h: 2.2, mat: V.stoneDark });
+  box(ruined, ruinedBoxes, { x: x1 - 1.5, z: z0 + t / 2, w: 3, d: t, h: 3.1, mat: V.plasterCream });
+  box(ruined, ruinedBoxes, { x: H.x - 2, z: z1 - t / 2, w: 6, d: t, h: 2.6, mat: V.stoneDark });
+  box(ruined, ruinedBoxes, { x: x0 + t / 2, z: H.z + 1, w: t, d: 5, h: 1.8, mat: V.plasterCream });
+  box(ruined, ruinedBoxes, { x: x1 - t / 2, z: H.z - 1.5, w: t, d: 4, h: 3.4, mat: V.stoneDark });
   const r = mulberry(5);
   for (let i = 0; i < 22; i++) {
     const s = 0.4 + r() * 0.8;
@@ -501,19 +582,18 @@ function photoTexture() {
   return t;
 }
 
-function boat(group, M, x, z, rot) {
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 4.2), new THREE.MeshStandardMaterial({ color: 0x2f5a7a, roughness: 0.7 }));
-  hull.position.set(x, -1.2, z);
-  hull.rotation.y = rot;
-  hull.castShadow = true;
-  group.add(hull);
-}
-
-function stall(B, M, x, z, color) {
-  const canvas = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+/** Puesto del mercado: mostrador con género, postes y toldo a rayas. */
+function stall(B, M, x, z, color, i = 0) {
+  const stripe = ['#b8322a', '#2f6a4a', '#2b4f7d'][i % 3];
+  const canvas = new THREE.MeshStandardMaterial({ map: awningTexture(stripe, '#efe6d2'), roughness: 0.85, side: THREE.DoubleSide });
   B.block({ x, z, w: 3, d: 1.4, h: 0.9, mat: M.wood });
   for (const sx of [-1.4, 1.4]) B.block({ x: x + sx, z: z - 0.6, w: 0.12, d: 0.12, h: 2.4, mat: M.wood, cameraBlocking: false });
-  B.block({ x, z: z - 0.2, w: 3.4, d: 2, y: 2.4, h: 0.12, mat: canvas, collide: false });
+  const awning = B.block({ x, z: z - 0.2, w: 3.4, d: 2, y: 2.4, h: 0.08, mat: canvas, collide: false });
+  awning.rotation.x = -0.18;
+  // Género: cajas con pan, patatas o pescado
+  const goods = new THREE.MeshStandardMaterial({ color: [0xc8964a, 0xa8865a, 0x9fb4c0][i % 3], roughness: 0.8 });
+  for (const sx of [-0.9, 0, 0.9]) B.block({ x: x + sx, z: z + 0.1, w: 0.7, d: 0.5, y: 0.9, h: 0.22, mat: goods, collide: false });
+  void color;
 }
 
 /** Montañas y colinas lejanas (solo decorado, una malla). */
@@ -533,27 +613,61 @@ function backdrop(group, night) {
 }
 
 // ---------------------------------------------------------------- Base de la PDC
-function buildBase(ctx, B, M, night) {
+function buildBase(ctx, B, M, P, night) {
   const Y = PLATEAU;
   const { group } = ctx;
-  // Escalones de roca para trepar al acantilado (oeste, z ≈ −20)
+  const r = mulberry(61);
+  // Suelo de hormigón de la base (mojado de noche) y franja de roca y hierba junto al borde
+  B.block({ x: 106, z: -45.75, w: 88, d: 110.5, y: Y - 0.08, h: 0.1, mat: P.ground, collide: false, cast: false });
+  // Acantilado: masas de roca sobre la cara oeste y escalones marcados en blanco (la ruta de Iker, z ≈ −20)
+  for (let z = -104; z < 9; z += 3.4) {
+    if (z > -24 && z < -15) continue;
+    for (let k = 0; k < 3; k++) {
+      const sy = 1.4 + ((Math.round(z) + k) % 3) * 0.7;
+      const m = staticMesh(group, rockGeometry(1.4 + (k % 2) * 0.6, sy, 1.8 + r(), Math.round(z * 7) + k * 3 + 900, 1), M.cliff);
+      m.position.set(54.4 + r() * 0.5, k * 3.4 + sy * 0.4, z + (k - 1) * 0.8);
+    }
+  }
   B.block({ x: 52.5, z: -20, w: 3, d: 6, y: 0, h: 3.2, mat: M.cliff });
   B.block({ x: 54, z: -20, w: 2, d: 5, y: 0, h: 6.6, mat: M.cliff });
-  // Valla perimetral (x = 62) con un hueco roto en z −21…−17
-  const fence = (z0, z1) => B.block({ x: 62, z: (z0 + z1) / 2, w: 0.15, d: z1 - z0, y: Y, h: 2.6, mat: M.fence, climbable: false, cameraBlocking: false });
-  fence(-100, -21);
-  fence(-17, 10);
-  B.block({ x: 93.5, z: 9.5, w: 63, d: 0.15, y: Y, h: 2.6, mat: M.fence, climbable: false, cameraBlocking: false });
-  // Coberturas: cajas y contenedores en el patio
-  for (const [x, z, w, d, h] of [[69, -27, 2, 1.6, 1.4], [74, -34, 3, 1.4, 1.5], [70, -42, 1.6, 1.6, 1.4], [79, -40, 2.4, 1.4, 1.5], [80, -47, 1.6, 2.4, 1.5], [66, -36, 1.4, 1.4, 1.2], [84, -30, 6, 2.4, 2.6]]) {
-    B.block({ x, z, w, d, y: Y, h, mat: M.crate });
+  for (const [x, z, h] of [[52.5, -20, 3.2], [54, -20, 6.6]]) {
+    const m = staticMesh(group, rockGeometry(1.2, h * 0.45, 2.4, Math.round(h * 13), 1), M.cliff);
+    m.position.set(x - 0.4, h * 0.45, z + 0.6);
   }
-  // Torres de los focos
+  climbMark(group, P.stripWhite, { x: 50.98, y: 3.2, z: -20, w: 0.1, d: 2.2 });
+  climbMark(group, P.stripWhite, { x: 52.98, y: 6.6, z: -20, w: 0.1, d: 2 });
+  climbMark(group, P.stripWhite, { x: 54.98, y: Y, z: -19, w: 0.1, d: 2.4 });
+  // Valla de malla en el borde del acantilado (x = 62) con el hueco roto en z −21…−17; valla sur sobre la playa
+  chainFence(ctx, P, { x0: 62, z0: -100.5, x1: 62, z1: 9.5, y: Y, gap: [-21, -17] });
+  chainFence(ctx, P, { x0: 62, z0: 9.5, x1: 149, z1: 9.5, y: Y });
+  // Muro perimetral con pasarela (norte y este) y puesto de control en la entrada norte
+  perimeterWall(ctx, B, P, { x0: 62, z0: -101.5, x1: 90, z1: -101.5, y: Y, outside: -1 });
+  perimeterWall(ctx, B, P, { x0: 106, z0: -101.5, x1: 150, z1: -101.5, y: Y, outside: -1 });
+  perimeterWall(ctx, B, P, { x0: 150, z0: -101.5, x1: 150, z1: 9.5, y: Y, outside: 1 });
+  gatehouse(ctx, B, P, { x: 100, z: -101.5, y: Y, w: 10, night });
+  banner(ctx, P, { x: 94.4, y: Y + 4.9, z: -100.9, ry: 0 });
+  banner(ctx, P, { x: 105.6, y: Y + 4.9, z: -100.9, ry: 0 });
+  for (const [x, z] of [[65, -98], [147, -98], [147, 6.5], [65, 6.5]]) watchtower(ctx, B, P, { x, z, y: Y, h: 9, night });
+  // Coberturas del patio (mismas posiciones que pide el sigilo): cajas de suministros y un contenedor
+  for (const [x, z, w, d, h] of [[69, -27, 2, 1.6, 1.4], [74, -34, 3, 1.4, 1.5], [70, -42, 1.6, 1.6, 1.4], [79, -40, 2.4, 1.4, 1.5], [80, -47, 1.6, 2.4, 1.5], [66, -36, 1.4, 1.4, 1.2]]) {
+    B.block({ x, z, w, d, y: Y, h, mat: M.crate });
+    deco(group, { x, y: Y + h * 0.45, z, w: w + 0.04, h: 0.12, d: d + 0.04, mat: P.pdcBlue, cast: false });
+  }
+  container(ctx, B, P, { x: 84, y: Y, z: -30, along: 'x', color: 0 });
+  // Zona de contenedores al sur (grúa pórtico encima) y al noroeste: calles estrechas y oscuras
+  for (const [x, z, along, color, levels] of [[71, -3.5, 'x', 1, 2], [71, 1.5, 'x', 3, 1], [79, -6, 'x', 2, 1], [79, -1, 'x', 4, 2], [87, 2, 'z', 5, 1],
+    [68, -79, 'z', 1, 2], [68, -88, 'z', 2, 1], [75, -93, 'x', 4, 1], [80, -81, 'z', 3, 2], [86, -91, 'x', 0, 1]]) {
+    for (let k = 0; k < levels; k++) container(ctx, B, P, { x: x + k * 0.2, y: Y + k * 2.6, z: z + k * 0.1, along, color: color + k * 2 });
+  }
+  gantry(ctx, B, P, { x0: 69, x1: 93.5, z0: -10, z1: 5.5, y: Y, h: 14 });
+  // Torres de los focos que barren el patio (estructura de celosía)
   for (const [x, z] of [[74, -14], [96, -32]]) {
-    B.block({ x, z, w: 1.2, d: 1.2, y: Y, h: 8, mat: M.metal });
-    B.block({ x, z, w: 2.2, d: 2.2, y: Y + 8, h: 0.25, mat: M.rust });
-    B.block({ x, z, w: 0.2, d: 0.2, y: Y + 8.25, h: 2.5, mat: M.metal, collide: false });
-    B.block({ x, z, w: 0.3, d: 0.3, y: Y + 10.7, h: 0.3, mat: M.redLight, collide: false });
+    B.block({ x, z, w: 1.2, d: 1.2, y: Y, h: 8, mat: P.metal });
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) deco(group, { x: x + sx * 1.1, y: Y, z: z + sz * 1.1, w: 0.16, h: 8, d: 0.16, mat: P.metal, rx: sz * 0.06, rz: -sx * 0.06 });
+    for (const yy of [2.5, 5]) deco(group, { x, y: Y + yy, z, w: 2.4, h: 0.1, d: 2.4, mat: P.metal, cast: false });
+    B.block({ x, z, w: 2.6, d: 2.6, y: Y + 8, h: 0.25, mat: P.rust });
+    B.block({ x, z, w: 0.2, d: 0.2, y: Y + 8.25, h: 2.5, mat: P.metal, collide: false });
+    B.block({ x, z, w: 0.3, d: 0.3, y: Y + 10.7, h: 0.3, mat: P.redLight, collide: false });
   }
   const lightA = new Searchlight(ctx, { origin: { x: 74, y: Y + 8.9, z: -14 }, a: { x: 64, z: -27 }, b: { x: 86, z: -23 }, y: Y, radius: 3.4, period: 10 });
   const lightB = new Searchlight(ctx, { origin: { x: 96, y: Y + 8.9, z: -32 }, a: { x: 72, z: -38 }, b: { x: 84, z: -52 }, y: Y, radius: 3.2, period: 8, phase: 3 });
@@ -566,7 +680,7 @@ function buildBase(ctx, B, M, night) {
   const Z0 = -75;
   const Z1 = -45;
   const T = 0.4;
-  const wallMat = M.concrete;
+  const wallMat = P.concrete;
   const wall = (o) => B.block({ ...o, mat: o.mat ?? wallMat, climbable: o.climbable ?? false });
   // Oeste con el conducto (z −52.7…−51.3, 1.2 de alto)
   wall({ x: X0 + T / 2, z: (Z0 + -52.7) / 2, w: T, d: -52.7 - Z0, y: Y, h: 8 });
@@ -582,18 +696,37 @@ function buildBase(ctx, B, M, night) {
   wall({ x: (X0 + 103) / 2, z: Z1 - T / 2, w: 103 - X0, d: T, y: Y + 4, h: 4 });
   wall({ x: (105 + X1) / 2, z: Z1 - T / 2, w: X1 - 105, d: T, y: Y + 4, h: 4 });
   wall({ x: 104, z: Z1 - T / 2, w: 2, d: T, y: Y + 6.5, h: 1.5 });
-  // Ventanas iluminadas (fachada sur y oeste)
-  for (let i = 0; i < 6; i++) {
-    for (const yy of [Y + 1.6, Y + 5.4]) {
-      B.block({ x: 90 + i * 3.6, z: Z1 + 0.03, w: 1.4, d: 0.06, y: yy, h: 1.1, mat: M.baseWindow, collide: false, cast: false });
-    }
-  }
+  // Piel brutalista: forjados, bandas de ventanas, aletas y franjas azules (respetando conducto, puertas y balcón)
+  facilitySkin(ctx, P, {
+    x0: X0, x1: X1, z0: Z0, z1: Z1, y: Y, floors: 2, fh: 4,
+    skip: [{ face: 'x0', a0: -53.4, a1: -50.6, y0: Y, y1: Y + 1.8 }, { face: 'z1', a0: 101.6, a1: 110.2, y0: Y, y1: Y + 8 }, { face: 'x1', a0: -70, a1: -50, y0: Y, y1: Y + 5 }],
+  });
+  for (const x of [92.5, 97.5]) banner(ctx, P, { x, y: Y + 7.9, z: Z1 + 0.55, ry: 0, w: 2, h: 4.4 });
+  // Marquesina de la entrada principal
+  deco(group, { x: 108.9, y: Y + 3.1, z: Z1 + 1.5, w: 2.8, h: 0.3, d: 3, mat: P.concreteDark });
+  deco(group, { x: 108.9, y: Y + 3.05, z: Z1 + 1.5, w: 2.82, h: 0.06, d: 3.02, mat: P.strip, cast: false });
   // Azotea con pretil y equipos
   wall({ x: (X0 + X1) / 2, z: (Z0 + Z1) / 2, w: X1 - X0, d: Z1 - Z0, y: Y + 8, h: T, mat: M.stoneDark });
   parapet(B, (X0 + X1) / 2, (Z0 + Z1) / 2, X1 - X0, Z1 - Z0, Y + 8 + T, M.metal);
-  for (const [x, z] of [[94, -60], [100, -68], [96, -50]]) B.block({ x, z, w: 2, d: 1.4, y: Y + 8.4, h: 1, mat: M.metal });
-  B.block({ x: 92, z: -72, w: 0.3, d: 0.3, y: Y + 8.4, h: 7, mat: M.metal, collide: false }); // antena
-  B.block({ x: 92, z: -72, w: 0.5, d: 0.5, y: Y + 15.4, h: 0.4, mat: M.redLight, collide: false });
+  for (const [x, z] of [[94, -60], [100, -68], [96, -50]]) {
+    B.block({ x, z, w: 2, d: 1.4, y: Y + 8.4, h: 1, mat: P.plate });
+    deco(group, { x, y: Y + 9.4, z, w: 1, h: 0.18, d: 1, mat: P.metal });
+  }
+  // Mástil de antenas con balizas, radar que gira, parabólica y lucernario
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) deco(group, { x: 92 + sx * 0.45, y: Y + 8.4, z: -72 + sz * 0.45, w: 0.09, h: 8, d: 0.09, mat: P.metal });
+  for (let k = 1; k < 8; k += 1.6) deco(group, { x: 92, y: Y + 8.4 + k, z: -72, w: 1, h: 0.05, d: 1, mat: P.metal, cast: false });
+  for (const k of [4.2, 8.2]) {
+    B.block({ x: 92, z: -72, w: 0.3, d: 0.3, y: Y + 8.4 + k, h: 0.3, mat: P.redLight, collide: false });
+    if (night) {
+      const gl = glowSprite(new THREE.Color(0xff3020), 1.3, 0.75);
+      gl.position.set(92, Y + 8.6 + k, -72);
+      group.add(gl);
+    }
+  }
+  ctx.addEntity(radar(ctx, P, { x: 108, y: Y + 8.4, z: -71 }));
+  dish(ctx, P, { x: 90.6, y: Y + 8.4, z: -48.2, r: 1.6, ry: 2.6 });
+  deco(group, { x: 98.5, y: Y + 8.4, z: -56, w: 3.6, h: 0.45, d: 5, mat: P.concreteDark });
+  deco(group, { x: 98.5, y: Y + 8.85, z: -56, w: 3, h: 0.4, d: 4.4, mat: P.skylight, cast: false });
 
   // Planta baja (oeste): almacén con cajas para trepar a la pasarela norte (y 14)
   for (const [x, z, h] of [[95, -71.5, 1.3], [96.6, -71.5, 2.6]]) B.block({ x, z, w: 1.5, d: 1.5, y: Y, h, mat: M.crate, climbable: true });
@@ -651,6 +784,31 @@ function buildBase(ctx, B, M, night) {
   B.block({ x: 116, z: -7.5, w: 0.4, d: 0.4, y: Y + 9, h: 0.3, mat: M.redLight, collide: false });
   const zipline = new Zipline(ctx, { from: { x: 116, y: Y + 7.6, z: -8 }, to: { x: 110, y: 2.3, z: 38 } });
 
+  // Helipuerto, garaje, depósitos y camiones; focos con charcos de luz y zonas oscuras entre ellos
+  B.block({ x: 133, z: -30, w: 17, d: 17, y: Y, h: 0.25, mat: [P.concreteDark, P.concreteDark, P.helipad, P.concreteDark, P.concreteDark, P.concreteDark] });
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    deco(group, { x: 133 + Math.cos(a) * 8.2, y: Y + 0.25, z: -30 + Math.sin(a) * 8.2, w: 0.25, h: 0.12, d: 0.25, mat: i % 2 ? P.stripWhite : P.strip, cast: false });
+  }
+  helicopter(ctx, P, { x: 133, y: Y + 0.25, z: -30, ry: 0.6 });
+  B.block({ x: 132, z: -90, w: 20, d: 14, y: Y, h: 6.5, mat: P.concrete, climbable: false });
+  for (const x of [125, 132, 139]) rollDoor(ctx, P, { x, y: Y, z: -82.95, w: 5, h: 4.4 });
+  deco(group, { x: 132, y: Y + 5.2, z: -82.92, w: 20, h: 0.12, d: 0.06, mat: P.strip, cast: false });
+  for (const z of [-62, -53]) {
+    const t = staticMesh(group, new THREE.CylinderGeometry(2.6, 2.6, 5.5, 20), P.metalLight);
+    t.position.set(142, Y + 2.75, z);
+    deco(group, { x: 142, y: Y + 3.6, z, w: 5.3, h: 0.4, d: 5.3, mat: P.hazard, cast: false });
+    ctx.world.addBox({ x: 139.4, y: Y, z: z - 2.6 }, { x: 144.6, y: Y + 5.5, z: z + 2.6 }, { climbable: false });
+  }
+  truck(ctx, B, P, { x: 95.5, y: Y, z: -91, ry: Math.PI / 2 });
+  if (night) lightPool(group, { x: 95.3, y: Y, z: -83, r: 4.5, color: 0xfff4e0, opacity: 0.3 });
+  truck(ctx, B, P, { x: 104.5, y: Y, z: -88, ry: -Math.PI / 2 });
+  truck(ctx, B, P, { x: 124, y: Y, z: -46, ry: 0 });
+  for (const [x, z] of [[98, -82], [102, -82]]) jersey(ctx, B, P, { x, y: Y, z, along: 'x', len: 3 });
+  floodlight(ctx, B, P, { x: 120, z: -41, y: Y, h: 10, aim: { x: 133, z: -30 }, night });
+  floodlight(ctx, B, P, { x: 90, z: -94, y: Y, h: 10, aim: { x: 100, z: -92 }, night });
+  floodlight(ctx, B, P, { x: 66, z: 4, y: Y, h: 10, aim: { x: 76, z: -4 }, night, intensity: 40 });
+
   // Alarmas: balizas y dos luces rojas reales (siempre creadas; solo cambia su intensidad)
   const alarms = new AlarmLights(ctx, [
     { x: 94, y: Y + 3.5, z: -45.6 }, { x: 106, y: Y + 7.5, z: -60 }, { x: 101, y: Y + 7.5, z: -50 },
@@ -699,4 +857,20 @@ function buildBase(ctx, B, M, night) {
     guards, lights: [lightA, lightB], vitrines, documents, zipline, alarms,
     shutters: { stairs: shutterStairs, main: shutterMain, chamber: shutterChamber, vent: ventCover },
   };
+}
+
+/** Grúa pórtico amarilla sobre los contenedores, con uno colgando del carro. */
+function gantry(ctx, B, P, { x0, x1, z0, z1, y, h }) {
+  const { group } = ctx;
+  for (const x of [x0, x1]) {
+    for (const z of [z0, z1]) B.block({ x, z, w: 0.9, d: 0.9, y, h, mat: P.yellow, cameraBlocking: false });
+    deco(group, { x, y: y + h - 1, z: (z0 + z1) / 2, w: 1, h: 1, d: z1 - z0 + 0.9, mat: P.yellow });
+    deco(group, { x, y: y + 0.2, z: (z0 + z1) / 2, w: 1.2, h: 0.6, d: z1 - z0 + 2, mat: P.hazard });
+  }
+  for (const z of [z0, z1]) deco(group, { x: (x0 + x1) / 2, y: y + h, z, w: x1 - x0 + 1, h: 1.2, d: 0.9, mat: P.yellow });
+  const tx = (x0 + x1) / 2 + 2;
+  deco(group, { x: tx, y: y + h - 0.6, z: (z0 + z1) / 2, w: 3, h: 1.6, d: z1 - z0 + 1.4, mat: P.pdcDark });
+  for (const dz of [-1, 1]) deco(group, { x: tx, y: y + 8.2, z: (z0 + z1) / 2 + dz, w: 0.05, h: h - 8.6, d: 0.05, mat: P.metalLight, cast: false });
+  container(ctx, B, P, { x: tx, y: y + 5.6, z: (z0 + z1) / 2, color: 0 });
+  deco(group, { x: tx, y: y + 8.2, z: (z0 + z1) / 2, w: 6.2, h: 0.3, d: 2.5, mat: P.yellow });
 }

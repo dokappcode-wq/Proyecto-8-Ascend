@@ -1,13 +1,12 @@
 import * as THREE from 'three';
 import { rockTexture, woodTexture, grassTexture, dirtTexture, veinTexture, waterfallTexture, hazardTexture, textTexture, rng } from '../textures.js';
-import { deco, gableRoof, staticMesh, rockGeometry, climbMark } from './common.js';
+import { deco, gableRoof, staticMesh, rockGeometry } from './common.js';
 import { glowSprite, glowTexture } from '../../vfx/glowTexture.js';
 
 /**
- * KIT DE NATURALEZA (propuesta de rediseño del bosque): cabañas de troncos,
- * campamento con hoguera (los campamentos base de Tomb Raider), puente de
- * cuerda transitable, paredes de cañón con estratos y repisas marcadas, y
- * troncos caídos. Ambiente de los bosques canadienses de Wolverine.
+ * KIT DE NATURALEZA (bosque): campamento con hoguera (los campamentos base de
+ * Tomb Raider), piedras planas y pilares de roca, cascada, torre de caza y
+ * tienda. Ambiente de los bosques canadienses de Wolverine.
  */
 
 const tex = (t) => {
@@ -95,62 +94,6 @@ export function rockPillar(ctx, M, { x, z, top, bottom, r = 1.2, seed = 1 }) {
   const mm = staticMesh(group, moss.geo, M.moss, { cast: false });
   mm.position.set(x, top - moss.top + 0.03, z);
   world.addBox({ x: x - r * 0.8, y: bottom, z: z - r * 0.75 }, { x: x + r * 0.8, y: top, z: z + r * 0.75 }, { climbable: true });
-}
-
-/**
- * Roca agrietada con vetas de energía: bloquea el paso hasta que un disparo
- * de Energía la revienta (en el juego, FragileDebris). Brillo azul que late.
- */
-export function crackedBoulder(ctx, M, { x, y, z, r = 1.6, seed = 3 }) {
-  const { group, world } = ctx;
-  const g = new THREE.Group();
-  const main = new THREE.Mesh(rockGeometry(r, r * 0.9, r * 0.85, seed, 1), M.veinRock);
-  main.position.set(x, y + r * 0.55, z);
-  main.castShadow = true;
-  main.receiveShadow = true;
-  g.add(main);
-  for (let i = 0; i < 3; i++) {
-    const s = r * (0.35 + i * 0.1);
-    const m = new THREE.Mesh(rockGeometry(s, s * 0.8, s, seed + 10 + i, 0), i === 1 ? M.veinRock : M.rockDark);
-    m.position.set(x + Math.cos(i * 2.2) * r * 0.9, y + s * 0.35, z + Math.sin(i * 2.2) * r * 0.9);
-    m.castShadow = true;
-    g.add(m);
-  }
-  const glow = glowSprite(new THREE.Color(0x58b8ff), r * 3.2, 0.45);
-  glow.position.set(x, y + r * 0.6, z);
-  g.add(glow);
-  const light = new THREE.PointLight(0x6fc3ff, 5, r * 5, 1.6);
-  light.position.set(x, y + r * 1.2, z);
-  g.add(light);
-  group.add(g);
-  world.addBox({ x: x - r * 0.9, y, z: z - r * 0.85 }, { x: x + r * 0.9, y: y + r * 1.4, z: z + r * 0.85 }, { climbable: false });
-  const t0 = seed;
-  return {
-    update(dt, time) {
-      const k = 0.75 + 0.25 * Math.sin(time * 2.4 + t0);
-      M.veinRock.emissiveIntensity = 2.2 * k;
-      glow.material.opacity = 0.45 * k;
-      light.intensity = 5 * k;
-    },
-  };
-}
-
-/**
- * Barricada de tablones (la PDC cortó la senda): postes, tablones clavados
- * en cruz, cinta de aviso y cartel. Se rompe a golpes (madera clara = frágil).
- * Cruza la senda a lo largo de z (ancho `w`) en x.
- */
-export function plankBarricade(ctx, M, { x, y = 0, z, w = 5, h = 2.4 }) {
-  const { group, world } = ctx;
-  for (const dz of [-w / 2, 0, w / 2]) deco(group, { x, y: y - 0.3, z: z + dz, w: 0.22, h: h + 0.5, d: 0.22, mat: M.log });
-  for (let i = 0; i < 4; i++) deco(group, { x: x + 0.14, y: y + 0.35 + i * 0.52, z, w: 0.06, h: 0.32, d: w + 0.4, mat: M.plankLight, rx: (i % 2 ? 0.05 : -0.04) });
-  for (const sgn of [-1, 1]) deco(group, { x: x + 0.22, y: y + h / 2 - 0.2, z, w: 0.06, h: 0.26, d: Math.hypot(w, h) * 0.95, mat: M.plank, rx: sgn * Math.atan2(h, w) });
-  // Tablón roto y astillas en el suelo
-  deco(group, { x: x + 0.9, y, z: z + 1.1, w: 0.3, h: 0.06, d: 1.6, mat: M.plankLight, ry: 0.5 });
-  // Cinta de aviso y cartel de la PDC
-  deco(group, { x: x + 0.3, y: y + 1.05, z, w: 0.02, h: 0.12, d: w + 0.2, mat: M.tape, cast: false });
-  deco(group, { x: x + 0.3, y: y + 1.55, z: z - 0.6, w: 0.04, h: 0.6, d: 1.6, mat: M.sign, cast: false });
-  world.addBox({ x: x - 0.2, y, z: z - w / 2 - 0.2 }, { x: x + 0.4, y: y + h, z: z + w / 2 + 0.2 }, { climbable: false });
 }
 
 /**
@@ -267,37 +210,6 @@ export function tent(ctx, M, { x, y = 0, z, ry = 0, mat }) {
 }
 
 
-/** Cabaña de troncos con porche, chimenea de piedra y ventana encendida. */
-export function logCabin(ctx, B, M, { x, z, w = 7, d = 5.5, h = 3, ry = 0 }) {
-  const { group } = ctx;
-  B.block({ x, z, w, d, h, mat: M.log });
-  // Troncos horizontales (relieve) y esquinas cruzadas
-  const g = new THREE.Group();
-  g.position.set(x, 0, z);
-  g.rotation.y = ry;
-  for (let y = 0.2; y < h; y += 0.36) {
-    for (const [lx, lz, len, rot] of [[0, -d / 2 - 0.05, w + 0.6, 0], [0, d / 2 + 0.05, w + 0.6, 0], [-w / 2 - 0.05, 0, d + 0.6, Math.PI / 2], [w / 2 + 0.05, 0, d + 0.6, Math.PI / 2]]) {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, len, 7).rotateZ(Math.PI / 2), M.log);
-      m.position.set(lx, y, lz);
-      m.rotation.y = rot;
-      m.castShadow = true;
-      m.userData.levelStatic = true;
-      g.add(m);
-    }
-  }
-  group.add(g);
-  gableRoof(ctx, { x, z, w, d, y: h, rise: 1.8, overhang: 0.6, along: 'x', roofMat: M.shingle, wallMat: M.log });
-  // Chimenea de piedra
-  const ch = staticMesh(group, rockGeometry(0.7, 3, 0.7, Math.round(x + z), 0), M.rock);
-  ch.position.set(x - w / 2 + 0.2, 1.6, z);
-  deco(group, { x: x - w / 2 + 0.2, y: 0, z, w: 1.2, h: h + 2.4, d: 1.2, mat: M.rockDark });
-  // Porche y ventana
-  deco(group, { x, y: 0, z: z + d / 2 + 1, w: w, h: 0.25, d: 2, mat: M.plank });
-  for (const sx of [-1, 1]) deco(group, { x: x + sx * (w / 2 - 0.3), y: 0, z: z + d / 2 + 1.8, w: 0.2, h: h, d: 0.2, mat: M.log });
-  deco(group, { x: x + 1.4, y: 1.1, z: z + d / 2 + 0.12, w: 1, h: 0.9, d: 0.05, mat: M.window, cast: false });
-  deco(group, { x: x - 1, y: 0.25, z: z + d / 2 + 0.12, w: 1, h: 2, d: 0.06, mat: M.plank, cast: false });
-}
-
 /** Hoguera de campamento: piedras, leña, brasas, resplandor y luz cálida. */
 export function campfire(ctx, M, { x, z, y = 0, light = true }) {
   const { group } = ctx;
@@ -344,92 +256,3 @@ export function campfire(ctx, M, { x, z, y = 0, light = true }) {
   };
 }
 
-/**
- * Puente de cuerda que cuelga (catenaria) entre dos puntos: tablones,
- * cuerdas y postes. Se puede cruzar: una rampa de colisión por tramo.
- */
-export function ropeBridge(ctx, M, { from, to, width = 1.6, sag = 1.2, segments = 16 }) {
-  const { group, world } = ctx;
-  const dx = to.x - from.x;
-  const dz = to.z - from.z;
-  const len = Math.hypot(dx, dz);
-  const ry = -Math.atan2(dz, dx);
-  const ux = dx / len;
-  const uz = dz / len;
-  const yAt = (t) => from.y + (to.y - from.y) * t - sag * 4 * t * (1 - t);
-  const pts = [];
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    pts.push({ x: from.x + dx * t, y: yAt(t), z: from.z + dz * t });
-  }
-  for (let i = 0; i < segments; i++) {
-    const a = pts[i];
-    const b = pts[i + 1];
-    const seg = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
-    const pitch = Math.atan2(b.y - a.y, len / segments);
-    const m = deco(group, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 0.05, z: (a.z + b.z) / 2, w: seg * 0.86, h: 0.08, d: width, mat: M.plank, ry, rz: pitch });
-    void m;
-    // Colisión: una rampa a lo largo del eje dominante
-    const minX = Math.min(a.x, b.x) - Math.abs(uz) * width / 2;
-    const maxX = Math.max(a.x, b.x) + Math.abs(uz) * width / 2;
-    const minZ = Math.min(a.z, b.z) - Math.abs(ux) * width / 2;
-    const maxZ = Math.max(a.z, b.z) + Math.abs(ux) * width / 2;
-    const axis = Math.abs(ux) >= Math.abs(uz) ? 'x' : 'z';
-    const lowFirst = axis === 'x' ? (a.x < b.x) : (a.z < b.z);
-    world.addRamp({ minX, maxX, minZ, maxZ, axis, y0: lowFirst ? a.y : b.y, y1: lowFirst ? b.y : a.y, base: Math.min(a.y, b.y) - 0.3 });
-  }
-  // Cuerdas laterales (pasamanos) y péndolas
-  for (const side of [-1, 1]) {
-    const ox = -uz * side * (width / 2 + 0.05);
-    const oz = ux * side * (width / 2 + 0.05);
-    for (let i = 0; i < segments; i++) {
-      const a = pts[i];
-      const b = pts[i + 1];
-      const seg = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
-      const pitch = Math.atan2(b.y - a.y, len / segments);
-      deco(group, { x: (a.x + b.x) / 2 + ox, y: (a.y + b.y) / 2 + 0.95, z: (a.z + b.z) / 2 + oz, w: seg, h: 0.04, d: 0.04, mat: M.rope, ry, rz: pitch, cast: false });
-      deco(group, { x: a.x + ox, y: a.y, z: a.z + oz, w: 0.03, h: 0.95, d: 0.03, mat: M.rope, cast: false });
-    }
-    for (const p of [from, to]) deco(group, { x: p.x + ox, y: p.y - 1, z: p.z + oz, w: 0.25, h: 2.4, d: 0.25, mat: M.log });
-  }
-  // Los bordes no se agarran: barandillas de cuerda (invisibles) para no caer
-  return { pts };
-}
-
-/**
- * Pared de cañón: bloques de roca apilados en estratos con repisas (algunas
- * marcadas en blanco: ruta de escalada). Decorado sobre una caja de colisión.
- * La cara mira hacia `face` (+1: +X, −1: −X) entre z0 y z1.
- */
-export function canyonWall(ctx, B, M, { x, z0, z1, h, face = 1, depth = 6, seed = 1, marks = [] }) {
-  const { group } = ctx;
-  const r = rng(seed);
-  const zc = (z0 + z1) / 2;
-  B.block({ x: x - face * depth / 2, z: zc, w: depth, d: z1 - z0, h, y: -1, mat: M.rockDark, climbable: true });
-  // Estratos: hileras de masas de roca que sobresalen un poco de la cara
-  for (let y = 0; y < h; y += 2.2 + r() * 1.4) {
-    const mat = r() < 0.5 ? M.rock : M.rockWarm;
-    for (let zz = z0; zz < z1; zz += 3 + r() * 3) {
-      const sx = 0.8 + r() * 1.2;
-      const sy = 0.8 + r() * 1.1;
-      const sz = 1.6 + r() * 2;
-      const m = staticMesh(group, rockGeometry(sx, sy, sz, Math.round(seed * 100 + y * 13 + zz), 1), mat);
-      m.position.set(x - face * (sx * 0.55), y + sy * 0.6, zz + sz * 0.5);
-    }
-  }
-  // Repisas marcadas (Tomb Raider): franja blanca en el borde agarrable
-  for (const mk of marks) climbMark(group, M.whiteMark, { x: x + face * 0.02, y: mk.y, z: mk.z, w: 0.1, d: mk.len ?? 1.4 });
-}
-
-/** Tronco caído con raíces (cobertura y obstáculo). */
-export function fallenLog(ctx, B, M, { x, z, len = 7, ry = 0, r = 0.45 }) {
-  const { group } = ctx;
-  const m = staticMesh(group, new THREE.CylinderGeometry(r, r * 1.15, len, 9).rotateZ(Math.PI / 2), M.log);
-  m.position.set(x, r * 0.9, z);
-  m.rotation.y = ry;
-  const roots = staticMesh(group, rockGeometry(r * 1.6, r * 1.6, r * 1.2, Math.round(x * 3 + z), 0), M.log);
-  roots.position.set(x + Math.cos(ry) * len / 2, r, z - Math.sin(ry) * len / 2);
-  const c = Math.abs(Math.cos(ry));
-  const s = Math.abs(Math.sin(ry));
-  B.block({ x, z, w: len * c + r * 2 * s, d: len * s + r * 2 * c, h: r * 1.8, mat: M.log, collide: true, climbable: true }).visible = false;
-}
