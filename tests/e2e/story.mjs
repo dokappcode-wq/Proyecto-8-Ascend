@@ -186,13 +186,14 @@ export async function storySection({ page, check, PORT, out }) {
     const P = await g(() => window.__ascend.mapManager.current.story.points);
     await tp(P.debrisShot);
     await page.waitForTimeout(500);
-    // Apunta la cámara al centro de la roca
+    // Apunta la cámara al centro de la roca (yaw y pitch del controlador dan la
+    // dirección del pivote hacia la cámara: se mira en la contraria)
     await g(() => {
       const a = window.__ascend;
       const c = a.mapManager.current.story.debris.center;
       const cam = a.camera.position;
-      a.cameraController.yaw = Math.atan2(c.x - cam.x, c.z - cam.z);
-      a.cameraController.pitch = -Math.atan2(c.y - cam.y, Math.hypot(c.x - cam.x, c.z - cam.z));
+      a.cameraController.yaw = Math.atan2(-(c.x - cam.x), -(c.z - cam.z));
+      a.cameraController.pitch = Math.atan2(c.y - cam.y, Math.hypot(c.x - cam.x, c.z - cam.z));
     });
     const shotE0 = await g(() => window.__ascend.powers.energy.value);
     await page.mouse.down();
