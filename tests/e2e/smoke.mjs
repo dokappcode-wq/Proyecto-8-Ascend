@@ -556,6 +556,21 @@ try {
   check(perf.merge.after * 4 < perf.merge.before, `Geometría estática fusionada (${perf.merge.before} → ${perf.merge.after} mallas)`);
   check(perf.calls < 400, `Llamadas de dibujo en el Campo de Pruebas: ${perf.calls}`);
 
+  // ---------------- Gráficos: postproceso, efectos y escenarios ----------------
+  console.log('\n[gráficos]');
+  const gfx = await q(() => {
+    const a = window.__ascend;
+    const passes = a.composer.passes.map((p) => p.constructor.name);
+    a.vfx.clear();
+    a.vfx.impact({ x: 0, y: 1, z: 15 }, { x: 0, y: 0, z: 1 }, 0x6fc3ff, 1);
+    a.vfx.dust({ x: 0, y: 0, z: 15 });
+    const born = { sparks: a.vfx.sparks.count, smoke: a.vfx.smoke.count };
+    for (let i = 0; i < 60; i++) a.vfx.update(0.05);
+    return { passes, env: !!a.scene.environment, born, after: { sparks: a.vfx.sparks.count, smoke: a.vfx.smoke.count } };
+  });
+  check(gfx.env && ['RenderPass', 'UnrealBloomPass', 'OutputPass', 'ShaderPass'].every((n) => gfx.passes.includes(n)), `Postproceso (${gfx.passes.join(' → ')}) y mapa de entorno del cielo`);
+  check(gfx.born.sparks > 0 && gfx.born.smoke > 0 && gfx.after.sparks === 0 && gfx.after.smoke === 0, `Impacto con chispas (${gfx.born.sparks}) y humo/polvo (${gfx.born.smoke}) que se disipan`);
+
   // ---------------- Poderes de Energía (Etapa 2) ----------------
   console.log('\n[poderes]');
   await page.evaluate(() => {
@@ -1892,9 +1907,26 @@ try {
   await page.keyboard.press('KeyE');
   await page.waitForFunction(() => window.__ascend.story.active && window.__ascend.mapManager.current?.def.story, null, { timeout: 30000 }).catch(() => {});
   check(await page.evaluate(() => window.__ascend.story.active && window.__ascend.mapManager.current.def.id === 'pueblo-noche'), 'E en el terminal abre el Prólogo');
+  const vil = await page.evaluate(() => {
+    const a = window.__ascend;
+    const g = a.mapManager.current.group;
+    const water = g.getObjectByName('Agua');
+    const mts = g.getObjectByName('Montañas');
+    const withNormals = new Set();
+    g.traverse((o) => o.isMesh && !Array.isArray(o.material) && o.material.normalMap && withNormals.add(o.material));
+    return { water: !!water?.material.normalMap && !!water.material.clearcoatNormalMap, mts: !!mts?.geometry.attributes.color, normals: withNormals.size, env: !!a.scene.environment };
+  });
+  check(vil.water && vil.mts && vil.normals >= 6 && vil.env, `Pueblo: agua animada, montañas nevadas y ${vil.normals} materiales con relieve (mapa normal)`);
   await page.evaluate(() => window.__ascend.returnToMenu());
   await page.waitForFunction(() => window.__ascend.state === 'menu');
   check(await page.evaluate(() => !window.__ascend.story.active && window.__ascend.marks.storyProfile === null), 'Volver al menú sale de la historia (perfil de marcas del modo libre)');
+  const menu3d = await page.evaluate(async () => {
+    const a = window.__ascend;
+    const t0 = a.menuScene._t;
+    await new Promise((r) => setTimeout(r, 400));
+    return { dt: a.menuScene._t - t0, restored: a.renderPass.scene === a.scene, hero: !!a.menuScene.hero.root.parent, city: !!a.menuScene.scene.getObjectByName('Ciudad') };
+  });
+  check(menu3d.dt > 0 && menu3d.restored && menu3d.hero && menu3d.city, 'Fondo 3D del menú animado (Jon en la azotea frente a la ciudad)');
 
   // ---------------- Modo historia ----------------
   console.log('\n[historia]');

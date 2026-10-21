@@ -3,6 +3,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { GradeShader, applyGrade } from '../vfx/gradePass.js';
 import { EventBus } from './EventBus.js';
 import { Input } from './Input.js';
 import { SaveSystem } from './SaveSystem.js';
@@ -10,8 +13,9 @@ import { CollisionWorld } from '../physics/CollisionWorld.js';
 import { CameraController } from '../camera/CameraController.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { MapManager } from '../world/MapManager.js';
-import { followSun } from '../world/environment.js';
+import { followSun, skyEnvironment } from '../world/environment.js';
 import { UIManager } from '../ui/UIManager.js';
+import { MenuScene, MENU_GRADE } from '../ui/MenuScene.js';
 import { CombatSystem } from '../combat/CombatSystem.js';
 import { VfxSystem } from '../vfx/VfxSystem.js';
 import { MarkSystem } from '../systems/MarkSystem.js';
@@ -66,12 +70,28 @@ export class GameManager {
     this.scene.background = new THREE.Color(0x05080d);
     this.camera = new THREE.PerspectiveCamera(this.save.settings.fov, 1, 0.1, 1200);
 
-    // Postproceso: bloom para que poderes y marcas brillen.
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    // Postproceso: render en un destino con MSAA (bordes suaves también con
+    // efectos), oclusión ambiental opcional, bloom para que poderes y marcas
+    // brillen, mapeo de tonos y gradación de color final.
+    const st = this.save.settings;
+    this._sceneRT = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: st.antialias === false ? 0 : 4 });
+    this.composer = new EffectComposer(this.renderer, this._sceneRT);
+    this.renderPass = new RenderPass(this.scene, this.camera);
+    this.composer.addPass(this.renderPass);
+    this.aoPass = new GTAOPass(this.scene, this.camera, 2, 2);
+    this.aoPass.enabled = !!st.ao;
+    this.aoPass.blendIntensity = 0.85;
+    this.composer.addPass(this.aoPass);
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.45, 0.82);
+    this.bloomPass.enabled = st.bloom !== false;
     this.composer.addPass(this.bloomPass);
     this.composer.addPass(new OutputPass());
+    this.gradePass = new ShaderPass(GradeShader);
+    this.composer.addPass(this.gradePass);
+    this._envRT = null;
+    // Fondo 3D animado del menú principal (escena propia, mismo compositor)
+    this.menuScene = new MenuScene(this.renderer);
+    this._gradeFor = null;
 
     // --- Sistemas compartidos por todos los mapas ---
     this.world = new CollisionWorld();
@@ -211,6 +231,7 @@ export class GameManager {
     this.player.autopilot = null;
     this.acquisition.cancel();
     const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain, save: this.save });
+    this._applyMapLook(def, map);
     this.playerCombat.attach();
     this.player.object3d.visible = true;
     this.player.spawn(map.spawn);
@@ -231,6 +252,40 @@ export class GameManager {
     this.audio.setPaused(false);
     this._clock.update();
     return map;
+  }
+
+  /**
+   * Aspecto del mapa: reflejos y luz ambiental a partir de su cielo, y
+   * gradación de color propia (`def.grade`, `def.envIntensity`).
+   */
+  _applyMapLook(def, map) {
+    this._envRT?.dispose();
+    this._envRT = null;
+    const sky = map.group.getObjectByName('Cielo');
+    if (sky) this._envRT = skyEnvironment(this.renderer, sky);
+    this.scene.environment = this._envRT?.texture ?? null;
+    this.scene.environmentIntensity = def.envIntensity ?? 0.45;
+    applyGrade(this.gradePass, def.grade);
+    this._gradeFor = 'map';
+  }
+
+  /** Dibuja la escena del menú con el compositor del juego (bloom y gradación). */
+  _renderMenu(dt) {
+    const ms = this.menuScene;
+    ms.update(dt);
+    if (this._gradeFor !== 'menu') {
+      applyGrade(this.gradePass, MENU_GRADE);
+      this._gradeFor = 'menu';
+    }
+    const ao = this.aoPass.enabled;
+    this.aoPass.enabled = false; // el GTAO está ligado a la escena del juego
+    this.renderPass.scene = ms.scene;
+    this.renderPass.camera = ms.camera;
+    this.gradePass.uniforms.time.value += dt;
+    this.composer.render(dt);
+    this.renderPass.scene = this.scene;
+    this.renderPass.camera = this.camera;
+    this.aoPass.enabled = ao;
   }
 
   /** Historia · Prólogo: nueva partida o continuar desde el último punto de control. */
@@ -349,7 +404,7 @@ export class GameManager {
     // Polvo al aterrizar fuerte, saltar una valla o subir a una cornisa
     const dust = (count, speed) => {
       const p = this.player.motor.position;
-      this.vfx.particles.burst({ x: p.x, y: p.y + 0.1, z: p.z }, { count, speed, color: new THREE.Color(0x9a948a), size: 0.16, life: 0.55, drag: 4 });
+      this.vfx.dust(p, { count, speed, size: 0.32 + count * 0.012, life: 0.7 });
     };
     this.events.on('player:landed', (e) => {
       if (e.speed > 9) dust(Math.min(26, 6 + e.speed), 2 + e.speed * 0.12);
@@ -703,6 +758,16 @@ export class GameManager {
     this.cameraController.settings = s;
     this.audio.settings = s;
     this.audio.applyVolumes();
+    this.bloomPass.enabled = s.bloom !== false;
+    this.aoPass.enabled = !!s.ao;
+    const samples = s.antialias === false ? 0 : 4;
+    if (this.composer.renderTarget1.samples !== samples) {
+      for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) {
+        rt.samples = samples;
+        rt.dispose();
+      }
+      this._resize();
+    }
     if (this._renderScale !== s.renderScale) this._resize();
     if (this.renderer.shadowMap.enabled !== s.shadows) {
       this.renderer.shadowMap.enabled = s.shadows;
@@ -726,6 +791,7 @@ export class GameManager {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.vfx.setViewportHeight(h * this.renderer.getPixelRatio());
+    this.menuScene.resize(w, h, this.renderer.getPixelRatio());
   }
 
   /**
@@ -813,8 +879,10 @@ export class GameManager {
     }
 
     if (this.state === 'playing' || this.state === 'paused') {
-      if (this.save.settings.bloom) this.composer.render(dt);
-      else this.renderer.render(this.scene, this.camera);
+      this.gradePass.uniforms.time.value = this._time;
+      this.composer.render(dt);
+    } else if (this.state === 'menu') {
+      this._renderMenu(realDt);
     } else {
       this.renderer.clear();
     }

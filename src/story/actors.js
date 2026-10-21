@@ -4,16 +4,16 @@ import { MarkVisual } from '../player/MarkVisual.js';
 
 /** Paletas de los personajes del prólogo (ropa corriente; nada delata quién tiene marca). */
 export const STORY_PALETTES = {
-  iker: { skin: 0xc28d6a, jacket: 0x3f4a37, hoodie: 0x8b8e86, pants: 0x2b3038, boots: 0x3a2c22, hair: 0x1b1511 },
-  abuela: { skin: 0xd8b09a, jacket: 0x4c3a46, hoodie: 0x9a8f86, pants: 0x3a3438, boots: 0x2a2224, hair: 0xd9d5cf },
-  martin: { skin: 0xb98266, jacket: 0xd9a21b, hoodie: 0x24324a, pants: 0x2f3440, boots: 0x1f1c1a, hair: 0x7d7a74 },
-  vendedora: { skin: 0xc99a7c, jacket: 0x7a3b3b, hoodie: 0xd9d0c0, pants: 0x34303a, boots: 0x2a2224, hair: 0x3a2418 },
-  vecina: { skin: 0xd2a07e, jacket: 0x55708a, hoodie: 0xcfc6b8, pants: 0x3c4148, boots: 0x2a2624, hair: 0x5a3b26 },
-  vecino: { skin: 0xa77e66, jacket: 0x6b5a3a, hoodie: 0x8a8f99, pants: 0x2b2f36, boots: 0x231a1a, hair: 0x2a2420 },
+  iker: { skin: 0xc28d6a, jacket: 0x3f4a37, hoodie: 0x8b8e86, pants: 0x2b3038, boots: 0x3a2c22, hair: 0x1b1511, hairStyle: 'short' },
+  abuela: { skin: 0xd8b09a, jacket: 0x4c3a46, hoodie: 0x9a8f86, pants: 0x3a3438, boots: 0x2a2224, hair: 0xd9d5cf, hairStyle: 'bun' },
+  martin: { skin: 0xb98266, jacket: 0xd9a21b, hoodie: 0x24324a, pants: 0x2f3440, boots: 0x1f1c1a, hair: 0x7d7a74, hairStyle: 'buzz', beard: true },
+  vendedora: { skin: 0xc99a7c, jacket: 0x7a3b3b, hoodie: 0xd9d0c0, pants: 0x34303a, boots: 0x2a2224, hair: 0x3a2418, hairStyle: 'long' },
+  vecina: { skin: 0xd2a07e, jacket: 0x55708a, hoodie: 0xcfc6b8, pants: 0x3c4148, boots: 0x2a2624, hair: 0x5a3b26, hairStyle: 'long' },
+  vecino: { skin: 0xa77e66, jacket: 0x6b5a3a, hoodie: 0x8a8f99, pants: 0x2b2f36, boots: 0x231a1a, hair: 0x2a2420, hairStyle: 'short', beard: true },
   // General Narbaiza: chaqueta de cuero negro sobre camisa gris
-  narbaiza: { skin: 0xc49a80, jacket: 0x141519, hoodie: 0x5b616b, pants: 0x1a1b1f, boots: 0x0f0f11, hair: 0x221c18 },
+  narbaiza: { skin: 0xc49a80, jacket: 0x141519, hoodie: 0x5b616b, pants: 0x1a1b1f, boots: 0x0f0f11, hair: 0x221c18, hairStyle: 'slick', beard: true },
   // Encarnación de la Energía: ropa gastada y quemada
-  encarnacion: { skin: 0xb07a5c, jacket: 0x2b3b52, hoodie: 0x5a5a5a, pants: 0x2a2a30, boots: 0x231d1a, hair: 0x2b201a },
+  encarnacion: { skin: 0xb07a5c, jacket: 0x2b3b52, hoodie: 0x5a5a5a, pants: 0x2a2a30, boots: 0x231d1a, hair: 0x2b201a, hairStyle: 'messy' },
 };
 
 /** Marca de Sangre del general (no copiable, solo visual). */

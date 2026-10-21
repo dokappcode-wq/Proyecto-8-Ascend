@@ -386,7 +386,9 @@ export class Enemy {
       // El dron cae al suelo echando chispas
       const p = this.motor.position;
       const g = this.sys.world.groundHeight(p.x, p.z, 0.3, p.y + 0.5);
-      this.sys.vfx.particles.burst(this.center, { count: 16, speed: 4, color: new THREE.Color('#ffcf6a'), size: 0.08, life: 0.5, gravity: 8 });
+      this.sys.vfx.particles.burst(this.center, { count: 8, speed: 4, color: new THREE.Color('#ffcf6a'), size: 0.08, life: 0.5, gravity: 8 });
+      this.sys.vfx.sparks?.burst(this.center, { count: 18, speed: 7, color: new THREE.Color('#ffc46a'), life: 0.6 });
+      this.sys.vfx.puff?.(this.center, { count: 5, size: 0.6, color: 0x3a3836, rise: 1.4, life: 1.4 });
       if (Number.isFinite(g)) p.y = g;
       this.motor.fly = null;
     }

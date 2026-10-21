@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { createSky, createSun } from '../environment.js';
-import { concreteTexture, facadeTextures } from '../textures.js';
+import { createSky, createSun, createMountains } from '../environment.js';
+import { concreteTexture, stoneWallTexture, roofTileTexture, cobbleTexture, rockTexture, grassTexture, sandTexture, woodTexture, windowTextures } from '../textures.js';
+import { createWater } from '../water.js';
 import { EnergySource } from '../entities/EnergySource.js';
 import { StealthGuard, Searchlight } from '../../story/actors.js';
-import { Shutter, Zipline, Rain, AlarmLights, CardVitrines, mulberry, pineForest } from '../../story/props.js';
+import { Shutter, Zipline, Rain, AlarmLights, CardVitrines, mulberry, pineForest, scatterBushes, scatterRocks } from '../../story/props.js';
 
 /**
  * PUEBLO COSTERO (prólogo, mapas nuevos): el pueblo de Jon junto al mar y la
@@ -59,6 +60,9 @@ export const VillageNight = {
   story: true,
   ambience: 'village-night',
   factions: { pdc: 100 },
+  /** Aspecto: noche fría y lluviosa. */
+  envIntensity: 0.5,
+  grade: { contrast: 1.03, saturation: 0.95, shadows: '#1a2c4a', highlights: '#d2e0ff', split: 0.07, vignette: 0.36 },
   bounds: { minX: -100, maxX: 130, minZ: -110, maxZ: 70 },
   waypoints: [
     { id: 'tejado', name: 'Tejado (CP01)', x: -21, y: 5.3, z: -9, yaw: Math.PI / 2 },
@@ -79,6 +83,9 @@ export const VillageDay = {
   story: true,
   ambience: 'village-day',
   factions: { pdc: 0 },
+  /** Aspecto: mañana luminosa junto al mar. */
+  envIntensity: 0.5,
+  grade: { contrast: 1.05, saturation: 1.08, shadows: '#283448', highlights: '#ffe6c4', vignette: 0.28 },
   bounds: { minX: -100, maxX: 130, minZ: -110, maxZ: 70 },
   waypoints: [
     { id: 'casa', name: 'Casa de Jon', x: -30, y: 0.3, z: 12, yaw: Math.PI },
@@ -96,8 +103,8 @@ function buildVillage(ctx, night) {
   const sunDir = night ? new THREE.Vector3(-0.35, 0.45, 0.8) : new THREE.Vector3(0.7, 0.35, -0.2);
   scene.fog = new THREE.FogExp2(night ? 0x2a3a52 : 0xa9bccb, night ? 0.011 : 0.0045);
   const sky = createSky(night
-    ? { top: '#0a1424', horizon: '#3d5577', bottom: '#0c1220', sunDir, sunColor: '#9fb6d6' }
-    : { top: '#3d6fa8', horizon: '#e9d7b8', bottom: '#5a6a76', sunDir, sunColor: '#fff0c8' });
+    ? { top: '#0a1424', horizon: '#3d5577', bottom: '#0c1220', sunDir, sunColor: '#9fb6d6', clouds: 0.82, cloudColor: '#34445c', cloudShade: '#151d2a', stars: 0.6, moonDir: new THREE.Vector3(0.35, 0.55, 0.75) }
+    : { top: '#3d6fa8', horizon: '#e9d7b8', bottom: '#5a6a76', sunDir, sunColor: '#fff0c8', clouds: 0.42, cloudColor: '#ffffff', cloudShade: '#b8c2cc' });
   group.add(sky);
   const hemi = new THREE.HemisphereLight(night ? 0x5a78a8 : 0xbfd6ee, night ? 0x1a1a24 : 0x6a5a48, night ? 0.75 : 1.05);
   group.add(hemi);
@@ -110,22 +117,25 @@ function buildVillage(ctx, night) {
     c.userData = t.userData;
     return c;
   };
+  const win = windowTextures('#5a4634');
   const M = {
-    ground: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#5e5a52', 61)), roughness: 0.95 }),
-    paving: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#7d7466', 62)), roughness: 0.9 }),
-    stone: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#8f8676', 63)), roughness: 0.92 }),
-    stoneDark: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#6d665b', 64)), roughness: 0.95 }),
-    roof: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#8a4a32', 65)), roughness: 0.85 }),
-    cliff: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#4d4a46', 66)), roughness: 1, flatShading: true }),
-    grass: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#3c4a34', 67)), roughness: 1 }),
-    sand: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#a89a7c', 68)), roughness: 1 }),
+    // De noche todo está mojado: menos rugoso (brilla con las farolas)
+    ground: new THREE.MeshStandardMaterial({ map: tex(cobbleTexture('#66605a', 61)), roughness: night ? 0.55 : 0.92 }),
+    paving: new THREE.MeshStandardMaterial({ map: tex(cobbleTexture('#8a8072', 62)), roughness: night ? 0.5 : 0.88 }),
+    stone: new THREE.MeshStandardMaterial({ map: tex(stoneWallTexture('#9a907e', 63)), roughness: night ? 0.7 : 0.92 }),
+    stoneDark: new THREE.MeshStandardMaterial({ map: tex(stoneWallTexture('#77705f', 64)), roughness: night ? 0.72 : 0.95 }),
+    roof: new THREE.MeshStandardMaterial({ map: tex(roofTileTexture('#9a5236', 65)), roughness: night ? 0.6 : 0.85 }),
+    cliff: new THREE.MeshStandardMaterial({ map: tex(rockTexture('#57534d', 66)), roughness: 1, flatShading: true }),
+    grass: new THREE.MeshStandardMaterial({ map: tex(grassTexture('#3f5236', 67)), roughness: 1 }),
+    sand: new THREE.MeshStandardMaterial({ map: tex(sandTexture('#b0a284', 68)), roughness: 1 }),
     concrete: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#7a7e84', 69)), roughness: 0.85 }),
     metal: new THREE.MeshStandardMaterial({ color: 0x3d434b, metalness: 0.7, roughness: 0.45 }),
     rust: new THREE.MeshStandardMaterial({ color: 0x5a3b2c, metalness: 0.4, roughness: 0.7 }),
-    wood: new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.85 }),
-    crate: new THREE.MeshStandardMaterial({ color: 0x5f5a44, roughness: 0.9 }),
-    window: new THREE.MeshStandardMaterial({ color: 0x1a1612, emissive: night ? 0xffb35c : 0x000000, emissiveIntensity: night ? 1.4 : 0 }),
-    windowDark: new THREE.MeshStandardMaterial({ color: 0x20242a, roughness: 0.3 }),
+    wood: new THREE.MeshStandardMaterial({ map: tex(woodTexture('#7a5638', 71)), roughness: 0.85 }),
+    crate: new THREE.MeshStandardMaterial({ map: tex(woodTexture('#6a6248', 72)), roughness: 0.9 }),
+    // Ventanas con marco y cuarterones; de noche algunas tienen luz dentro
+    window: new THREE.MeshStandardMaterial({ map: tex(win.map), emissiveMap: tex(win.emissiveMap), emissive: night ? 0xffb35c : 0x000000, emissiveIntensity: night ? 1.5 : 0, roughness: 0.3 }),
+    windowDark: new THREE.MeshStandardMaterial({ map: tex(win.map), roughness: 0.25, envMapIntensity: 1.3 }),
     baseWindow: new THREE.MeshStandardMaterial({ color: 0x14181e, emissive: night ? 0xdfe9ff : 0x000000, emissiveIntensity: night ? 1.2 : 0 }),
     redLight: new THREE.MeshStandardMaterial({ color: 0x300000, emissive: 0xff2020, emissiveIntensity: night ? 2.5 : 0.6 }),
     lamp: new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffc27a, emissiveIntensity: night ? 2.2 : 0 }),
@@ -141,7 +151,7 @@ function buildVillage(ctx, night) {
   B.block({ x: 90, z: -45, w: 70, d: 110, y: -1, h: PLATEAU + 1, mat: M.cliff, tag: 'cliff' }); // meseta x 55…125, z −100…10
   B.block({ x: 90, z: 32, w: 70, d: 44, y: -1.4, h: 1.3, mat: M.sand, cast: false }); // playa x 55…125, z 10…54
   B.block({ x: -15, z: 47, w: 140, d: 6, y: -3, h: 3, mat: M.stoneDark, cast: false }); // muelle (borde del puerto)
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 700).rotateX(-Math.PI / 2), M.water);
+  const sea = createWater({ width: 900, depth: 700, color: night ? 0x0b1828 : 0x24506a, night, repeat: 90 });
   sea.position.set(0, -1.6, 380);
   group.add(sea);
   ctx.world.addBox({ x: -200, y: -60, z: 50 }, { x: 300, y: -1.9, z: 800 }, { tag: 'sea' }); // fondo
@@ -203,6 +213,14 @@ function buildVillage(ctx, night) {
   }
   for (const [x, z] of [[-58, 8], [-60, -14], [-36, 34], [24, 34], [46, 10], [-8, -46], [16, -46]]) trees.push({ x, y: 0, z, s: 0.75 });
   pineForest(ctx, trees);
+  // Matorrales en la colina y rocas al pie del acantilado
+  const bushes = [];
+  for (let i = 0; i < 46; i++) bushes.push({ x: -85 + r() * 140, y: 3, z: -88 + r() * 16, s: 0.5 + r() * 0.6 });
+  for (const [x, z] of [[-58, 4], [-60, -10], [-36, 30], [24, 30], [46, 6], [-8, -42], [16, -42], [-66, 26]]) bushes.push({ x, y: 0, z, s: 0.6 });
+  scatterBushes(ctx, bushes, night ? 0x22341f : 0x3a5532);
+  const rocks = [];
+  for (let i = 0; i < 26; i++) rocks.push({ x: 50 + r() * 4, y: 0, z: -90 + r() * 96, s: 0.5 + r() * 0.9 });
+  scatterRocks(ctx, rocks, 0x5a5650);
 
   // Mercado de la plaza (día)
   const stalls = [];
@@ -494,19 +512,20 @@ function stall(B, M, x, z, color) {
   B.block({ x, z: z - 0.2, w: 3.4, d: 2, y: 2.4, h: 0.12, mat: canvas, collide: false });
 }
 
-/** Montañas oscuras y colinas lejanas (solo decorado). */
+/** Montañas y colinas lejanas (solo decorado, una malla). */
 function backdrop(group, night) {
-  const mat = new THREE.MeshStandardMaterial({ color: night ? 0x1b2433 : 0x55657a, roughness: 1, flatShading: true });
   const r = mulberry(3);
+  const peaks = [];
   for (let i = 0; i < 16; i++) {
     const a = Math.PI * (1.05 + i / 16 * 0.9);
     const dist = 260 + r() * 120;
     const h = 60 + r() * 90;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(70 + r() * 60, h, 6), mat);
-    m.position.set(Math.cos(a) * dist, h / 2 - 8, Math.sin(a) * dist);
-    m.userData.levelStatic = true;
-    group.add(m);
+    peaks.push({ x: Math.cos(a) * dist, z: Math.sin(a) * dist, rad: 70 + r() * 60, h, y0: -8 });
   }
+  const m = createMountains(peaks, night
+    ? { rock: '#1d2636', low: '#121a22', snow: '#5d6d86', snowLine: 0.74, seed: 31 }
+    : { rock: '#66707c', low: '#4a5a46', snow: '#eef2f6', snowLine: 0.7, seed: 31 });
+  group.add(m);
 }
 
 // ---------------------------------------------------------------- Base de la PDC

@@ -12,13 +12,13 @@ import { MARKS } from '../../data/marks.js';
  */
 const PALETTES = {
   // Gravedad: abrigo gris violáceo, pelo canoso
-  gravedad: { skin: 0xc79478, jacket: 0x4f4558, hoodie: 0x2f2f35, pants: 0x4a4036, boots: 0x2e2622, hair: 0x9a9590 },
+  gravedad: { skin: 0xc79478, jacket: 0x4f4558, hoodie: 0x2f2f35, pants: 0x4a4036, boots: 0x2e2622, hair: 0x9a9590, hairStyle: 'short', beard: true },
   // Hilo: chaqueta clara de punto, pantalón beis
-  hilo: { skin: 0xb98266, jacket: 0xd9d4c8, hoodie: 0x6b6f7a, pants: 0x8f826b, boots: 0x3a3330, hair: 0x1f1a17 },
+  hilo: { skin: 0xb98266, jacket: 0xd9d4c8, hoodie: 0x6b6f7a, pants: 0x8f826b, boots: 0x3a3330, hair: 0x1f1a17, hairStyle: 'slick' },
   // Temperatura: anorak de invierno sobre camiseta naranja
-  temperatura: { skin: 0xd2a07e, jacket: 0x2d6f73, hoodie: 0xc8642a, pants: 0x3c4148, boots: 0x2a2624, hair: 0x6e3b22 },
+  temperatura: { skin: 0xd2a07e, jacket: 0x2d6f73, hoodie: 0xc8642a, pants: 0x3c4148, boots: 0x2a2624, hair: 0x6e3b22, hairStyle: 'messy' },
   // Alas: cazadora rosa palo y sudadera blanca
-  alas: { skin: 0x8d5a3f, jacket: 0xd68aa6, hoodie: 0xf2eef0, pants: 0x4a4a58, boots: 0x2c2628, hair: 0xe8d8b0 },
+  alas: { skin: 0x8d5a3f, jacket: 0xd68aa6, hoodie: 0xf2eef0, pants: 0x4a4a58, boots: 0x2c2628, hair: 0xe8d8b0, hairStyle: 'long' },
 };
 
 export class Incarnation {

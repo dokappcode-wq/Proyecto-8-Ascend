@@ -1,8 +1,10 @@
 import * as THREE from 'three';
-import { createSky, createSun } from '../environment.js';
-import { concreteTexture, asphaltTexture } from '../textures.js';
+import { createSky, createSun, createMountains, createCity } from '../environment.js';
+import { concreteTexture, asphaltTexture, grassTexture, rockTexture, metalPlateTexture, woodTexture } from '../textures.js';
+import { createWater } from '../water.js';
+import { scaleBoxUVs } from '../LevelBuilder.js';
 import { EnergySource } from '../entities/EnergySource.js';
-import { FragileDebris, PrisonBus, LandingMarker, mulberry, pineForest } from '../../story/props.js';
+import { FragileDebris, PrisonBus, LandingMarker, mulberry, pineForest, scatterRocks, scatterBushes } from '../../story/props.js';
 
 /**
  * BOSQUE Y PUENTE (prólogo, M04 final y M05): valle con el viaducto donde
@@ -39,6 +41,9 @@ export const Forest = {
   story: true,
   ambience: 'forest',
   factions: { pdc: 100 },
+  /** Aspecto: tarde dorada en la montaña. */
+  envIntensity: 0.5,
+  grade: { contrast: 1.07, saturation: 1.1, shadows: '#283246', highlights: '#ffd6a0', split: 0.07, vignette: 0.3 },
   bounds: { minX: -170, maxX: 320, minZ: -80, maxZ: 50 },
   waypoints: [
     { id: 'despertar', name: 'Despertar (CP18)', x: -45, y: 0.2, z: 10, yaw: Math.PI / 2 },
@@ -57,7 +62,7 @@ function buildForest(ctx) {
   // --- Ambiente: tarde fría con el sol bajo hacia el oeste ---
   const sunDir = new THREE.Vector3(-0.75, 0.32, 0.35).normalize();
   scene.fog = new THREE.FogExp2(0xb7b4b0, 0.0042);
-  const sky = createSky({ top: '#46628a', horizon: '#f0c79a', bottom: '#5a6470', sunDir, sunColor: '#ffd9a8' });
+  const sky = createSky({ top: '#46628a', horizon: '#f0c79a', bottom: '#5a6470', sunDir, sunColor: '#ffd9a8', clouds: 0.36, cloudColor: '#fff3e2', cloudShade: '#9a8c8e' });
   group.add(sky);
   const hemi = new THREE.HemisphereLight(0xc6d4e6, 0x4a4434, 0.95);
   group.add(hemi);
@@ -71,20 +76,19 @@ function buildForest(ctx) {
     return c;
   };
   const M = {
-    grass: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#4a5a3c', 81)), roughness: 1 }),
-    forest: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#3d4a33', 82)), roughness: 1 }),
-    rock: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#6b6862', 83)), roughness: 1, flatShading: true }),
-    rockDark: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#4e4b47', 84)), roughness: 1, flatShading: true }),
-    snow: new THREE.MeshStandardMaterial({ color: 0xe9eef3, roughness: 0.9, flatShading: true }),
+    grass: new THREE.MeshStandardMaterial({ map: tex(grassTexture('#4f6040', 81)), roughness: 1 }),
+    forest: new THREE.MeshStandardMaterial({ map: tex(grassTexture('#3e4b33', 82)), roughness: 1 }),
+    rock: new THREE.MeshStandardMaterial({ map: tex(rockTexture('#716d66', 83)), roughness: 1, flatShading: true }),
+    rockDark: new THREE.MeshStandardMaterial({ map: tex(rockTexture('#4f4c48', 84)), roughness: 1, flatShading: true }),
     concrete: new THREE.MeshStandardMaterial({ map: tex(concreteTexture('#8a8a86', 85)), roughness: 0.9 }),
     road: new THREE.MeshStandardMaterial({ map: tex(asphaltTexture()), roughness: 0.95 }),
-    steel: new THREE.MeshStandardMaterial({ color: 0x4b5560, metalness: 0.75, roughness: 0.45 }),
+    steel: new THREE.MeshStandardMaterial({ map: tex(metalPlateTexture('#56606b', 91)), metalness: 0.7, roughness: 0.42 }),
     steelDark: new THREE.MeshStandardMaterial({ color: 0x2c333b, metalness: 0.7, roughness: 0.5 }),
     yellow: new THREE.MeshStandardMaterial({ color: 0xe0b021, metalness: 0.3, roughness: 0.55 }),
     mesh: new THREE.MeshStandardMaterial({ color: 0x59636e, metalness: 0.6, roughness: 0.5, transparent: true, opacity: 0.85 }),
     water: new THREE.MeshStandardMaterial({ color: 0x3a5a6a, metalness: 0.3, roughness: 0.2, emissive: 0x0a1418 }),
     van: new THREE.MeshStandardMaterial({ color: 0x2b323b, metalness: 0.4, roughness: 0.5 }),
-    wood: new THREE.MeshStandardMaterial({ color: 0x5a3f2a, roughness: 0.9 }),
+    wood: new THREE.MeshStandardMaterial({ map: tex(woodTexture('#5a3f2a', 73)), roughness: 0.9 }),
   };
 
   // --- Valle (despertar) y terraza del bosque ---
@@ -140,8 +144,26 @@ function buildForest(ctx) {
     const d = 190 + r() * 120;
     far.push({ x: 60 + Math.cos(a) * d * 1.6, y: -4 + r() * 18, z: Math.sin(a) * d, s: 1.6 + r() * 1.4 });
   }
-  pineForest(ctx, far);
-  mountains(group, M);
+  pineForest(ctx, far, { snow: true });
+  mountains(group);
+  // Matorrales y rocas sueltas (fuera de la senda)
+  const bushes = [];
+  const rocks = [];
+  for (let i = 0; i < 120; i++) {
+    const x = -160 + r() * 152;
+    const z = -64 + r() * 100;
+    if (Math.abs(z - 10) < 3 && x > -60) continue;
+    if (Math.abs(z + 60) < 5) continue;
+    (r() < 0.7 ? bushes : rocks).push({ x, y: 0, z, s: 0.4 + r() * 0.7 });
+  }
+  for (let i = 0; i < 40; i++) {
+    const x = -3 + r() * 96;
+    if (x > 13 && x < 34) continue;
+    const s = r() < 0.5 ? -1 : 1;
+    (r() < 0.6 ? bushes : rocks).push({ x, y: DECK_Y, z: s * (9.5 + r() * 6.5), s: 0.4 + r() * 0.6 });
+  }
+  scatterBushes(ctx, bushes);
+  scatterRocks(ctx, rocks, 0x77736c);
 
   // --- Viaducto del convoy (el autobús vuelca en el hueco) ---
   const viaduct = buildViaduct(ctx, B, M);
@@ -216,33 +238,21 @@ function buildForest(ctx) {
   };
 }
 
-/** Cordilleras nevadas al norte y montes oscuros al sur (decorado). */
-function mountains(group, M) {
+/** Cordilleras nevadas al norte y montes oscuros al sur (decorado, una malla cada uno). */
+function mountains(group) {
   const r = mulberry(9);
+  const north = [];
   for (let i = 0; i < 18; i++) {
-    const x = -300 + i * 70 + r() * 30;
-    const z = -320 - r() * 120;
-    const h = 120 + r() * 140;
-    const rad = 90 + r() * 60;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 7), M.rockDark);
-    m.position.set(x, h / 2 - 20, z);
-    m.userData.levelStatic = true;
-    group.add(m);
-    // Casquete de nieve
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.42, h * 0.42, 7), M.snow);
-    cap.position.set(x, h - 20 - h * 0.21 + 0.5, z);
-    cap.userData.levelStatic = true;
-    group.add(cap);
+    north.push({ x: -300 + i * 70 + r() * 30, z: -320 - r() * 120, h: 120 + r() * 140, rad: 90 + r() * 60, y0: -20 });
   }
+  const south = [];
   for (let i = 0; i < 10; i++) {
-    const x = -260 + i * 70 + r() * 40;
-    const z = 240 + r() * 80;
-    const h = 60 + r() * 60;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(80 + r() * 40, h, 6), M.rockDark);
-    m.position.set(x, h / 2 - 15, z);
-    m.userData.levelStatic = true;
-    group.add(m);
+    south.push({ x: -260 + i * 70 + r() * 40, z: 240 + r() * 80, h: 60 + r() * 60, rad: 80 + r() * 40, y0: -15 });
   }
+  group.add(
+    createMountains(north, { rock: '#56534e', low: '#34402e', snow: '#eef2f6', snowLine: 0.55, seed: 91 }),
+    createMountains(south, { rock: '#46443f', low: '#2f3a2a', snowLine: 2, seed: 92 }),
+  );
 }
 
 /**
@@ -367,12 +377,14 @@ function buildBridge(ctx, B, M) {
   // Cañón: paredes y río al fondo
   B.block({ x: 172.5, z: 0, w: 155, d: 180, y: -42, h: 2, mat: M.rockDark, cast: false }); // fondo x 95…250
   for (const [x, w] of [[92, 6], [253, 6]]) B.block({ x, z: 0, w, d: 120, y: -40, h: 40 + Y - 0.01, mat: M.rock, climbable: false });
-  const river = new THREE.Mesh(new THREE.PlaneGeometry(160, 180).rotateX(-Math.PI / 2), M.water);
+  const river = createWater({ width: 160, depth: 180, color: 0x2f4f5c, speed: 2.2, repeat: 26 });
   river.position.set(172.5, -36, 0);
   group.add(river);
   for (const s of [-1, 1]) {
     // Laderas del cañón (decorado lejano)
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(170, 60, 20), M.rockDark);
+    const wallGeo = new THREE.BoxGeometry(170, 60, 20);
+    scaleBoxUVs(wallGeo, 170, 60, 20, M.rockDark);
+    const wall = new THREE.Mesh(wallGeo, M.rockDark);
     wall.position.set(172.5, -15, s * 75);
     wall.userData.levelStatic = true;
     group.add(wall);
@@ -450,32 +462,12 @@ function buildBridge(ctx, B, M) {
 }
 
 /**
- * Ciudad lejana: torres con ventanas encendidas al atardecer. Una sola malla
- * instanciada por material; sin niebla para que se distinga desde la colina.
+ * Ciudad lejana: torres con ventanas encendidas al atardecer (una malla
+ * instanciada, sin niebla para que se distinga desde la colina), bruma
+ * luminosa y la antena roja de la torre más alta.
  */
 function buildCity(group) {
-  const r = mulberry(33);
-  const n = 180;
-  const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-  const winTex = cityTexture();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x3a4250, emissive: 0xffc98a, emissiveMap: winTex, emissiveIntensity: 1.1, roughness: 0.6, fog: false });
-  const towers = new THREE.InstancedMesh(geo, mat, n);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const s = new THREE.Vector3();
-  const p = new THREE.Vector3();
-  for (let i = 0; i < n; i++) {
-    const a = (r() - 0.5) * 1.2;
-    const d = 640 + r() * 260;
-    const h = 30 + Math.pow(r(), 2) * 190 + (Math.abs(a) < 0.18 ? 80 : 0);
-    const w = 14 + r() * 22;
-    p.set(300 + Math.cos(a) * d, -20, Math.sin(a) * d);
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * 0.5);
-    s.set(w, h, w * (0.7 + r() * 0.6));
-    m.compose(p, q, s);
-    towers.setMatrixAt(i, m);
-  }
-  towers.userData.city = true;
+  const towers = createCity({ origin: { x: 300, y: -20, z: 0 }, seed: 33 });
   group.add(towers);
   // Bruma luminosa sobre la ciudad
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(1400, 260), new THREE.MeshBasicMaterial({ color: 0xffb27a, transparent: true, opacity: 0.12, depthWrite: false, fog: false }));
@@ -487,30 +479,6 @@ function buildCity(group) {
   spire.position.set(960, 260, -10);
   group.add(spire);
   return { towers, center: { x: 960, y: 120, z: 0 } };
-}
-
-function cityTexture() {
-  const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#000';
-  g.fillRect(0, 0, 64, 128);
-  const r = mulberry(5);
-  for (let y = 2; y < 128; y += 6) {
-    for (let x = 2; x < 64; x += 6) {
-      if (r() < 0.45) {
-        const v = 120 + Math.floor(r() * 135);
-        g.fillStyle = `rgb(${v},${Math.floor(v * 0.8)},${Math.floor(v * 0.55)})`;
-        g.fillRect(x, y, 3, 3);
-      }
-    }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(2, 3);
-  return t;
 }
 
 export default Forest;

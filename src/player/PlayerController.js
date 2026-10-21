@@ -68,6 +68,14 @@ export class PlayerController {
     return this.motor.position;
   }
 
+  /** Dirección de la mirada respecto al cuerpo, para que la cabeza siga a la cámara. */
+  _look(cam) {
+    let yaw = cam.yaw + Math.PI - this.facing;
+    yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+    const w = 1 - Math.min(1, Math.max(0, (Math.abs(yaw) - 1.6) / 0.8));
+    return { lookYaw: yaw * w, lookPitch: cam.pitch * w };
+  }
+
   spawn(spawn) {
     this.motor.setSpawn(spawn);
     this.motor.teleport(spawn);
@@ -294,6 +302,8 @@ export class PlayerController {
       swinging: this.motor.isSwinging,
       climbDistance: this.motor.climbDistance,
       mantleProgress: this.motor.mantleProgress,
+      // La cabeza mira hacia donde mira la cámara (salvo si la cámara está delante)
+      ...this._look(cam),
     });
     this._syncModel();
 

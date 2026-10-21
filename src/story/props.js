@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { markSymbolTexture } from '../player/markTextures.js';
 import { DroneModel } from '../ai/DroneModel.js';
 
@@ -444,35 +445,144 @@ export function mulberry(seed) {
 }
 
 /**
- * Bosque de pinos con InstancedMesh (tres llamadas de dibujo para cientos de
- * árboles). `positions`: [{x, y, z, s}]. Sin colisión salvo que se pida (`colliders`).
+ * Copa de abeto: conos con el borde dentado (ramas), con color por vértice
+ * (más oscuro abajo y por dentro, puntas más claras). Se genera una vez.
  */
-export function pineForest(ctx, positions, { colliders = false } = {}) {
+let _pineFoliage = null;
+function pineFoliageGeometry() {
+  if (_pineFoliage) return _pineFoliage;
+  const layers = [[2.35, 3.0, 3.1], [1.95, 2.7, 4.6], [1.5, 2.4, 6.0], [1.0, 2.0, 7.3], [0.55, 1.4, 8.4]];
+  const parts = [];
+  const dark = new THREE.Color(0x203826);
+  const light = new THREE.Color(0x4f7a52);
+  layers.forEach(([r, h, y], li) => {
+    const g = new THREE.ConeGeometry(r, h, 14, 2).toNonIndexed();
+    const pos = g.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const vx = pos.getX(i);
+      const vy = pos.getY(i);
+      const vz = pos.getZ(i);
+      const a = Math.atan2(vz, vx);
+      const rad = Math.hypot(vx, vz);
+      // Borde dentado: ramas alternas que caen un poco
+      const tooth = 0.78 + 0.22 * Math.abs(Math.cos(a * 7 + li));
+      if (rad > 1e-3) {
+        pos.setX(i, vx * tooth);
+        pos.setZ(i, vz * tooth);
+        if (vy < -h * 0.3) pos.setY(i, vy - (1 - tooth) * 0.6);
+      }
+      const t = (vy + h / 2) / h; // 0 abajo, 1 arriba
+      c.copy(dark).lerp(light, Math.min(1, 0.25 + t * 0.55 + (tooth - 0.78) * 1.4 + li * 0.05));
+      col[i * 3] = c.r;
+      col[i * 3 + 1] = c.g;
+      col[i * 3 + 2] = c.b;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.deleteAttribute('uv');
+    g.translate(0, y, 0);
+    g.computeVertexNormals();
+    parts.push(g);
+  });
+  _pineFoliage = mergeGeometries(parts, false);
+  return _pineFoliage;
+}
+
+/**
+ * Bosque de pinos con InstancedMesh: tronco y copa (dos llamadas de dibujo
+ * para cientos de árboles). Cada árbol tiene un verde algo distinto.
+ * `positions`: [{x, y, z, s}]. Sin colisión salvo que se pida (`colliders`).
+ */
+export function pineForest(ctx, positions, { colliders = false, snow = false } = {}) {
   const n = positions.length;
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1f, roughness: 0.95 });
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x2c4a32, roughness: 0.95, flatShading: true });
-  const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x34573a, roughness: 0.95, flatShading: true });
-  const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.18, 0.28, 3, 6).translate(0, 1.5, 0), trunkMat, n);
-  const low = new THREE.InstancedMesh(new THREE.ConeGeometry(2.2, 4.5, 7).translate(0, 4.2, 0), leafMat, n);
-  const high = new THREE.InstancedMesh(new THREE.ConeGeometry(1.5, 3.6, 7).translate(0, 6.8, 0), leafMat2, n);
+  const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true });
+  const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.3, 3.4, 7).translate(0, 1.7, 0), trunkMat, n);
+  const crown = new THREE.InstancedMesh(pineFoliageGeometry(), leafMat, n);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const s = new THREE.Vector3();
   const p = new THREE.Vector3();
+  const tint = new THREE.Color();
+  const r = mulberry(n * 7 + 3);
   positions.forEach((t, i) => {
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2));
-    s.setScalar(t.s ?? 1);
+    const sc = t.s ?? 1;
+    s.set(sc * (0.9 + r() * 0.2), sc * (0.9 + r() * 0.25), sc * (0.9 + r() * 0.2));
     p.set(t.x, t.y ?? 0, t.z);
     m.compose(p, q, s);
     trunk.setMatrixAt(i, m);
-    low.setMatrixAt(i, m);
-    high.setMatrixAt(i, m);
+    crown.setMatrixAt(i, m);
+    // Variación de color por árbol (más amarillo, más azulado o con nieve)
+    const k = r();
+    tint.setRGB(0.85 + k * 0.3, 0.9 + r() * 0.2, 0.85 + (1 - k) * 0.25);
+    if (snow && r() < 0.5) tint.lerp(new THREE.Color(1.4, 1.45, 1.5), 0.35);
+    crown.setColorAt(i, tint);
     if (colliders) ctx.world.addBox({ x: t.x - 0.3, y: t.y ?? 0, z: t.z - 0.3 }, { x: t.x + 0.3, y: (t.y ?? 0) + 3, z: t.z + 0.3 }, { climbable: false, cameraBlocking: false });
   });
-  for (const im of [trunk, low, high]) {
+  for (const im of [trunk, crown]) {
     im.castShadow = true;
     im.receiveShadow = true;
     ctx.group.add(im);
   }
-  return [trunk, low, high];
+  return [trunk, crown];
+}
+
+/** Rocas sueltas (instanciadas, con forma irregular). `positions`: [{x, y, z, s}]. */
+export function scatterRocks(ctx, positions, color = 0x6b6862) {
+  const geo = new THREE.DodecahedronGeometry(1, 1);
+  const pos = geo.attributes.position;
+  const r = mulberry(17);
+  for (let i = 0; i < pos.count; i++) {
+    const k = 0.78 + r() * 0.35;
+    pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.7, pos.getZ(i) * k);
+  }
+  geo.computeVertexNormals();
+  const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true }), positions.length);
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const sc = new THREE.Vector3();
+  const tint = new THREE.Color();
+  positions.forEach((t, i) => {
+    q.setFromEuler(e.set(r() * 0.4, r() * Math.PI * 2, r() * 0.4));
+    sc.set(t.s * (0.8 + r() * 0.5), t.s * (0.6 + r() * 0.5), t.s * (0.8 + r() * 0.5));
+    m.compose(new THREE.Vector3(t.x, (t.y ?? 0) + t.s * 0.15, t.z), q, sc);
+    im.setMatrixAt(i, m);
+    const k = 0.8 + r() * 0.35;
+    im.setColorAt(i, tint.setRGB(k, k, k * (0.95 + r() * 0.1)));
+  });
+  im.castShadow = true;
+  im.receiveShadow = true;
+  ctx.group.add(im);
+  return im;
+}
+
+/** Matorrales y helechos (bolas de hojas aplastadas, instanciadas). */
+export function scatterBushes(ctx, positions, color = 0x34502f) {
+  const geo = new THREE.IcosahedronGeometry(1, 1);
+  const pos = geo.attributes.position;
+  const r = mulberry(29);
+  for (let i = 0; i < pos.count; i++) {
+    const k = 0.75 + r() * 0.45;
+    pos.setXYZ(i, pos.getX(i) * k, Math.max(-0.2, pos.getY(i)) * k * 0.75, pos.getZ(i) * k);
+  }
+  geo.computeVertexNormals();
+  const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true }), positions.length);
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const sc = new THREE.Vector3();
+  const tint = new THREE.Color();
+  positions.forEach((t, i) => {
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * Math.PI * 2);
+    sc.setScalar(t.s ?? 1);
+    m.compose(new THREE.Vector3(t.x, t.y ?? 0, t.z), q, sc);
+    im.setMatrixAt(i, m);
+    im.setColorAt(i, tint.setRGB(0.8 + r() * 0.4, 0.85 + r() * 0.3, 0.75 + r() * 0.3));
+  });
+  im.castShadow = true;
+  im.receiveShadow = true;
+  ctx.group.add(im);
+  return im;
 }

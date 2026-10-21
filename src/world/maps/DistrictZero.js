@@ -40,6 +40,9 @@ export default {
   /** Reputación: la PDC empieza tranquila y reacciona a lo que haga el jugador. */
   factions: { pdc: 0 },
   reputation: true,
+  /** Aspecto: atardecer cálido en la ciudad. */
+  envIntensity: 0.45,
+  grade: { contrast: 1.08, saturation: 1.1, shadows: '#2a2440', highlights: '#ffc89a', split: 0.08, vignette: 0.34 },
   /** Zona jugable (aviso al acercarse al límite). */
   bounds: { minX: -HALF, maxX: HALF, minZ: -HALF, maxZ: HALF },
 
@@ -58,7 +61,7 @@ export default {
     // --- Ambiente de atardecer ---
     scene.fog = new THREE.FogExp2(0x3a2f3a, 0.0085);
     const sunDir = new THREE.Vector3(0.75, 0.12, -0.65);
-    group.add(createSky({ top: '#0d1a33', horizon: '#e0824e', bottom: '#1b1a20', sunDir, sunColor: '#ffb067' }));
+    group.add(createSky({ top: '#0d1a33', horizon: '#e0824e', bottom: '#1b1a20', sunDir, sunColor: '#ffb067', clouds: 0.45, cloudColor: '#f2a87e', cloudShade: '#3e3046', stars: 0.35 }));
     group.add(new THREE.HemisphereLight(0x6d83b5, 0x3a2a24, 0.9));
     const sun = createSun({ color: '#ffb27a', intensity: 2.4, direction: sunDir.clone().negate().setY(-0.45), shadowSize: 50 });
     group.add(sun, sun.target);
@@ -269,11 +272,22 @@ function plaza(B, M, group, ctx) {
     trunk.castShadow = true;
     trunk.userData.levelStatic = true;
     group.add(trunk);
-    const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.7 + r() * 0.4, 1), M.leaves);
-    crown.position.set(x, 4.2, z);
-    crown.castShadow = true;
-    crown.userData.levelStatic = true;
-    group.add(crown);
+    // Copa frondosa: varias masas de hojas irregulares
+    const size = 1.5 + r() * 0.3;
+    for (const [ox, oy, oz, k] of [[0, 4.4, 0, 1], [0.8, 4.0, 0.3, 0.7], [-0.7, 4.1, -0.4, 0.72], [0.2, 3.9, -0.8, 0.65], [-0.3, 5.1, 0.4, 0.6]]) {
+      const geo = new THREE.IcosahedronGeometry(size * k, 1);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const j = 0.82 + r() * 0.3;
+        pos.setXYZ(i, pos.getX(i) * j, pos.getY(i) * j * 0.85, pos.getZ(i) * j);
+      }
+      geo.computeVertexNormals();
+      const crown = new THREE.Mesh(geo, M.leaves);
+      crown.position.set(x + ox, oy, z + oz);
+      crown.castShadow = true;
+      crown.userData.levelStatic = true;
+      group.add(crown);
+    }
     B.world.addBox({ x: x - 0.25, y: 0.7, z: z - 0.25 }, { x: x + 0.25, y: 3.7, z: z + 0.25 });
   }
 

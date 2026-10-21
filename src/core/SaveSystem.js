@@ -27,6 +27,9 @@ export function createDefaultSave() {
       volumeSfx: 1,
       volumeAmbience: 0.5,
       renderScale: 1,
+      // Mejora gráfica: suavizado de bordes (MSAA) y oclusión ambiental (GTAO, costosa)
+      antialias: true,
+      ao: false,
     },
     bindings: null, // null = controles por defecto (ver core/Input.js)
     // Etapa del prototipo que escribió el guardado (para migraciones).

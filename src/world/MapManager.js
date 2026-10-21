@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LevelBuilder } from './LevelBuilder.js';
 import { mergeStatic } from './mergeStatic.js';
+import { normalMapFor } from './textures.js';
 
 /**
  * MapManager — registro, carga y descarga de mapas.
@@ -51,6 +52,7 @@ export class MapManager {
       },
     };
     const result = def.build(ctx);
+    applyNormalMaps(group);
     // Rendimiento: la geometría estática se fusiona por material
     this.lastMerge = mergeStatic(group);
     this.current = { def, group, entities, spawn: result.spawn, sun: result.sun ?? null, story: result.story ?? null };
@@ -99,6 +101,30 @@ export class MapManager {
     this.current = null;
     this.events.emit('map:unloaded', { id: def.id });
   }
+}
+
+/**
+ * Las texturas procedurales traen su mapa normal (relieve de juntas, piedras,
+ * tejas, grietas…); se asigna a cada material que use esa textura.
+ */
+function applyNormalMaps(root) {
+  const done = new Set();
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      if (!m || done.has(m) || !m.isMeshStandardMaterial) continue;
+      done.add(m);
+      const nm = normalMapFor(m.map);
+      if (!nm || m.normalMap) continue;
+      // Misma repetición que el color (algunas texturas usan repeat en vez de UV escaladas)
+      const n = nm.clone();
+      n.repeat.copy(m.map.repeat);
+      n.offset.copy(m.map.offset);
+      n.rotation = m.map.rotation;
+      m.normalMap = n;
+      m.needsUpdate = true;
+    }
+  });
 }
 
 function disposeTree(root) {

@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 
 /**
- * ParticleSystem — partículas aditivas en un único THREE.Points (una sola
- * llamada de dibujo). Pool de tamaño fijo; las partículas más antiguas se
- * reutilizan si se agota.
+ * ParticleSystem — partículas en un único THREE.Points (una sola llamada de
+ * dibujo). Pool de tamaño fijo; las partículas más antiguas se reutilizan si
+ * se agota.
+ *
+ * Dos modos: aditivo (energía, chispas de luz: brillan y encogen al morir) y
+ * `smoke` (polvo y humo con mezcla normal: bordes irregulares, crecen y se
+ * desvanecen con suavidad).
  */
 export class ParticleSystem {
-  constructor(capacity = 4000) {
+  constructor(capacity = 4000, { smoke = false } = {}) {
+    this.smoke = smoke;
     this.capacity = capacity;
     this.count = 0;
     this._next = 0;
@@ -19,35 +24,52 @@ export class ParticleSystem {
     this.size = new Float32Array(capacity);
     this.drag = new Float32Array(capacity);
     this.gravity = new Float32Array(capacity);
+    this.seed = new Float32Array(capacity);
 
     const geo = new THREE.BufferGeometry();
     this.aPos = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage);
     this.aCol = new THREE.BufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage);
     this.aSize = new THREE.BufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
     this.aAlpha = new THREE.BufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
+    this.aSeed = new THREE.BufferAttribute(new Float32Array(capacity), 1).setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('position', this.aPos);
     geo.setAttribute('color', this.aCol);
     geo.setAttribute('size', this.aSize);
     geo.setAttribute('alpha', this.aAlpha);
+    geo.setAttribute('seed', this.aSeed);
     geo.setDrawRange(0, 0);
 
     const mat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: smoke ? THREE.NormalBlending : THREE.AdditiveBlending,
       uniforms: { scale: { value: 600 } },
       vertexShader: /* glsl */ `
-        attribute float size; attribute float alpha; attribute vec3 color;
+        attribute float size; attribute float alpha; attribute float seed; attribute vec3 color;
         uniform float scale;
-        varying vec3 vColor; varying float vAlpha;
+        varying vec3 vColor; varying float vAlpha; varying float vSeed;
         void main() {
-          vColor = color; vAlpha = alpha;
+          vColor = color; vAlpha = alpha; vSeed = seed;
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * scale / max(-mv.z, 0.1);
           gl_Position = projectionMatrix * mv;
         }`,
-      fragmentShader: /* glsl */ `
-        varying vec3 vColor; varying float vAlpha;
+      fragmentShader: smoke
+        ? /* glsl */ `
+        varying vec3 vColor; varying float vAlpha; varying float vSeed;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float ang = atan(c.y, c.x);
+          // Borde irregular distinto en cada bocanada
+          float wob = 0.13 * sin(ang * 3.0 + vSeed * 6.283) + 0.07 * sin(ang * 5.0 - vSeed * 17.0);
+          float d = length(c) * 2.0 + wob;
+          float a = smoothstep(1.0, 0.2, d);
+          // Algo más claro arriba (luz del cielo) y oscuro abajo
+          float shade = 0.82 + 0.36 * (0.5 - gl_PointCoord.y);
+          gl_FragColor = vec4(vColor * shade, a * vAlpha);
+        }`
+        : /* glsl */ `
+        varying vec3 vColor; varying float vAlpha; varying float vSeed;
         void main() {
           vec2 c = gl_PointCoord - 0.5;
           float d = length(c) * 2.0;
@@ -89,6 +111,7 @@ export class ParticleSystem {
     this.size[i] = p.size;
     this.drag[i] = p.drag ?? 1;
     this.gravity[i] = p.gravity ?? 0;
+    this.seed[i] = Math.random();
   }
 
   /** Ráfaga esférica (o semiesférica alrededor de `normal`). */
@@ -124,6 +147,7 @@ export class ParticleSystem {
     this.count = 0;
     this._next = 0;
     this.points.geometry.setDrawRange(0, 0);
+    this.points.visible = false;
   }
 
   update(dt) {
@@ -132,6 +156,7 @@ export class ParticleSystem {
     const C = this.aCol.array;
     const S = this.aSize.array;
     const A = this.aAlpha.array;
+    const R = this.aSeed.array;
     for (let i = 0; i < this.count; i++) {
       const life = this.life[i] - dt;
       if (life <= 0) continue;
@@ -156,6 +181,7 @@ export class ParticleSystem {
         this.size[j] = this.size[i];
         this.drag[j] = this.drag[i];
         this.gravity[j] = this.gravity[i];
+        this.seed[j] = this.seed[i];
       }
       this.life[j] = life;
       const j3 = j * 3;
@@ -166,13 +192,21 @@ export class ParticleSystem {
       C[j3 + 1] = this.col[j3 + 1];
       C[j3 + 2] = this.col[j3 + 2];
       const t = life / this.maxLife[j];
-      S[j] = this.size[j] * (0.4 + 0.6 * t);
-      A[j] = Math.min(1, t * 1.6);
+      R[j] = this.seed[j];
+      if (this.smoke) {
+        // El humo crece y aparece rápido; luego se disipa poco a poco
+        S[j] = this.size[j] * (0.55 + 0.95 * (1 - t));
+        A[j] = Math.min(1, (1 - t) * 6) * t;
+      } else {
+        S[j] = this.size[j] * (0.4 + 0.6 * t);
+        A[j] = Math.min(1, t * 1.6);
+      }
     }
     this.count = alive;
     if (this._next >= alive) this._next = 0;
     const g = this.points.geometry;
     g.setDrawRange(0, alive);
-    this.aPos.needsUpdate = this.aCol.needsUpdate = this.aSize.needsUpdate = this.aAlpha.needsUpdate = true;
+    this.points.visible = alive > 0; // vacío: ni siquiera una llamada de dibujo
+    this.aPos.needsUpdate = this.aCol.needsUpdate = this.aSize.needsUpdate = this.aAlpha.needsUpdate = this.aSeed.needsUpdate = true;
   }
 }

@@ -14,7 +14,8 @@ src/
 │   └── Parkour.js              Consultas de escalada, cornisas y obstáculos (sin Three.js)
 ├── player/
 │   ├── PlayerController.js     Input → motor, orientación, animación, cámara
-│   ├── CharacterModel.js       Modelo provisional + anclajes para marcas
+│   ├── CharacterModel.js       Personaje procedural detallado, animación y anclajes para marcas
+│   ├── bodyParts.js            Piezas del cuerpo fusionadas por material (colores por vértice)
 │   ├── MarkVisual.js           Patrones luminosos de una marca sobre el modelo
 │   ├── Cover.js                Detección de coberturas, bordes y punto para asomarse
 │   └── markTextures.js         Símbolos de marcas generados por canvas
@@ -22,8 +23,10 @@ src/
 ├── world/
 │   ├── MapManager.js           Registro, carga y descarga de mapas
 │   ├── LevelBuilder.js         Malla + colisionador a la vez (bloques, rampas, escaleras…)
-│   ├── environment.js          Cielo y sol con sombras
-│   ├── textures.js             Texturas procedurales
+│   ├── environment.js          Cielo (nubes, estrellas, luna), mapa de entorno, sol, montañas y ciudad lejana
+│   ├── textures.js             Texturas procedurales con mapa normal (relieve)
+│   ├── water.js                Agua animada (dos capas de olas, reflejo del cielo)
+│   ├── mergeStatic.js          Fusión de la geometría estática por material
 │   └── maps/
 │       ├── TrainingGround.js   Mapa 1 — Campo de Pruebas
 │       ├── DistrictZero.js     Mapa 2 — Distrito Cero
@@ -65,10 +68,12 @@ src/
 │   └── PowerAcquisitionSystem.js  Contacto → voluntad → copia de marcas
 │   ├── MarkSystem.js           Marcas poseídas e intensidad de sus patrones
 ├── vfx/
-│   ├── VfxSystem.js            Impactos, anillos, estelas, destellos
-│   ├── ParticleSystem.js       Partículas aditivas (una sola llamada de dibujo)
+│   ├── VfxSystem.js            Impactos, chispas, humo, polvo, anillos, rayos, estelas, destellos
+│   ├── ParticleSystem.js       Partículas aditivas o de humo (una sola llamada de dibujo)
+│   ├── SparkSystem.js          Chispas estiradas según su velocidad (una llamada de dibujo)
 │   ├── LightPool.js            Luces puntuales reutilizables (sin recompilar shaders)
-│   └── glowTexture.js          Halos
+│   ├── gradePass.js            Gradación de color final (contraste, tonos, viñeta, grano)
+│   └── glowTexture.js          Halos y aro de onda de choque
 ├── world/entities/             Dianas, maniquíes, objetos físicos, fuentes de energía y Encarnación de prueba
 ├── factions/Reputation.js      Hostilidad por facción y reglas (sin Three.js)
 ├── missions/Mission.js         Estado de una misión y sus objetivos (sin Three.js)
@@ -77,6 +82,7 @@ src/
 ├── data/progression.js         Árboles de habilidades por marca
 └── ui/
     ├── UIManager.js            Menús, HUD, ajustes y transiciones
+    ├── MenuScene.js            Fondo 3D animado del menú principal
     └── styles.css
 ```
 
@@ -426,3 +432,65 @@ mapa y se liberan con él. La Encarnación de la Energía es la `Incarnation` de
 Campo con otra ropa, registrada en `PowerAcquisitionSystem`, así que la copia
 sigue exactamente las reglas canónicas (contacto + voluntad; la fuente
 conserva su marca).
+
+## Gráficos y animación
+
+**Cadena de render** (`GameManager`): `RenderPass` sobre un destino HalfFloat
+con MSAA ×4 (Ajustes → *Suavizado de bordes*) → `GTAOPass` opcional
+(*Oclusión ambiental*, apagada por defecto: es cara) → `UnrealBloomPass` →
+`OutputPass` (ACES) → `ShaderPass(GradeShader)`. La gradación (`vfx/gradePass.js`)
+se aplica tras el mapeo de tonos: contraste, saturación, tono de sombras y de
+luces, viñeta y grano; cada mapa la ajusta con `def.grade` y su intensidad de
+reflejos con `def.envIntensity`. Al cargar un mapa, `_applyMapLook` genera un
+**mapa de entorno** PMREM a partir de su cielo (`skyEnvironment`) para que los
+materiales reflejen el cielo del mapa. Sombras PCF con `shadow.radius`.
+
+**Cielo** (`createSky`): degradado, sol con halo, nubes de ruido fractal
+proyectadas sobre un plano alto que se desplazan con el viento, estrellas que
+titilan y luna. **Montañas** (`createMountains`): conos con crestas
+desplazadas, sombreado plano y color por cara (falda, roca, nieve en las caras
+altas poco inclinadas), todas fusionadas en una malla. **Ciudad lejana**
+(`createCity`): torres instanciadas cuyas ventanas se proyectan en metros en
+el shader (plantas del mismo tamaño en todas las torres).
+
+**Materiales** (`world/textures.js`): cada textura procedural (hormigón,
+mampostería, tejas, adoquín, roca fracturada, hierba, madera, chapa, arena,
+asfalto, acera) registra un mapa normal calculado de su luminancia (Sobel) en
+un `WeakMap` por `texture.source` (las copias con `clone()` lo comparten).
+`applyNormalMaps` (en `MapManager.js`) se lo pone a cada material estándar con la misma
+repetición que su `map`. Agua (`water.js`): `MeshPhysicalMaterial` con dos
+mapas normales de olas desplazándose en direcciones distintas (normal y capa
+transparente). Vegetación: pinos de cinco capas dentadas, arbustos y rocas
+instanciados con color por instancia.
+
+**Personajes** (`CharacterModel` + `bodyParts.js`): el cuerpo se construye con
+primitivas (cajas redondeadas, esferas, cilindros, toros) en `PartSet`, que las
+fusiona por tipo de material (mate, satinado, metálico) con el color por
+vértice: pocas mallas por hueso. Los materiales son propios de cada modelo
+(el destello de daño tiñe su emisivo). Peinados (`hairStyle`), barba, caras
+con ojos que parpadean, ropa por variante (protagonista, PDC con casco y
+visor, Acólito con capucha, Encarnación).
+
+**Animación procedural** (`CharacterModel.animate`): fase de la zancada (un
+paso cada π, que también dispara los pasos del sonido), pies que se apoyan con
+el tobillo, contrarrotación de pelvis y pecho, inclinación en las curvas y con
+la aceleración, cabeza que mira hacia donde apunta la cámara (`lookYaw`,
+`lookPitch`), aterrizaje con muelle, respiración, parpadeo y un suavizado
+final de todas las articulaciones para evitar saltos entre poses.
+
+**Efectos** (`vfx/`): tres sistemas de una llamada de dibujo cada uno —
+partículas aditivas (energía), partículas de humo con mezcla normal y bordes
+irregulares (`ParticleSystem({ smoke: true })`: crecen y se desvanecen) y
+chispas (`SparkSystem`: segmentos estirados según su velocidad, cabeza en
+HDR para el bloom). `impact` combina destello, chispas, motas, onda de choque
+de frente a la cámara y una bocanada de humo; `dust` abre polvo a ras de suelo
+(aterrizajes, ondas expansivas); los rayos tienen resplandor en sus extremos;
+la estela del dash es una silueta con borde luminoso (fresnel).
+
+**Menú** (`ui/MenuScene.js`): escena propia (≈ 34 llamadas de dibujo, sin
+sombras) que `GameManager._renderMenu` dibuja con el mismo compositor
+cambiando la escena y la cámara del `RenderPass` (y apagando el GTAO, ligado a
+la escena del juego) mientras el estado es `menu`: Jon en una azotea al
+anochecer frente a la ciudad, motas de energía, baliza intermitente y cámara
+que se mece. El HTML del menú entra con una animación escalonada (se omite con
+`prefers-reduced-motion`).

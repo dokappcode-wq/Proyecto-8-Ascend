@@ -48,6 +48,12 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   puente destruido), 29 puntos de control, sigilo, cinemáticas con
   subtítulos, elección moral y menú final. La marca de la Energía se consigue
   ahora en la historia (sustituye a la estación de la Zona E).
+- **Gráficos y animación** ✅: personajes detallados (ropa, peinados, caras
+  que parpadean) con animación procedural nueva (pies que se apoyan, cabeza
+  que sigue la cámara, inclinación y aterrizaje con muelle), suavizado de
+  bordes, gradación de color, cielo con nubes, estrellas y luna que se refleja
+  en los materiales, texturas con relieve, agua animada, montañas nevadas,
+  vegetación, chispas, humo y ondas de choque, y menú con fondo 3D animado.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -348,6 +354,51 @@ la calle oeste y un francotirador en la azotea de B5.
 
 Código: datos y regla de daño (`enemyDamage`) en `src/ai/enemyTypes.js`,
 comportamiento en `src/ai/Enemy.js` y el dron en `src/ai/DroneModel.js`.
+
+## Gráficos y animación
+
+**Personajes**: todos (Jon, la PDC, los Acólitos, las Encarnaciones y los
+personajes de la historia) se construyen con piezas redondeadas fusionadas
+por material: chaqueta con cuello y capucha, mochila con luz, botas con suela,
+manos con dedos, cara con cejas, nariz y ojos que parpadean, y peinados y
+barbas distintos por personaje (Iker, la abuela, Martín, Narbaiza…). La PDC
+lleva casco abierto con visor (rojo el reforzado); el Acólito, capucha.
+
+**Animación procedural**: zancada con los pies que se apoyan en el suelo (el
+tobillo compensa), pelvis y pecho que contrarrotan, inclinación al girar y al
+acelerar, la cabeza sigue hacia donde mira la cámara, aterrizaje con muelle,
+respiración, parpadeo y una mirada ocasional a los lados en reposo. Todas las
+articulaciones se suavizan al final para que los cambios de pose no salten.
+
+**Render**: suavizado de bordes MSAA ×4, oclusión ambiental opcional (GTAO),
+bloom, mapeo de tonos ACES y una gradación de color por mapa (contraste,
+saturación, tono de sombras y de luces, viñeta y grano suave). El cielo
+(degradado, sol con halo, nubes que se mueven, estrellas que titilan y luna)
+genera un mapa de entorno: los materiales reflejan el cielo de cada mapa.
+Sombras suavizadas.
+
+**Escenarios**: texturas procedurales con relieve (mapa normal) — mampostería,
+tejas, adoquín, roca fracturada, hierba, madera, chapa, asfalto, arena,
+hormigón —, ventanas con marco y cristal en el pueblo (encendidas de noche),
+mar y río con olas animadas que reflejan el cielo, montañas con crestas y
+nieve (una sola malla por cordillera), pinos de varias capas, arbustos y rocas
+instanciados, árboles del Distrito con copas de varias piezas y la ciudad
+lejana del bosque con ventanas del mismo tamaño en todas las torres.
+
+**Efectos**: impactos con chispas que rebotan de la superficie, onda de choque
+y una bocanada de humo; polvo a ras de suelo al aterrizar, saltar vallas y en
+las ondas expansivas; rayos con resplandor en sus extremos; estela del dash
+como silueta fantasma de borde luminoso; los drones caen echando chispas y
+humo. Todo en tres sistemas de partículas de una llamada de dibujo cada uno.
+
+**Menú**: fondo 3D animado (Jon en una azotea al anochecer frente a la ciudad
+encendida, motas de energía, baliza de la antena y cámara que se mece), con
+entrada escalonada del título y los botones y paneles que aparecen con
+suavidad.
+
+**Ajustes nuevos**: *Suavizado de bordes (MSAA)* (activado) y *Oclusión
+ambiental (GTAO, exigente)* (desactivada). Con el bloom y la resolución de
+render permiten bajar el coste en equipos modestos.
 
 ## Etapa 7 — Pulido
 
@@ -700,7 +751,9 @@ contenedores y cajas (A1, A2).
   multiplicador de velocidad, raycast), guardado,
   energía (gasto, regeneración, modo infinito), cargador y recarga, habilidades (coste y
   reutilización), daño directo y de área, y proyectiles (impacto en muros finos,
-  alcance, límites invisibles). Con las marcas, combos y la historia son 134;
+  alcance, límites invisibles). Con las marcas, combos y la historia son 134, y 140 con los gráficos
+  (`graphics.test.js`: chispas, humo, gradación, montañas y fusión de piezas
+  del personaje);
   `story.test.js` comprueba los 29 puntos de control y su tramo de guion, las
   banderas de cada punto, qué poderes se permiten en cada tramo, el estado
   (las banderas no retroceden, la elección solo admite KILL/SPARE, completar),
@@ -821,6 +874,11 @@ contenedores y cajas (A1, A2).
     primer hueco**; 2 agentes + 1 dron; un reforzado y luego 2 agentes; CP28;
     la colina, la ciudad, el dash final y el menú principal con
     `TutorialComplete`, la Energía en el perfil libre y «Prólogo completado».
+  - Gráficos: la cadena de postproceso (render, bloom, salida, gradación) y el
+    mapa de entorno del cielo están activos; un impacto genera chispas y humo
+    que se disipan; el pueblo tiene agua animada, montañas nevadas y
+    materiales con relieve; el menú tiene su fondo 3D animado y, al volver
+    de un mapa, el juego vuelve a dibujar su propia escena.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería tarda ~30 min con render por software (la historia, unos 3–5); `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.
@@ -835,7 +893,9 @@ cada sonido se genera, no su calidad). Conviene una sesión de juego manual.
 
 ## Limitaciones conocidas
 
-- Modelos, animaciones y texturas son provisionales y procedurales.
+- Modelos, animaciones y texturas son procedurales (sin recursos externos):
+  no hay esqueletos con animaciones capturadas, ni expresiones faciales, ni
+  ropa con física. El pelo es una forma rígida.
 - El sonido es sintético (no hay grabaciones ni música).
 - No hay límite de pendiente: cualquier rampa es transitable.
 - La cámara puede quedar dentro de la parte inferior de una pasarela si se

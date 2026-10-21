@@ -23,6 +23,9 @@ export default {
   description: 'Zona de entrenamiento y experimentación.',
   /** Simulacro: la PDC de entrenamiento siempre es hostil. */
   factions: { pdc: 100 },
+  /** Aspecto: mediodía despejado, neutro. */
+  envIntensity: 0.5,
+  grade: { contrast: 1.05, saturation: 1.06, shadows: '#22324a', highlights: '#fff0dc', vignette: 0.26 },
   bounds: { minX: -HALF, maxX: HALF, minZ: -HALF, maxZ: HALF },
 
   /** Puntos de teletransporte del menú de depuración. */
@@ -43,7 +46,7 @@ export default {
     const { group, builder: B, scene } = ctx;
     // --- Ambiente ---
     scene.fog = new THREE.Fog(0x8fa3b8, 90, 260);
-    group.add(createSky({ top: '#2e5b8f', horizon: '#c9d6e2', bottom: '#5a6470', sunDir: new THREE.Vector3(-0.5, 0.75, 0.3), sunColor: '#fff2d6' }));
+    group.add(createSky({ top: '#2e5b8f', horizon: '#c9d6e2', bottom: '#5a6470', sunDir: new THREE.Vector3(-0.5, 0.75, 0.3), sunColor: '#fff2d6', clouds: 0.38, cloudColor: '#ffffff', cloudShade: '#a9b8c8' }));
     group.add(new THREE.HemisphereLight(0xcfe3ff, 0x4a4f57, 1.1));
     const sun = createSun({ color: '#fff3e0', intensity: 2.6, direction: new THREE.Vector3(0.5, -0.85, -0.3) });
     group.add(sun, sun.target);
