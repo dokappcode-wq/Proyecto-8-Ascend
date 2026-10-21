@@ -15,6 +15,9 @@ export class StoryAbort extends Error {
 }
 
 /** Segundos que se muestra un subtítulo según su longitud. */
+/** Segundos que hay que mantener Espacio o Intro para saltar una cinemática. */
+export const SKIP_HOLD = 0.6;
+
 export function lineTime(text) {
   return Math.min(6, 1.3 + String(text).length * 0.055);
 }
@@ -46,6 +49,17 @@ export class StoryDirector {
     this.time = 0;
     /** Velocidad del tiempo del guion (diálogos y esperas); las pruebas lo suben. */
     this.speed = 1;
+    /**
+     * Saltando una cinemática: GameManager simula la escena deprisa, sin
+     * dibujarla, hasta que se recupera el control (el resultado es el mismo
+     * que viéndola entera).
+     */
+    this.skipping = false;
+    /** Momento (ms) en que se empezó a mantener la tecla de saltar, o 0. */
+    this._skipHold = 0;
+    this._skipStart = 0;
+    /** Esperas del guion cumplidas en el último update (el salto cede el paso al guion). */
+    this.resolved = 0;
     /** Acciones de poder permitidas en el tramo actual. */
     this.allowed = new Set();
     /** Otras acciones bloqueadas por el tramo. */
@@ -142,6 +156,7 @@ export class StoryDirector {
 
   /** Sale del modo historia (volver al menú). */
   stop() {
+    this.endSkip();
     this._abort();
     this.active = false;
     this.ui.setVisible(false);
@@ -317,10 +332,21 @@ export class StoryDirector {
   // ------------------------------------------------------------------ Frame
   update(dt) {
     if (!this.active) return;
-    // Mantener Intro acelera las cinemáticas (sin saltarse nada del guion)
-    const skip = this.controlsLocked && this.game.input._down.has('Enter');
-    this.time += dt * this.speed * (skip ? 5 : 1);
+    this.time += dt * this.speed;
     const g = this.game;
+    // Mantener Espacio o Intro salta la cinemática (en tiempo real: con pocos
+    // FPS el tiempo de juego va más lento y la pulsación no debe alargarse)
+    if (!this.skipping) {
+      const inp = g.input;
+      const holding = this.canSkip && (inp._down.has('Space') || inp._down.has('Enter') || inp._down.has('NumpadEnter'));
+      const now = performance.now();
+      if (!holding) this._skipHold = 0;
+      else if (!this._skipHold) this._skipHold = now;
+      const progress = this._skipHold ? (now - this._skipHold) / 1000 / SKIP_HOLD : 0;
+      this.ui.skipHint(this.canSkip, progress);
+      if (progress >= 1) this.skip();
+    }
+    this.resolved = 0;
     const ws = this._waiters;
     for (let i = ws.length - 1; i >= 0; i--) {
       const w = ws[i];
@@ -340,6 +366,7 @@ export class StoryDirector {
       if (ok) {
         ws.splice(i, 1);
         w.resolve(ok);
+        this.resolved++;
       }
     }
     for (const f of [...this._updates]) f(dt);
@@ -358,6 +385,41 @@ export class StoryDirector {
       rain.center.z = g.camera.position.z;
     }
     g.ui.updateMarkers(this.markers, g.camera, g.player.motor.position);
+  }
+
+  /** Hay una cinemática que se puede saltar (sin elección abierta ni carga en curso). */
+  get canSkip() {
+    return this.active && this.controlsLocked && !this.modal && !this._loading && !this.skipping;
+  }
+
+  /** Empieza a saltar la cinemática actual (pantalla en negro y sin sonido). */
+  skip() {
+    if (!this.canSkip) return false;
+    this.skipping = true;
+    this._skipHold = 0;
+    this._skipStart = this.time;
+    this.ui.skipHint(false, 0);
+    this.ui.skipping(true);
+    this.game.audio.setMuted?.(true);
+    this.game.events.emit('story:skip', { checkpoint: this.current?.id });
+    return true;
+  }
+
+  /** Termina el salto: se recupera el control (o hay que elegir, o cambia el mapa). */
+  endSkip() {
+    if (!this.skipping) return;
+    this.skipping = false;
+    this.ui.skipping(false);
+    this.ui.subtitle(null);
+    this._sub = null;
+    this.game.audio.setMuted?.(false);
+    this.game.input.clear();
+    this.game.events.emit('story:skip-end', { checkpoint: this.current?.id });
+  }
+
+  /** ¿Debe seguir el salto? (si no, se termina). Lo consulta GameManager en cada paso. */
+  skipShouldContinue() {
+    return this.active && this.controlsLocked && !this.modal && !this._loading && this.time - this._skipStart < 900;
   }
 
   /** Acciones bloqueadas: poderes no enseñados todavía y, en cinemáticas, todos. */
@@ -608,6 +670,8 @@ export class Script {
   }
 
   async dayCard(title, sub = '', ms = 2200) {
+    // Al saltar la escena la tarjeta no se espera (el tiempo es real, no de juego)
+    if (this.d.skipping) return;
     await this.await(this.d.ui.dayCard(title, sub, ms));
   }
 

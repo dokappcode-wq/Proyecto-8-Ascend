@@ -60,9 +60,11 @@ export const VillageNight = {
   story: true,
   ambience: 'village-night',
   factions: { pdc: 100 },
-  /** Aspecto: noche fría y lluviosa. */
-  envIntensity: 0.5,
-  grade: { contrast: 1.03, saturation: 0.95, shadows: '#1a2c4a', highlights: '#d2e0ff', split: 0.07, vignette: 0.36 },
+  /** Aspecto: noche fría y lluviosa, con la luna y las farolas como guía (nunca a oscuras). */
+  envIntensity: 0.6,
+  grade: { contrast: 1.0, saturation: 0.95, shadows: '#1a2c4a', highlights: '#d2e0ff', split: 0.07, lift: 0.035, vignette: 0.3 },
+  /** Luz de relleno suave que acompaña a la cámara (se lee lo que se tiene cerca). */
+  fillLight: { color: 0xa8bfe8, intensity: 0.8 },
   bounds: { minX: -100, maxX: 130, minZ: -110, maxZ: 70 },
   waypoints: [
     { id: 'tejado', name: 'Tejado (CP01)', x: -21, y: 5.3, z: -9, yaw: Math.PI / 2 },
@@ -86,6 +88,8 @@ export const VillageDay = {
   /** Aspecto: mañana luminosa junto al mar. */
   envIntensity: 0.5,
   grade: { contrast: 1.05, saturation: 1.08, shadows: '#283448', highlights: '#ffe6c4', vignette: 0.28 },
+  /** Relleno apagado: solo se enciende con la tormenta (M04). */
+  fillLight: { color: 0xb8c8e0, intensity: 0 },
   bounds: { minX: -100, maxX: 130, minZ: -110, maxZ: 70 },
   waypoints: [
     { id: 'casa', name: 'Casa de Jon', x: -30, y: 0.3, z: 12, yaw: Math.PI },
@@ -101,14 +105,14 @@ function buildVillage(ctx, night) {
   const { group, builder: B, scene } = ctx;
   // --- Ambiente ---
   const sunDir = night ? new THREE.Vector3(-0.35, 0.45, 0.8) : new THREE.Vector3(0.7, 0.35, -0.2);
-  scene.fog = new THREE.FogExp2(night ? 0x2a3a52 : 0xa9bccb, night ? 0.011 : 0.0045);
+  scene.fog = new THREE.FogExp2(night ? 0x34465f : 0xa9bccb, night ? 0.0085 : 0.0045);
   const sky = createSky(night
     ? { top: '#0a1424', horizon: '#3d5577', bottom: '#0c1220', sunDir, sunColor: '#9fb6d6', clouds: 0.82, cloudColor: '#34445c', cloudShade: '#151d2a', stars: 0.6, moonDir: new THREE.Vector3(0.35, 0.55, 0.75) }
     : { top: '#3d6fa8', horizon: '#e9d7b8', bottom: '#5a6a76', sunDir, sunColor: '#fff0c8', clouds: 0.42, cloudColor: '#ffffff', cloudShade: '#b8c2cc' });
   group.add(sky);
-  const hemi = new THREE.HemisphereLight(night ? 0x5a78a8 : 0xbfd6ee, night ? 0x1a1a24 : 0x6a5a48, night ? 0.75 : 1.05);
+  const hemi = new THREE.HemisphereLight(night ? 0x7393c8 : 0xbfd6ee, night ? 0x2c2e3a : 0x6a5a48, night ? 1.35 : 1.05);
   group.add(hemi);
-  const sun = createSun({ color: night ? '#8fa8d6' : '#ffe2b8', intensity: night ? 0.9 : 2.3, direction: sunDir.clone().negate(), shadowSize: 48 });
+  const sun = createSun({ color: night ? '#a9bfe6' : '#ffe2b8', intensity: night ? 1.5 : 2.3, direction: sunDir.clone().negate(), shadowSize: 48 });
   group.add(sun, sun.target);
 
   const tex = (t) => {
@@ -669,6 +673,24 @@ function buildBase(ctx, B, M, night) {
     new StealthGuard(ctx, { id: 'almacen', route: [{ x: 91, z: -66, wait: 2.5 }, { x: 98, z: -66, wait: 2.5 }, { x: 98, z: -57, wait: 2 }], y: Y, speed: 1.3, range: 9, fov: 36 }),
   ];
   for (const g of guards) ctx.addEntity(g);
+
+  // Fluorescentes del interior: de noche son la única luz dentro de la base
+  if (night) {
+    const panel = new THREE.MeshStandardMaterial({ color: 0x1a1c20, emissive: 0xeef4ff, emissiveIntensity: 1.6 });
+    for (const [x, z, color, intensity, dist] of [
+      [94, -66, 0xdde8ff, 9, 16], // almacén, norte (cajas y pasarela)
+      [94, -52, 0xdde8ff, 9, 16], // almacén, sur (conducto)
+      [106, -68.5, 0x9fd0ff, 11, 13], // cámara de contención (azulada)
+      [108, -53, 0xe6eeff, 8, 13], // pasillo alto y escalera
+    ]) {
+      const l = new THREE.PointLight(color, intensity, dist, 1.2);
+      l.position.set(x, Y + 7.4, z);
+      group.add(l);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.32), panel);
+      m.position.set(x, Y + 7.95, z);
+      group.add(m);
+    }
+  }
 
   // Generador decorativo en el patio (sin uso en M01: Jon aún no tiene Energía)
   void EnergySource;

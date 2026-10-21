@@ -413,6 +413,22 @@ así que funciona igual llegando desde el anterior que cargándolo directamente.
 (salud y carga). Solo se escribe al llegar a un punto de control (y la
 elección moral, en el momento). Las banderas nunca retroceden.
 
+**Saltar cinemáticas.** Mientras `controlsLocked` (y sin elección abierta ni
+carga), mantener Espacio o Intro `SKIP_HOLD` s en tiempo real llama a
+`StoryDirector.skip()`: pantalla negra (`StoryUI.skipping`), audio en silencio
+(`AudioSystem.setMuted`) y `GameManager._skipStep` simula a pasos fijos de 1/30 s
+sin dibujar (hasta ~14 ms de CPU por frame) mientras `skipShouldContinue()`.
+Como las esperas del guion son promesas, cada vez que una se cumple
+(`director.resolved`) se cede el frame para que el guion avance. Termina al
+recuperar el control, al abrir una elección, al recargar o al pausar. Las
+tarjetas de día (tiempo real) no se esperan al saltar.
+
+**Iluminación de los mapas oscuros.** `def.fillLight` añade a la escena una
+`DirectionalLight` que sigue a la cámara y apunta hacia donde mira (relleno sin
+manchas; su intensidad la cambia el guion en la tormenta). `Rain.coverAt` corta
+la lluvia a la altura de lo que haya encima (consulta `groundHeight` por celdas
+de 1 m, cacheada).
+
 **Control.** `controlsLocked` desactiva al jugador (cinemáticas);
 `Input.blocked` bloquea por acción los poderes que el guion aún no ha enseñado
 (`allowedPowers` + `S.allow`). `PlayerController.autopilot` mueve a Jon solo

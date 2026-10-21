@@ -64,8 +64,12 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
 historia** si hay una partida empezada; **Nueva partida** la reinicia). Se
 guarda solo al llegar a cada punto de control (CP01…CP29); al morir, caer o
 ser descubierto se vuelve al último. En la pausa, *Reiniciar desde el punto de
-control*. Mantener **Intro** durante una cinemática la acelera (no se salta
-nada: todas las banderas se aplican igual).
+control*. **Saltar cinemáticas**: mantén **Espacio** (o **Intro**) medio segundo
+—el aviso abajo a la derecha muestra el progreso— o elige *Saltar escena* en la
+pausa. La escena se simula deprisa con la pantalla en negro y sin sonido hasta
+que recuperas el control: el resultado es el mismo que viéndola entera
+(posiciones, banderas, guardado). El salto se detiene en las elecciones (MATAR /
+PERDONAR) y en los cambios de mapa.
 
 **Cambio de la Zona E**: la marca de la Energía ya no se copia en la Zona E del
 Campo de Pruebas; en su lugar hay un terminal dorado que abre el Prólogo, y al
@@ -165,7 +169,7 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Gravedad: granada | X o clic central | ✅ |
 | Historia · sigilo: lanzar una piedra para distraer | F | ✅ |
 | Historia · elegir (MATAR / PERDONAR) | 1 / 2 o clic | ✅ |
-| Historia · acelerar una cinemática | Mantener Intro | ✅ |
+| Historia · saltar una cinemática | Mantener Espacio o Intro (o *Saltar escena* en la pausa) | ✅ |
 
 La tecla **Alt** es alternativa a Ctrl para esquivar porque algunos navegadores
 reservan combinaciones con Ctrl (p. ej. Ctrl+W cierra la pestaña); **C** pasa a
@@ -395,6 +399,25 @@ humo. Todo en tres sistemas de partículas de una llamada de dibujo cada uno.
 encendida, motas de energía, baliza de la antena y cámara que se mece), con
 entrada escalonada del título y los botones y paneles que aparecen con
 suavidad.
+
+**Iluminación (sin momentos a oscuras)**: se midió el brillo de los 29 puntos
+de control de la historia y en cuatro (el acantilado, el almacén y la cámara
+de contención de la base y la alarma) más del 90 % de la imagen era negro.
+Causas y arreglos:
+- La gradación de color oscurecía las sombras (el virado restaba en vez de
+  teñir): ahora tiñe sin cambiar la luminancia, el contraste gira alrededor de
+  un gris medio-bajo y cada mapa puede levantar el negro (`lift`).
+- La base de la PDC no tenía luz dentro: fluorescentes en el almacén, la
+  cámara de contención (azulada) y el pasillo alto.
+- La noche del pueblo: más luz de luna y de cielo, niebla menos densa y una
+  **luz de relleno** que acompaña a la cámara (direccional, hacia donde se
+  mira) para que lo cercano nunca se pierda. La tormenta baja menos la luz y
+  enciende el mismo relleno.
+- La lluvia ya no cae dentro de los edificios ni bajo los voladizos (se corta a
+  la altura del tejado).
+
+Brillo medio (0–255) antes → después: CP02 2.9 → 34, CP04 3.3 → 46, CP05 3.9 →
+54, CP06 7 → 63, CP07 10 → 65, tormenta (CP13–CP15) 22–24 → 39–45.
 
 **Ajustes nuevos**: *Suavizado de bordes (MSAA)* (activado), *Reflejos del
 cielo* (activado) y *Oclusión ambiental (GTAO, exigente)* (desactivada). Con
@@ -753,9 +776,10 @@ contenedores y cajas (A1, A2).
   multiplicador de velocidad, raycast), guardado,
   energía (gasto, regeneración, modo infinito), cargador y recarga, habilidades (coste y
   reutilización), daño directo y de área, y proyectiles (impacto en muros finos,
-  alcance, límites invisibles). Con las marcas, combos y la historia son 134, y 140 con los gráficos
-  (`graphics.test.js`: chispas, humo, gradación, montañas y fusión de piezas
-  del personaje);
+  alcance, límites invisibles). Con las marcas, combos y la historia son 134, y 141 con los gráficos
+  (`graphics.test.js`: chispas, humo, gradación —incluido que el virado no
+  oscurece—, lluvia que no cae bajo techo, montañas y fusión de piezas del
+  personaje);
   `story.test.js` comprueba los 29 puntos de control y su tramo de guion, las
   banderas de cada punto, qué poderes se permiten en cada tramo, el estado
   (las banderas no retroceden, la elección solo admite KILL/SPARE, completar),
@@ -857,7 +881,10 @@ contenedores y cajas (A1, A2).
     abre; volver al menú recupera el perfil de marcas del modo libre.
   - **Historia** (`tests/e2e/story.mjs`, diálogos a 8×): nueva partida en el
     pueblo de noche sin marcas ni poderes; diálogo completo de la reunión y
-    CP01 guardado tras ella; en M01 no hay enemigos ni poderes y F lanza
+    CP01 guardado tras ella; en el despertar de CP09 aparece «Mantén Espacio
+    para saltar», la pausa ofrece *Saltar escena* y mantener Espacio salta la
+    cinemática dejando el mismo estado que verla (frase final, objetivo, Jon
+    fuera de la cama, sonido y pantalla restaurados); en M01 no hay enemigos ni poderes y F lanza
     piedras; de pie delante de un guardia salta «Te han descubierto» y se
     recarga CP03 con Jon en el escondite; el cambio de guardia abre el
     conducto; CP04 y CP05; E en la carta dorada concede el Destino sin

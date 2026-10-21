@@ -22,7 +22,7 @@ export async function storySection({ page, check, PORT, out }) {
     const a = window.__ascend;
     a.story.speed = 8;
     window.__ev = [];
-    for (const ev of ['story:line', 'story:reload', 'story:checkpoint', 'story:detected', 'story:pinned', 'story:storm', 'story:bought', 'story:choice', 'story:choice-made', 'story:convoy-attacked', 'story:teleport', 'story:debris-broken', 'story:drone', 'story:encounter', 'story:final-dash', 'story:completed', 'story:destiny', 'story:sphere', 'mark:acquired', 'acquisition:failed', 'enemy:spawned', 'story:error'])
+    for (const ev of ['story:line', 'story:reload', 'story:checkpoint', 'story:detected', 'story:pinned', 'story:storm', 'story:bought', 'story:choice', 'story:choice-made', 'story:convoy-attacked', 'story:teleport', 'story:debris-broken', 'story:drone', 'story:encounter', 'story:final-dash', 'story:completed', 'story:skip', 'story:destiny', 'story:sphere', 'mark:acquired', 'acquisition:failed', 'enemy:spawned', 'story:error'])
       a.events.on(ev, (d) => window.__ev.push({ ev, d: JSON.parse(JSON.stringify(d, (k, v) => (k === 'enemy' || k === 'target' ? undefined : v))) , cp: a.save.data.story.checkpoint }));
   });
   const has = (ev, pred = '') => until(new Function(`return window.__ev.some((e) => e.ev === ${JSON.stringify(ev)}${pred ? ' && (' + pred + ')' : ''})`));
@@ -39,6 +39,19 @@ export async function storySection({ page, check, PORT, out }) {
     check(met, 'Reunión en los tejados: diálogo completo de Iker y Jon');
     check(await until(() => !window.__ascend.story.controlsLocked && window.__ascend.save.data.story.mission.objectiveIndex === 1, null, 20000), 'Tras la reunión se guarda CP01 y se devuelve el control');
     check(await g(() => ['attack', 'special', 'charged'].every((x) => window.__ascend.input.blocked.has(x))), 'Sin poderes en M01 (acciones bloqueadas)');
+    // Saltar una cinemática (despertar de CP09): mismo resultado que verla entera
+    await jump('CP09');
+    check(await until(() => window.__ascend.story.canSkip, null, 20000), 'CP09: empieza la cinemática del despertar');
+    check(await until(() => getComputedStyle(document.getElementById('story-skip')).opacity > 0.5, null, 5000), 'Aviso «Mantén Espacio para saltar» visible');
+    await g(() => window.__ascend.pause());
+    check(await page.isVisible('#screen-pause [data-action="skip-scene"]'), 'La pausa ofrece «Saltar escena» durante la cinemática');
+    await g(() => window.__ascend.resume());
+    await page.keyboard.down('Space');
+    check(await until(() => window.__ascend.story.skipping || !window.__ascend.story.controlsLocked, null, 15000), 'Mantener Espacio salta la escena');
+    await page.keyboard.up('Space');
+    check(await until(() => !window.__ascend.story.skipping && !window.__ascend.story.controlsLocked, null, 30000), 'Tras el salto se recupera el control');
+    const skipped = await g(() => { const a = window.__ascend; const p = a.player.motor.position; return { line: window.__ev.some((e) => e.ev === 'story:line' && e.d.text === 'No fue un sueño...'), skip: window.__ev.some((e) => e.ev === 'story:skip'), muted: !!a.audio._muted, cover: getComputedStyle(document.getElementById('story-skipping')).opacity, obj: document.getElementById('story-obj').textContent, cp: a.save.data.story.checkpoint, outOfBed: Math.hypot(p.x - a.mapManager.current.story.points.cp09.x, p.z - a.mapManager.current.story.points.cp09.z) < 1.5 }; });
+    check(skipped.skip && skipped.line && !skipped.muted && Number(skipped.cover) < 0.5 && /Sal de casa/.test(skipped.obj) && skipped.cp === 'CP09' && skipped.outOfBed, `La escena saltada deja el mismo estado que verla (${JSON.stringify(skipped)})`);
     // Detección → recarga del punto de control correcto
     await jump('CP03');
     check(await g(() => !!window.__ascend.story.stealth), 'CP03: sigilo activo (guardias y focos)');

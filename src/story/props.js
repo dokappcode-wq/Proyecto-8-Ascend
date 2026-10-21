@@ -182,6 +182,23 @@ export class Rain {
     ctx.group.add(this.lines);
     this.center = { x: 0, y: 0, z: 0 };
     this.intensity = 1;
+    // Lo que tapa la lluvia (tejados, voladizos): altura de la superficie más
+    // alta en celdas de 1 m, calculada al pasar por ellas y guardada
+    this.world = ctx.world;
+    this._cover = new Map();
+  }
+
+  /** Altura donde se corta la lluvia en (x, z): tejado, voladizo o suelo. */
+  coverAt(x, z) {
+    const ix = Math.floor(x);
+    const iz = Math.floor(z);
+    const k = (ix + 4096) * 8192 + (iz + 4096);
+    let h = this._cover.get(k);
+    if (h === undefined) {
+      h = this.world ? this.world.groundHeight(ix + 0.5, iz + 0.5, 0.5, 500) : -Infinity;
+      this._cover.set(k, h);
+    }
+    return h;
   }
 
   setIntensity(v) {
@@ -198,7 +215,9 @@ export class Rain {
     let j = 0;
     for (const d of this.drops) {
       d.y -= d.v * dt;
-      if (d.y < -2) {
+      // Al llegar a un tejado (o al suelo) la gota vuelve a caer desde arriba:
+      // así no llueve dentro de los edificios ni bajo los voladizos
+      if (d.y < -2 || c.y + d.y < this.coverAt(c.x + d.x, c.z + d.z)) {
         d.y = this.height;
         d.x = (Math.random() - 0.5) * A;
         d.z = (Math.random() - 0.5) * A;

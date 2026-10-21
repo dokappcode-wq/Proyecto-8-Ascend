@@ -772,9 +772,11 @@ export class UIManager {
   }
 
   /** En la historia, «Reiniciar» vuelve al último punto de control. */
-  setStoryPause(on) {
+  setStoryPause(on, canSkip = false) {
     const t = this.screens.pause?.querySelector('[data-action="restart"] .btn-title');
     if (t) t.textContent = on ? 'Reiniciar desde el punto de control' : 'Reiniciar mapa';
+    // «Saltar escena» solo durante una cinemática de la historia
+    this.screens.pause?.querySelector('[data-action="skip-scene"]')?.classList.toggle('hidden', !canSkip);
   }
 
   _renderMenuMissions() {

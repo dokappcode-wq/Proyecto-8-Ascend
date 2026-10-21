@@ -54,6 +54,12 @@ export class StoryUI {
     this.fadeEl = el('story-fade', 'story-fade', document.body);
     this.fadeEl.innerHTML = '<span></span>';
     this.flashEl = el('story-flash', 'story-flash', document.body);
+    // Por encima de los fundidos y las tarjetas: también se puede saltar en negro
+    this.skipEl = el('story-skip', 'story-skip', document.body);
+    this.skipEl.innerHTML = '<span class="key">Espacio</span><span class="lbl">Mantén para saltar</span><div class="bar"><div class="fill"></div></div>';
+    this.skipFill = this.skipEl.querySelector('.fill');
+    this.skipCover = el('story-skipping', 'story-skipping', document.body);
+    this.skipCover.innerHTML = '<span>Saltando la escena…</span>';
     this._choice = null;
     this._subTimer = null;
     this._tutKey = '';
@@ -71,15 +77,28 @@ export class StoryUI {
 
   /** Muestra u oculta todo lo del modo historia. */
   setVisible(v) {
-    for (const e of [this.sub, this.obj, this.tut, this.detect, this.bars]) e.classList.toggle('off', !v);
+    for (const e of [this.sub, this.obj, this.tut, this.detect, this.bars, this.skipEl]) e.classList.toggle('off', !v);
     if (!v) {
       this.subtitle(null);
       this.objective(null);
       this.tutorial(null);
       this.detection(null);
       this.letterbox(false);
+      this.skipHint(false);
+      this.skipping(false);
       this.fadeTo(0, 0);
     }
+  }
+
+  /** Aviso «Mantén Espacio para saltar» con el progreso de la pulsación (0..1). */
+  skipHint(visible, progress = 0) {
+    this.skipEl.classList.toggle('show', !!visible);
+    this.skipFill.style.transform = `scaleX(${Math.max(0, Math.min(1, progress))})`;
+  }
+
+  /** Pantalla negra mientras se salta una cinemática. */
+  skipping(on) {
+    this.skipCover.classList.toggle('show', !!on);
   }
 
   /** Subtítulo con el nombre de quien habla (null lo oculta). */

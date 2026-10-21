@@ -105,6 +105,18 @@ export class GameManager {
 
     this.combat = new CombatSystem(this.events);
     this.vfx = new VfxSystem(this.scene);
+    /**
+     * Luz de relleno que acompaña a la cámara en los mapas oscuros (noche,
+     * tormenta): sin ella, lo que no da la luna se pierde en negro. Es
+     * direccional y mira hacia donde mira la cámara: ilumina por igual lo que
+     * se tiene delante, sin manchas quemadas en las paredes cercanas. Solo está
+     * en la escena de los mapas que la piden (`def.fillLight`); su intensidad
+     * la puede cambiar el guion.
+     */
+    this.fillLight = new THREE.DirectionalLight(0xffffff, 0);
+    this.fillLight.visible = false;
+    this.scene.add(this.fillLight, this.fillLight.target);
+    this._fillDir = new THREE.Vector3();
     this.marks = new MarkSystem({ save: this.save, model: this.player.model, events: this.events });
     this.projectiles = new ProjectileSystem({ scene: this.scene, world: this.world, combat: this.combat, vfx: this.vfx, events: this.events });
     this.powers = new PowerSystem(this);
@@ -263,6 +275,12 @@ export class GameManager {
    */
   _applyMapLook(def) {
     this._updateEnvironment();
+    const f = def.fillLight;
+    this.fillLight.visible = !!f;
+    if (f) {
+      this.fillLight.color.set(f.color ?? 0xb8ccff);
+      this.fillLight.intensity = f.intensity ?? 0;
+    }
     this.scene.environmentIntensity = def.envIntensity ?? 0.45;
     applyGrade(this.gradePass, def.grade);
     this._gradeFor = 'map';
@@ -349,12 +367,15 @@ export class GameManager {
 
   pause(screen = 'pause') {
     if (this.state !== 'playing') return;
+    // Pausar durante un salto de cinemática lo termina (la escena sigue normal)
+    if (this.story.skipping) this.story.endSkip();
+    this.story.ui.skipHint(false);
     this.state = 'paused';
     this._pausedAt = performance.now();
     this.input.clear();
     this.input.exitPointerLock();
     this.audio.setPaused(true);
-    this.ui.setStoryPause(this.story.active);
+    this.ui.setStoryPause(this.story.active, this.story.canSkip);
     this.ui.show(screen);
   }
 
@@ -570,6 +591,10 @@ export class GameManager {
         break;
       case 'resume':
         this.resume();
+        break;
+      case 'skip-scene':
+        this.resume();
+        this.story.skip();
         break;
       case 'restart':
         this.restartMap();
@@ -865,35 +890,19 @@ export class GameManager {
 
     if (this.state === 'playing') {
       if (this.input.wasPressed('debug')) this.ui.toggleDebug();
-      this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active || this.story.controlsLocked;
-      this.player.update(dt);
-      this.playerCombat.update(dt);
-      this.powers.update(dt);
-      this.gravity.update(dt);
-      this.thread.update(dt);
-      this.temperature.update(dt);
-      this.wings.update(dt);
-      this.interactions.update(dt);
-      this.acquisition.update(dt);
-      this.drain.update(dt);
-      this.enemies.update(dt);
-      this.factions.update(dt);
-      this.missions.update(dt);
-      this.story.update(dt);
-      this.projectiles.update(dt);
-      this.mapManager.update(dt);
-      this.mapManager.cull(this.camera.position);
-      for (const s of this.systems) s.update?.(dt, this);
-      this.marks.update(dt);
-      this.vfx.update(dt);
-      const sun = this.mapManager.current?.sun;
-      if (sun) followSun(sun, this.player.position);
-      this._updateHud(dt);
-      this._checkBounds();
-      this.audio.update(this);
+      if (this.story.skipping) this._skipStep();
+      else this._step(dt);
     }
 
-    if (this.state === 'playing' || this.state === 'paused') {
+    if (this.story.skipping && this.state === 'playing') {
+      // Saltando una cinemática: la pantalla está en negro, no se dibuja
+    } else if (this.state === 'playing' || this.state === 'paused') {
+      if (this.fillLight.visible) {
+        // Desde la cámara, un poco desde arriba, hacia donde mira
+        this.camera.getWorldDirection(this._fillDir);
+        this.fillLight.position.copy(this.camera.position).y += 2;
+        this.fillLight.target.position.copy(this.camera.position).addScaledVector(this._fillDir, 10);
+      }
       this.gradePass.uniforms.time.value = this._time;
       this.composer.render(dt);
     } else if (this.state === 'menu') {
@@ -902,6 +911,56 @@ export class GameManager {
       this.renderer.clear();
     }
     this.input.endFrame();
+  }
+
+  /** Un paso de la simulación del juego (todo salvo el dibujo). */
+  _step(dt) {
+    this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active || this.story.controlsLocked;
+    this.player.update(dt);
+    this.playerCombat.update(dt);
+    this.powers.update(dt);
+    this.gravity.update(dt);
+    this.thread.update(dt);
+    this.temperature.update(dt);
+    this.wings.update(dt);
+    this.interactions.update(dt);
+    this.acquisition.update(dt);
+    this.drain.update(dt);
+    this.enemies.update(dt);
+    this.factions.update(dt);
+    this.missions.update(dt);
+    this.story.update(dt);
+    this.projectiles.update(dt);
+    this.mapManager.update(dt);
+    this.mapManager.cull(this.camera.position);
+    for (const s of this.systems) s.update?.(dt, this);
+    this.marks.update(dt);
+    this.vfx.update(dt);
+    const sun = this.mapManager.current?.sun;
+    if (sun) followSun(sun, this.player.position);
+    this._updateHud(dt);
+    this._checkBounds();
+    this.audio.update(this);
+  }
+
+  /**
+   * Cinemática saltada: se simula a pasos fijos, deprisa y sin dibujar (la
+   * pantalla está en negro), hasta recuperar el control. Cada vez que el guion
+   * cumple una espera se cede el paso para que avance (sus promesas se
+   * resuelven entre frames).
+   */
+  _skipStep() {
+    const st = this.story;
+    const t0 = performance.now();
+    for (let i = 0; i < 120 && performance.now() - t0 < 14; i++) {
+      if (!st.skipShouldContinue()) {
+        st.endSkip();
+        return;
+      }
+      this._time += 1 / 30;
+      this._step(1 / 30);
+      if (st.resolved) break;
+    }
   }
 
   /** Aviso al acercarse al límite del mapa (los muros invisibles impiden salir). */

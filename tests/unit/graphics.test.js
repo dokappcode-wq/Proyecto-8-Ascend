@@ -6,6 +6,8 @@ import { ParticleSystem } from '../../src/vfx/ParticleSystem.js';
 import { GradeShader, applyGrade, DEFAULT_GRADE } from '../../src/vfx/gradePass.js';
 import { createMountains } from '../../src/world/environment.js';
 import { PartSet, bodyMaterials, rbox, sphere } from '../../src/player/bodyParts.js';
+import { Rain } from '../../src/story/props.js';
+import { CollisionWorld } from '../../src/physics/CollisionWorld.js';
 
 test('Chispas: la cola queda detrás de la cabeza, según la velocidad, y como mucho a 0.7 m', () => {
   const s = new SparkSystem(16);
@@ -77,6 +79,35 @@ test('Gradación: cada mapa ajusta lo que indica y el resto vuelve a los valores
   applyGrade(pass);
   assert.equal(pass.uniforms.contrast.value, DEFAULT_GRADE.contrast);
   assert.equal(pass.uniforms.vignette.value, DEFAULT_GRADE.vignette);
+  assert.equal(pass.uniforms.lift.value, DEFAULT_GRADE.lift);
+  applyGrade(pass, { lift: 0.04 });
+  assert.equal(pass.uniforms.lift.value, 0.04, 'los mapas oscuros levantan el negro');
+  // El virado tiñe sin oscurecer: el shader normaliza el tono por su luminancia
+  assert.match(GradeShader.fragmentShader, /shadowTint \/ max\(dot\(shadowTint, W\)/);
+  assert.doesNotMatch(GradeShader.fragmentShader, /shadowTint - 0\.5/);
+});
+
+test('Lluvia: no cae bajo un tejado (se corta a su altura) y sí al aire libre', () => {
+  const world = new CollisionWorld();
+  world.addBox({ x: -50, y: -1, z: -50 }, { x: 50, y: 0, z: 50 }); // suelo
+  world.addBox({ x: 0, y: 0, z: 0 }, { x: 10, y: 8, z: 10 }); // casa de 8 m (x 0…10, z 0…10)
+  const rain = new Rain({ group: new THREE.Group(), world }, { count: 400, area: 20, height: 20 });
+  assert.equal(rain.coverAt(5, 5), 8, 'bajo el tejado');
+  assert.equal(rain.coverAt(-5, -5), 0, 'al aire libre llega al suelo');
+  // Cámara junto a la casa: ninguna gota se dibuja dentro de ella
+  rain.center = { x: 5, y: 0, z: 5 };
+  for (let i = 0; i < 90; i++) rain.update(1 / 30);
+  const a = rain.lines.geometry.attributes.position.array;
+  let inside = 0;
+  let outside = 0;
+  for (let i = 0; i < a.length; i += 6) {
+    const [x, y, z] = [a[i], a[i + 1], a[i + 2]];
+    if (x > 0.5 && x < 9.5 && z > 0.5 && z < 9.5) {
+      if (y < 7.9) inside++;
+    } else if (y < 7.9 && y > 0) outside++;
+  }
+  assert.equal(inside, 0, 'no llueve dentro de la casa');
+  assert.ok(outside > 0, 'fuera sí llueve a la altura de la casa');
 });
 
 test('Montañas: una sola malla con color por cara; la nieve solo en las cotas altas', () => {

@@ -65,10 +65,16 @@ export class AudioSystem {
     if (!this.ctx) return;
     const s = this.settings;
     const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(s.volumeMaster ?? 0.8, t, 0.05);
+    this.master.gain.setTargetAtTime(this._muted ? 0 : (s.volumeMaster ?? 0.8), t, 0.05);
     this.bus.sfx.gain.setTargetAtTime(s.volumeSfx ?? 1, t, 0.05);
     this.bus.ui.gain.setTargetAtTime(s.volumeSfx ?? 1, t, 0.05);
     this.bus.amb.gain.setTargetAtTime(this._paused ? 0 : (s.volumeAmbience ?? 0.5), t, 0.2);
+  }
+
+  /** Silencio total (al saltar una cinemática). */
+  setMuted(m) {
+    this._muted = !!m;
+    this.applyVolumes();
   }
 
   setPaused(p) {

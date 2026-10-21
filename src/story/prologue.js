@@ -173,11 +173,13 @@ function dayState(S, cp) {
 function stormLook(S, k) {
   const m = S.map;
   const scene = S.g.scene;
-  m.hemi.intensity = 1.05 - 0.7 * k;
-  m.sun.intensity = 2.3 - 1.9 * k;
+  // Oscuro pero legible: la luz baja menos y un relleno junto a la cámara
+  m.hemi.intensity = 1.05 - 0.4 * k;
+  m.sun.intensity = 2.3 - 1.4 * k;
+  S.g.fillLight.intensity = 0.7 * k;
   if (scene.fog) {
-    scene.fog.color.set(k > 0 ? 0x3a4250 : 0xa9bccb);
-    scene.fog.density = 0.0045 + 0.012 * k;
+    scene.fog.color.set(k > 0 ? 0x4a5462 : 0xa9bccb);
+    scene.fog.density = 0.0045 + 0.008 * k;
   }
   m.sky.visible = k < 0.5;
   S.g.scene.background?.set?.(k > 0 ? 0x2a3038 : 0x05080d);
