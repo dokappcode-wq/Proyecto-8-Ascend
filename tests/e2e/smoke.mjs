@@ -68,11 +68,12 @@ try {
   // El ratón simulado de Playwright genera movimiento con el puntero bloqueado y
   // desviaría la cámara; en la prueba se bloquea solo el movimiento (los clics siguen llegando).
   await page.evaluate(() => window.addEventListener('mousemove', (e) => e.stopImmediatePropagation(), true));
-  // Render por software (SwiftShader): muchas comprobaciones miden en tiempo
-  // real y, por debajo de 10 FPS, el juego va más lento (dt máx. 0.1 s). Como
-  // en un equipo modesto se apagan el MSAA y los reflejos del cielo (lo más
-  // costoso por píxel); la sección [gráficos] los enciende para comprobarlos.
-  await page.evaluate(() => { const a = window.__ascend; a.save.updateSettings({ antialias: false, reflections: false }); a._applySettings(a.save.settings); });
+  // Render por software (SwiftShader, ~4 FPS): muchas comprobaciones miden en
+  // tiempo real y, por debajo de 10 FPS, el juego va más lento (dt máx. 0.1 s).
+  // Como en un equipo modesto se apagan el MSAA y los reflejos del cielo (lo
+  // más costoso por píxel) y se dibuja al 75 % de resolución; la sección
+  // [gráficos] enciende la calidad alta un momento para comprobarla.
+  await page.evaluate(() => { const a = window.__ascend; a.save.updateSettings({ antialias: false, reflections: false, renderScale: 0.75 }); a._applySettings(a.save.settings); });
   await page.screenshot({ path: path.join(out, '00-menu.png') });
   check(await page.isVisible('#screen-menu.active'), 'Menú principal visible');
 

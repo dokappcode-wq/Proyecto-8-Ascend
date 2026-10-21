@@ -883,10 +883,11 @@ contenedores y cajas (A1, A2).
     materiales con relieve; el menú tiene su fondo 3D animado y, al volver
     de un mapa, el juego vuelve a dibujar su propia escena.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
-  - La batería apaga el MSAA y los reflejos del cielo al empezar, como en un
-    equipo modesto: muchas comprobaciones miden en tiempo real y, con el
-    render por software, la calidad alta baja de 10 FPS (el juego se
-    ralentiza por debajo de esa cifra).
+  - La batería empieza con los ajustes de un equipo modesto (sin MSAA ni
+    reflejos del cielo, resolución de render al 75 %): con el render por
+    software va a ~4–6 FPS y muchas comprobaciones miden en tiempo real (por
+    debajo de 10 FPS el juego se ralentiza: paso máximo de 0.1 s). La
+    sección de gráficos enciende la calidad alta un momento para comprobarla.
   - La batería tarda ~30 min con render por software (la historia, unos 3–5); `E2E_STOP=campo`
     la detiene tras la sección del Campo de Pruebas para iterar más rápido.
 
