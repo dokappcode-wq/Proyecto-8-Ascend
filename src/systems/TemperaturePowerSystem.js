@@ -279,8 +279,13 @@ export class TemperaturePowerSystem {
 
   _endIceRun() {
     const motor = this.game.player.motor;
-    // Última plataforma justo bajo los pies: se puede caminar sobre ella
-    this._spawnTile(motor.position);
+    // Última plataforma justo bajo los pies: se puede caminar sobre ella. Sostiene
+    // desde ya (su cara de arriba está a la altura de los pies; con un frame
+    // largo la caída la atravesaría antes de activarse) y la inercia de la
+    // carrera se pierde (si no, saldría despedido de la placa)
+    this._spawnTile(motor.position).collider.enabled = true;
+    motor.velocity.x = motor.velocity.z = 0;
+    motor.velocity.y = Math.min(0, motor.velocity.y);
     motor.iceRun = null;
     this._lastTile = null;
   }
