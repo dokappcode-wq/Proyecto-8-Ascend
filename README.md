@@ -468,8 +468,9 @@ pruebas.
   bloques nuevos que cierran las esquinas. Fuera del barrio la ciudad sigue
   en todas direcciones: manzanas cercanas con niebla y rascacielos lejanos.
 - **Sin huecos de mapa**: cada mapa tiene suelo hasta el horizonte (terreno
-  lejano sin colisión, llanura bajo la ciudad, suelo urbano) y lo que rodea la
-  zona jugable continúa a la misma altura en el borde.
+  lejano sin colisión, llanura bajo la ciudad, suelo urbano y, en el Campo de
+  Pruebas, una explanada de hormigón) y lo que rodea la zona jugable continúa
+  a la misma altura en el borde.
 
 El motor gana **terreno con relieve**: cuestas que se suben andando, laderas
 empinadas que frenan como un muro, cuevas bajo el terreno y cámara que no lo
@@ -484,7 +485,10 @@ terreno lejano usa un material barato; los focos de la base y las farolas
 pintan un charco de luz en el suelo en vez de llevar una luz real, y todos los
 charcos de un mapa son una sola malla (`lightPools`); las barcas y el
 helicóptero son estáticos; las manzanas y los rascacielos alrededor del
-Distrito son instancias (una llamada de dibujo cada grupo).
+Distrito son instancias (una llamada de dibujo cada grupo) con material
+Lambert, ordenadas de cerca a lejos para pintar menos píxeles ocultos. En la
+prueba con render por software el Distrito nuevo va a ~2.5 FPS (el anterior,
+~2.3).
 
 ## Etapa 7 — Pulido
 

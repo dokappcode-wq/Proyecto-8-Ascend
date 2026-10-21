@@ -233,7 +233,7 @@ export function createMountains(peaks, { rock = '#5d636b', low = '#3e4a3a', snow
  *
  * @param {object} o { origin, heading (rad; 0 = +X), spread (rad), dist: [min, max], count, seed, lit (0..1), fog (false | true | escala de la niebla suave) }
  */
-export function createCity({ origin = { x: 0, y: 0, z: 0 }, heading = 0, spread = 1.2, dist = [640, 900], count = 180, seed = 33, lit = 0.26, intensity = 0.9, fog = false } = {}) {
+export function createCity({ origin = { x: 0, y: 0, z: 0 }, heading = 0, spread = 1.2, dist = [640, 900], count = 180, seed = 33, lit = 0.26, intensity = 0.9, fog = false, near = null } = {}) {
   const r = rng(seed);
   const list = [];
   for (let i = 0; i < count; i++) {
@@ -243,7 +243,7 @@ export function createCity({ origin = { x: 0, y: 0, z: 0 }, heading = 0, spread 
     const w = 14 + r() * 22;
     list.push({ x: origin.x + Math.cos(heading + a) * d, y: origin.y, z: origin.z + Math.sin(heading + a) * d, ry: r() * 0.5, w, h, d: w * (0.7 + r() * 0.6), tone: 0.85 + r() * 0.3 });
   }
-  return cityTowers(list, { lit, intensity, fog });
+  return cityTowers(list, { lit, intensity, fog, near });
 }
 
 /**
@@ -275,11 +275,14 @@ export function softFog(mat, k = 0.3) {
 /**
  * Torres de ciudad en una sola llamada de dibujo (instancias) en las
  * posiciones dadas: [{ x, y, z, w, h, d, ry, tone }]. `fog`: si les afecta la
- * niebla (las cercanas sí; el horizonte lejano, no).
+ * niebla (las cercanas sí; el horizonte lejano, no; un número: niebla suave).
+ * Material Lambert (barato: tapan mucha pantalla). `near`: punto desde el que
+ * se ven; las torres se ordenan de cerca a lejos para pintar menos píxeles ocultos.
  */
-export function cityTowers(list, { lit = 0.26, intensity = 0.9, fog = false } = {}) {
+export function cityTowers(list, { lit = 0.26, intensity = 0.9, fog = false, near = null } = {}) {
+  if (near) list = [...list].sort((a, b) => Math.hypot(a.x - near.x, a.z - near.z) - Math.hypot(b.x - near.x, b.z - near.z));
   const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffc98a, emissiveMap: cityWindows(lit), emissiveIntensity: intensity, roughness: 0.55, metalness: 0.2, fog: fog === true });
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xffc98a, emissiveMap: cityWindows(lit), emissiveIntensity: intensity, fog: fog === true });
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vCityP;\nvarying vec3 vCityN;')

@@ -587,6 +587,6 @@ function outskirts(ctx) {
       blocks.push({ x: x + (r() - 0.5) * 3, y: -0.5, z: z + (r() - 0.5) * 3, w, d, h: 12 + r() * 18 + (far - 70) * 0.35 + (r() < 0.12 ? 30 : 0), ry: 0, tone: 0.9 + r() * 0.3 });
     }
   }
-  group.add(cityTowers(blocks, { lit: 0.42, intensity: 1.05, fog: true }));
-  group.add(createCity({ origin: { x: 0, y: -30, z: 0 }, heading: -Math.PI / 2, spread: Math.PI * 2, dist: [200, 480], count: 150, seed: 21, lit: 0.34, intensity: 1.1, fog: 0.25 }));
+  group.add(cityTowers(blocks, { lit: 0.34, intensity: 0.8, fog: true, near: { x: 0, z: 0 } }));
+  group.add(createCity({ origin: { x: 0, y: -30, z: 0 }, heading: -Math.PI / 2, spread: Math.PI * 2, dist: [200, 480], count: 150, seed: 21, lit: 0.34, intensity: 1.1, fog: 0.25, near: { x: 0, z: 0 } }));
 }

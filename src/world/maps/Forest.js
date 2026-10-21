@@ -795,7 +795,7 @@ function wreck(ctx, B, P, { x, y, z, ry = 0 }) {
 function buildCity(group) {
   // Velada por la bruma del valle (niebla suave): desde el bosque apenas se
   // intuye; en la colina la niebla se abre y aparece entera
-  const towers = createCity({ origin: { x: 300, y: -20, z: 0 }, seed: 33, fog: CITY_HAZE });
+  const towers = createCity({ origin: { x: 300, y: -20, z: 0 }, seed: 33, fog: CITY_HAZE, near: { x: 250, z: 0 } });
   group.add(towers);
   // Torre emblema bajo la aguja
   group.add(cityTowers([{ x: 960, y: -20, z: -10, w: 34, d: 30, h: 220, ry: 0.2, tone: 1.1 }], { lit: 0.4, intensity: 1, fog: CITY_HAZE }));

@@ -487,7 +487,8 @@ superpone como decorado o sustituye piezas por otras de la misma colisión.
   terreno jugable; en el bosque baja hacia el este hasta la llanura de la
   ciudad (−20 m) sin lomas en el cono que se ve desde la colina. El Distrito
   tiene un plano de suelo urbano de 2.4 km, manzanas cercanas y rascacielos
-  lejanos (`cityTowers`, instancias).
+  lejanos (`cityTowers`: instancias con material Lambert, ordenadas de cerca a
+  lejos); el Campo de Pruebas, una explanada de hormigón.
 - **Niebla suave** (`softFog(material, k)`): sustituye el `fog_fragment` del
   material por la misma niebla exponencial con la densidad multiplicada por
   `k`. Lo muy lejano (ciudad, su aguja, sus luces) queda velado por la bruma
