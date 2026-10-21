@@ -326,7 +326,8 @@ export function rockTexture(tint = '#6b6862', seed = 83) {
           let dy = Math.abs(y - py);
           if (dx > s / 2) dx = s - dx;
           if (dy > s / 2) dy = s - dy;
-          const dd = dx * dx + dy * dy;
+          // Placas alargadas en horizontal (como estratos fracturados)
+          const dd = dx * dx * 0.35 + dy * dy * 1.6;
           if (dd < a) {
             b = a;
             a = dd;
@@ -344,6 +345,12 @@ export function rockTexture(tint = '#6b6862', seed = 83) {
       }
     }
     g.putImageData(img, 0, 0);
+    // Estratos: bandas horizontales suaves de otro tono
+    for (let i = 0; i < 7; i++) {
+      const y = r() * s;
+      g.fillStyle = `rgba(${r() < 0.5 ? '40,30,20' : '255,245,230'},${0.04 + r() * 0.05})`;
+      g.fillRect(0, y, s, 6 + r() * 22);
+    }
     blotches(g, s, r, 14, 0.1);
     noise(g, s, 0.22, seed);
     for (let i = 0; i < 6; i++) crack(g, r, r() * s, r() * s, 6, 40, 0.4);
@@ -659,4 +666,272 @@ export function textTexture(lines, { width = 512, height = 256, bg = 'rgba(8,12,
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   return t;
+}
+
+/** Revoco de fachada (encalado): manchas suaves, desconchones y suciedad abajo. */
+export function plasterTexture(tint = '#e9e4d8', seed = 31) {
+  return material(`plaster:${tint}:${seed}`, 256, 3, 1.4, (g, s) => {
+    const r = rng(seed);
+    g.fillStyle = tint;
+    g.fillRect(0, 0, s, s);
+    blotches(g, s, r, 12, 0.05);
+    noise(g, s, 0.1, seed);
+    // Desconchones irregulares y tenues (dejan entrever la piedra)
+    for (let i = 0; i < 3; i++) {
+      let x = r() * s;
+      let y = r() * s;
+      g.fillStyle = tone(tint, 0.86);
+      g.beginPath();
+      g.moveTo(x, y);
+      for (let k = 0; k < 7; k++) {
+        x += (r() - 0.5) * 14;
+        y += (r() - 0.3) * 9;
+        g.lineTo(x, y);
+      }
+      g.closePath();
+      g.fill();
+    }
+    // Chorreones de lluvia
+    for (let i = 0; i < 5; i++) {
+      const grd = g.createLinearGradient(0, 0, 0, s);
+      grd.addColorStop(0, 'rgba(60,55,45,0.10)');
+      grd.addColorStop(1, 'rgba(60,55,45,0)');
+      g.fillStyle = grd;
+      g.fillRect(r() * s, 0, 2 + r() * 4, s * (0.3 + r() * 0.6));
+    }
+  });
+}
+
+/** Ladrillo visto con juntas de mortero (fachadas de la ciudad). */
+export function brickTexture(tint = '#7a3e2e', seed = 41) {
+  return material(`brick:${tint}:${seed}`, 512, 2.4, 2.6, (g, s) => {
+    const r = rng(seed);
+    g.fillStyle = tone(tint, 0.55);
+    g.fillRect(0, 0, s, s);
+    const rows = 32;
+    const bh = s / rows;
+    const bw = bh * 2.6;
+    for (let row = 0; row < rows; row++) {
+      const off = row % 2 ? bw / 2 : 0;
+      for (let x = -bw; x < s + bw; x += bw) {
+        g.fillStyle = tone(tint, 0.78 + r() * 0.36);
+        g.fillRect(x + off + 1.2, row * bh + 1.2, bw - 2.4, bh - 2.4);
+      }
+    }
+    blotches(g, s, r, 10, 0.07);
+    noise(g, s, 0.12, seed);
+  });
+}
+
+/** Tablas de madera pintada (contraventanas, balcones, barcas). */
+export function paintedWoodTexture(tint = '#8c2f24', seed = 51) {
+  return material(`pwood:${tint}:${seed}`, 128, 1, 1.6, (g, s) => {
+    const r = rng(seed);
+    const n = 6;
+    const pw = s / n;
+    for (let i = 0; i < n; i++) {
+      g.fillStyle = tone(tint, 0.88 + r() * 0.22);
+      g.fillRect(i * pw, 0, pw, s);
+      g.fillStyle = 'rgba(0,0,0,0.35)';
+      g.fillRect(i * pw, 0, 1.5, s);
+    }
+    // Pintura gastada
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = `rgba(230,220,200,${0.08 + r() * 0.12})`;
+      g.fillRect(r() * s, r() * s, 1 + r() * 4, 1 + r() * 2);
+    }
+    noise(g, s, 0.08, seed);
+  });
+}
+
+/**
+ * Rótulo luminoso: texto con halo sobre fondo oscuro. Devuelve { map,
+ * emissiveMap } (el emisivo es el propio texto, para el bloom).
+ */
+export function neonSignTexture(text, { color = '#ff4fa3', bg = '#120c18', vertical = false, width = 256, height = 96 } = {}) {
+  const key = `neon:${text}:${color}:${bg}:${vertical}:${width}x${height}`;
+  if (cache.has(key)) return cache.get(key);
+  const mk = (glowOnly) => {
+    const c = document.createElement('canvas');
+    c.width = width;
+    c.height = height;
+    const g = c.getContext('2d');
+    g.fillStyle = glowOnly ? '#000' : bg;
+    g.fillRect(0, 0, width, height);
+    if (!glowOnly) {
+      g.strokeStyle = 'rgba(255,255,255,0.12)';
+      g.lineWidth = 3;
+      g.strokeRect(3, 3, width - 6, height - 6);
+    }
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = color;
+    g.shadowColor = color;
+    g.shadowBlur = glowOnly ? 14 : 8;
+    if (vertical) {
+      const chars = [...text];
+      const fs = Math.min(width * 0.7, (height * 0.9) / chars.length);
+      g.font = `700 ${fs}px Rajdhani, Arial Narrow, Arial, sans-serif`;
+      chars.forEach((ch, i) => g.fillText(ch, width / 2, height * 0.05 + fs * (i + 0.55)));
+    } else {
+      const fs = Math.min(height * 0.62, (width * 1.4) / Math.max(4, text.length));
+      g.font = `700 ${fs}px Rajdhani, Arial Narrow, Arial, sans-serif`;
+      g.fillText(text, width / 2, height / 2 + 2);
+    }
+    return c;
+  };
+  const map = new THREE.CanvasTexture(mk(false));
+  const emissiveMap = new THREE.CanvasTexture(mk(true));
+  map.colorSpace = emissiveMap.colorSpace = THREE.SRGBColorSpace;
+  const out = { map, emissiveMap };
+  cache.set(key, out);
+  return out;
+}
+
+/** Lona a rayas (toldos del mercado y de las tiendas). */
+export function awningTexture(a = '#b8322a', b = '#efe6d2') {
+  const key = `awning:${a}:${b}`;
+  if (cache.has(key)) return cache.get(key);
+  const c = canvas(128, (g, s) => {
+    const n = 8;
+    for (let i = 0; i < n; i++) {
+      g.fillStyle = i % 2 ? b : a;
+      g.fillRect((i * s) / n, 0, s / n, s);
+    }
+    noise(g, s, 0.1, 9);
+  });
+  const t = toTexture(c);
+  t.userData = { unit: 2 };
+  cache.set(key, t);
+  return t;
+}
+
+/** Franjas de aviso amarillas y negras (barreras de la PDC). */
+export function hazardTexture() {
+  const key = 'hazard';
+  if (cache.has(key)) return cache.get(key);
+  const c = canvas(128, (g, s) => {
+    g.fillStyle = '#1a1a1a';
+    g.fillRect(0, 0, s, s);
+    g.fillStyle = '#e8b71c';
+    for (let i = -s; i < s * 2; i += 32) {
+      g.beginPath();
+      g.moveTo(i, 0);
+      g.lineTo(i + 16, 0);
+      g.lineTo(i + 16 - s, s);
+      g.lineTo(i - s, s);
+      g.closePath();
+      g.fill();
+    }
+    noise(g, s, 0.15, 3);
+  });
+  const t = toTexture(c);
+  t.userData = { unit: 1 };
+  cache.set(key, t);
+  return t;
+}
+
+/**
+ * Escaparate: interior iluminado con estanterías, mostrador y siluetas de
+ * género tras el cristal (mapa de color + emisivo). Evita el panel liso.
+ */
+export function shopfrontTextures(seed = 1) {
+  const key = `shopfront:${seed}`;
+  if (cache.has(key)) return cache.get(key);
+  const r = rng(seed);
+  const W = 256;
+  const H = 160;
+  const hue = [[255, 214, 160], [190, 225, 255], [255, 190, 210], [210, 255, 200]][seed % 4];
+  const draw = (g, glow) => {
+    const grd = g.createLinearGradient(0, 0, 0, H);
+    const k = glow ? 1 : 0.35;
+    grd.addColorStop(0, `rgba(${hue[0] * k},${hue[1] * k},${hue[2] * k},1)`);
+    grd.addColorStop(1, `rgba(${hue[0] * k * 0.45},${hue[1] * k * 0.45},${hue[2] * k * 0.45},1)`);
+    g.fillStyle = grd;
+    g.fillRect(0, 0, W, H);
+    // Estanterías con género (bloques de colores oscuros)
+    for (let y = 30; y < H - 40; y += 34) {
+      g.fillStyle = 'rgba(20,16,14,0.85)';
+      g.fillRect(8, y, W - 16, 4);
+      for (let x = 12; x < W - 16; x += 6 + r() * 10) {
+        g.fillStyle = `rgba(${40 + r() * 80},${30 + r() * 60},${30 + r() * 60},0.9)`;
+        const h = 8 + r() * 18;
+        g.fillRect(x, y - h, 4 + r() * 6, h);
+      }
+    }
+    // Mostrador y una silueta
+    g.fillStyle = 'rgba(16,12,10,0.95)';
+    g.fillRect(W * 0.55, H - 46, W * 0.4, 46);
+    g.beginPath();
+    g.arc(W * 0.3, H - 70, 9, 0, Math.PI * 2);
+    g.fill();
+    g.fillRect(W * 0.3 - 11, H - 62, 22, 62);
+    // Carpintería del escaparate
+    g.fillStyle = '#121416';
+    g.fillRect(0, 0, W, 6);
+    g.fillRect(0, H - 6, W, 6);
+    for (const x of [0, W / 3, (2 * W) / 3, W - 6]) g.fillRect(x, 0, 6, H);
+    if (!glow) {
+      g.fillStyle = 'rgba(255,255,255,0.08)';
+      g.beginPath();
+      g.moveTo(W * 0.1, H);
+      g.lineTo(W * 0.45, 0);
+      g.lineTo(W * 0.6, 0);
+      g.lineTo(W * 0.25, H);
+      g.fill();
+    }
+  };
+  const mk = (glow) => {
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    draw(c.getContext('2d'), glow);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+  const out = { map: mk(false), emissiveMap: mk(true) };
+  cache.set(key, out);
+  return out;
+}
+
+/** Cartel publicitario / propaganda de la PDC para las vallas de las azoteas. */
+export function posterTexture(kind = 0) {
+  const key = `poster:${kind}`;
+  if (cache.has(key)) return cache.get(key);
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 256;
+  const g = c.getContext('2d');
+  const themes = [
+    { bg: ['#0e1a2e', '#1e3a66'], fg: '#e8f0ff', accent: '#4aa3ff', title: 'PDC', sub: 'TU SEGURIDAD ES NUESTRA MISIÓN' },
+    { bg: ['#3a0e1a', '#7a1e34'], fg: '#ffe8ef', accent: '#ff4f7a', title: 'NEO·COLA', sub: 'SIENTE LA ENERGÍA' },
+    { bg: ['#10261c', '#1e5a3a'], fg: '#eaffef', accent: '#5aff9a', title: 'DISTRITO', sub: 'VIVE EL CENTRO' },
+  ];
+  const t = themes[kind % themes.length];
+  const grd = g.createLinearGradient(0, 0, 512, 256);
+  grd.addColorStop(0, t.bg[0]);
+  grd.addColorStop(1, t.bg[1]);
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 512, 256);
+  g.fillStyle = t.accent;
+  g.globalAlpha = 0.85;
+  g.beginPath();
+  g.arc(400, 128, 90, 0, Math.PI * 2);
+  g.fill();
+  g.globalAlpha = 1;
+  g.fillStyle = t.fg;
+  g.font = '700 92px Rajdhani, Arial Narrow, Arial, sans-serif';
+  g.textBaseline = 'middle';
+  g.fillText(t.title, 28, 100);
+  g.font = '600 26px Rajdhani, Arial Narrow, Arial, sans-serif';
+  g.fillStyle = t.accent;
+  g.fillText(t.sub, 30, 180);
+  g.strokeStyle = 'rgba(255,255,255,0.25)';
+  g.lineWidth = 6;
+  g.strokeRect(3, 3, 506, 250);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  cache.set(key, tex);
+  return tex;
 }

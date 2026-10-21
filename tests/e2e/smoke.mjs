@@ -585,6 +585,9 @@ try {
   check(gfx.pipeline, 'Postproceso: render → oclusión (opcional) → bloom → salida → gradación');
   check(!gfx.low.env && gfx.low.samples === 0 && gfx.high.env && gfx.high.samples === 4 && gfx.envOff && gfx.high.settings, `Ajustes: MSAA (${gfx.low.samples} → ${gfx.high.samples} muestras) y reflejos del cielo se encienden y apagan`);
   check(gfx.born.sparks > 0 && gfx.born.smoke > 0 && gfx.after.sparks === 0 && gfx.after.smoke === 0, `Impacto con chispas (${gfx.born.sparks}) y humo/polvo (${gfx.born.smoke}) que se disipan`);
+  // Cambiar la calidad regenera el mapa de entorno y los búferes del MSAA: los
+  // primeros frames tras volver a la calidad modesta van lentos (render por software)
+  await page.waitForTimeout(2000);
 
   // ---------------- Poderes de Energía (Etapa 2) ----------------
   console.log('\n[poderes]');

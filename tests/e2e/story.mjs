@@ -50,6 +50,8 @@ export async function storySection({ page, check, PORT, out }) {
     check(await until(() => window.__ascend.story.skipping || !window.__ascend.story.controlsLocked, null, 15000), 'Mantener Espacio salta la escena');
     await page.keyboard.up('Space');
     check(await until(() => !window.__ascend.story.skipping && !window.__ascend.story.controlsLocked, null, 30000), 'Tras el salto se recupera el control');
+    // (la pantalla negra se desvanece con una transición CSS)
+    await until(() => Number(getComputedStyle(document.getElementById('story-skipping')).opacity) < 0.5, null, 5000);
     const skipped = await g(() => { const a = window.__ascend; const p = a.player.motor.position; return { line: window.__ev.some((e) => e.ev === 'story:line' && e.d.text === 'No fue un sueño...'), skip: window.__ev.some((e) => e.ev === 'story:skip'), muted: !!a.audio._muted, cover: getComputedStyle(document.getElementById('story-skipping')).opacity, obj: document.getElementById('story-obj').textContent, cp: a.save.data.story.checkpoint, outOfBed: Math.hypot(p.x - a.mapManager.current.story.points.cp09.x, p.z - a.mapManager.current.story.points.cp09.z) < 1.5 }; });
     check(skipped.skip && skipped.line && !skipped.muted && Number(skipped.cover) < 0.5 && /Sal de casa/.test(skipped.obj) && skipped.cp === 'CP09' && skipped.outOfBed, `La escena saltada deja el mismo estado que verla (${JSON.stringify(skipped)})`);
     // Detección → recarga del punto de control correcto
