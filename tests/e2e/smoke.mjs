@@ -1506,7 +1506,9 @@ try {
     }
     return { run: !!m.iceRun, rise: top - y0, tiles: a.temperature.tiles.length };
   });
-  await page.screenshot({ path: path.join(out, 'temp-04-icerun.png') });
+  // (Se suelta Shift antes de la captura: mientras se captura el juego sigue en
+  // tiempo real y, con la tecla pulsada, la carrera seguiría hasta que se
+  // fundiera el hielo.)
   await page.keyboard.up('ShiftLeft');
   const tLand = await g(() => {
     const a = window.__ascend;
@@ -1518,6 +1520,7 @@ try {
     }
     return { run: !!m.iceRun, y: m.position.y, grounded: m.grounded };
   });
+  await page.screenshot({ path: path.join(out, 'temp-04-icerun.png') });
   check(tRun.run && tRun.rise > 2 && tRun.tiles >= 3, `Shift patinando: avanza por el aire sobre un camino de hielo (sube ${tRun.rise.toFixed(1)} m, ${tRun.tiles} placas)`);
   check(!tLand.run && tLand.grounded && tLand.y > 2, `Al soltar Shift se queda de pie sobre el hielo (y=${tLand.y.toFixed(2)})`);
   await page.keyboard.press('KeyQ');

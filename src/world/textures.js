@@ -10,7 +10,8 @@ const cache = new Map();
 function canvas(size, draw) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
-  draw(c.getContext('2d'), size);
+  // Se lee de vuelta (mapa normal, relieve): mejor en memoria que en la GPU
+  draw(c.getContext('2d', { willReadFrequently: true }), size);
   return c;
 }
 

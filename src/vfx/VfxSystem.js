@@ -229,6 +229,23 @@ export class VfxSystem {
     }, true);
   }
 
+  /**
+   * Compila de antemano los shaders de los efectos (chispas, humo, aro de
+   * choque, rayos, fantasma) con las luces y la niebla del mapa: sin esto, el
+   * primer impacto de la partida da un tirón mientras se compilan. Los
+   * efectos de prueba se crean lejos, bajo el mapa, y se borran al momento.
+   */
+  warmup(renderer, camera) {
+    const p = { x: 0, y: -500, z: 0 };
+    this.impact(p, { x: 0, y: 1, z: 0 }, 0xffffff, 1);
+    this.afterimage(p, 0, 0xffffff);
+    this.lightning(p, { x: 0, y: -499, z: 0 }, 0xffffff);
+    this.ring(p, 1, 0xffffff);
+    for (const s of [this.particles, this.smoke, this.sparks]) s.update(0);
+    renderer.compile(this.scene, camera);
+    this.clear();
+  }
+
   /** @param {THREE.Material[]} [materials] materiales compartidos por un grupo, a liberar al terminar */
   _addTransient(obj, life, update, ownsMaterial = true, materials = null) {
     this.group.add(obj);

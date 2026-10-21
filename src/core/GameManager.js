@@ -234,6 +234,7 @@ export class GameManager {
     this.acquisition.cancel();
     const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain, save: this.save });
     this._applyMapLook(def);
+    this.vfx.warmup(this.renderer, this.camera);
     this.playerCombat.attach();
     this.player.object3d.visible = true;
     this.player.spawn(map.spawn);
