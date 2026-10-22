@@ -577,6 +577,15 @@ enemigo; el tipo base no cambia).
   norte no la abandona y los del helipuerto y el garaje vigilan la pasarela
   del anexo mientras Jon huye por las azoteas.
 
+## Diseño de la ciudad (propuesta)
+
+La ciudad del acto I (nombre provisional: Ibaia) está **diseñada, no
+implementada**: 30 km² en diez barrios de 3 km² exactos alrededor de una
+isla fortificada, una marca por barrio como llave de cada frontera, secretos,
+áreas bloqueadas y una ruta en espiral hasta la Ciudadela. Resumen en
+[`docs/CIUDAD.md`](docs/CIUDAD.md); los generadores de planos y maqueta, en
+[`tools/ciudad/`](tools/ciudad/README.md).
+
 ## Etapa 7 — Pulido
 
 **Sonido** (`src/audio/`): todo se sintetiza en tiempo real con Web Audio, sin
