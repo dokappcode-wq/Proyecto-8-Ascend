@@ -2,4 +2,5 @@ venv/
 out/
 page/
 maq/city.json
+maq/extra.json
 __pycache__/

@@ -1,113 +1,214 @@
-"""Dibujo SVG de la ciudad: plano general y planos de barrio."""
+"""Dibujo SVG estilo mapa de juego: tierra oscura, calles claras por jerarquía,
+autopistas en ámbar, edificios sombreados por altura y agua profunda."""
 import math
 from shapely.geometry import box, Polygon, LineString, Point
 from shapely.ops import unary_union
+from shapely.strtree import STRtree
+from fabric import polys, lines, road_area, ROAD_W
 
 PAL = {
-    'void': '#070a10', 'land': '#161e2b', 'built': '#2b3547', 'green': '#1c3324', 'path': '#2e5238',
-    'water': '#0e2740', 'sea': '#0b2036', 'plaza': '#243145', 'special': '#3d4a61', 'rail': '#5d6c86',
-    'wall': '#c9a46a', 'viaduct': '#7b88a1', 'beach': '#3a3829', 'slag': '#3b2f2a', 'grid': '#1f2a3b',
+    'void': '#070a0f', 'ocean': '#0c2033', 'shore': '#18405f', 'wild': '#1a1f1c', 'wildline': '#283028',
+    'asphalt': '#1b2027', 'block': '#262c34', 'b_lo': '#343b45', 'b_hi': '#a3afc2', 'park': '#22402b', 'forest': '#1b3424',
+    'water': '#123754', 'beach': '#6a6043', 'plaza': '#39404a', 'yard': '#2b2f36', 'pool': '#41aee0',
+    'hwy': '#e2b552', 'hwy_case': '#5e4818', 'ave': '#c5ccd5', 'st': '#7c8592', 'alley': '#4f5763', 'path': '#5b7a5f',
+    'rail': '#8d96a3', 'elev': '#c9d0d9', 'barrier': '#ffb547',
 }
+KIND_COL = {'container': None, 'crane': '#c96a3a', 'tank': '#8a8f96', 'chimney': '#a0a4aa', 'torre': '#ffb547', 'prison': '#5a5f66',
+            'stadium': '#4b5563', 'glass': '#6fb6c9', 'letters': '#f1efe7', 'wheel': '#e9c46a', 'coaster': '#c95f5f',
+            'lighthouse': '#e8e2d0', 'fountain': '#5aa7d6', 'antenna': '#c0c5cc', 'pier': '#5a5348'}
+CONT = ['#b5544a', '#3e7cb1', '#c9a24a', '#5f8f5a', '#8a5aa0', '#c7c7c7']
 
-MARKCOL = {
-    'B1': '#2f8bff', 'B2': '#e9edf5', 'B3': '#3557ff', 'B4': '#a24dff', 'B5': '#2ee6d6', 'B6': '#5fbf3f',
-    'B7': '#d8e83a', 'B8': '#8c86a8', 'B9': '#ff6fa8', 'B10': '#d62839',
-}
 
-
-def mix(c1, c2, t):
-    a = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
-    b = [int(c2[i:i + 2], 16) for i in (1, 3, 5)]
+def hcol(h):
+    t = max(0.0, min(1.0, (max(h, 0) / 240) ** 0.55))
+    a = [int(PAL['b_lo'][i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(PAL['b_hi'][i:i + 2], 16) for i in (1, 3, 5)]
     return '#' + ''.join(f'{round(a[i] + (b[i] - a[i]) * t):02x}' for i in range(3))
 
 
-def ring_d(coords, k):
-    pts = [(round(x * k), round(y * k)) for x, y in coords]
-    out = []
+def ring_d(coords, k, prec=1):
+    pts = [(round(x * k, prec), round(y * k, prec)) for x, y in coords]
+    if prec == 0:
+        pts = [(int(x), int(y)) for x, y in pts]
+    s = [f'M{pts[0][0]:g} {pts[0][1]:g}']
     px, py = pts[0]
-    out.append(f'M{px} {py}')
     for x, y in pts[1:-1]:
-        out.append(f'l{x - px} {y - py}')
+        dx, dy = round(x - px, prec), round(y - py, prec)
+        s.append(f'l{dx:g} {dy:g}')
         px, py = x, y
-    return ''.join(out) + 'z'
+    return ''.join(s) + 'z'
 
 
-def poly_d(g, k=1.0):
-    if g.is_empty:
-        return ''
-    if g.geom_type == 'Polygon':
-        s = ring_d(g.exterior.coords, k)
-        for i in g.interiors:
-            s += ring_d(i.coords, k)
-        return s
-    if hasattr(g, 'geoms'):
-        return ''.join(poly_d(x, k) for x in g.geoms)
-    return ''
+def poly_d(g, k, prec=1):
+    out = []
+    for p in polys(g):
+        out.append(ring_d(p.exterior.coords, k, prec))
+        for i in p.interiors:
+            out.append(ring_d(i.coords, k, prec))
+    return ''.join(out)
 
 
-def line_d(g, k=1.0):
-    if g.is_empty:
-        return ''
-    if g.geom_type == 'LineString':
-        pts = [(round(x * k), round(y * k)) for x, y in g.coords]
-        s = f'M{pts[0][0]} {pts[0][1]}'
+def line_d(g, k, prec=1):
+    out = []
+    for l in lines(g):
+        pts = [(round(x * k, prec), round(y * k, prec)) for x, y in l.coords]
+        s = f'M{pts[0][0]:g} {pts[0][1]:g}'
         px, py = pts[0]
         for x, y in pts[1:]:
-            s += f'l{x - px} {y - py}'
+            s += f'l{round(x - px, prec):g} {round(y - py, prec):g}'
             px, py = x, y
-        return s
-    if g.geom_type in ('LinearRing',):
-        return line_d(LineString(g.coords), k)
-    if hasattr(g, 'geoms'):
-        return ''.join(line_d(x, k) for x in g.geoms)
-    return ''
+        out.append(s)
+    return ''.join(out)
 
 
-def layer_path(geoms, k, fill, extra=''):
-    d = ''.join(poly_d(g, k) for g in geoms)
-    if not d:
-        return ''
-    return f'<path d="{d}" fill="{fill}" fill-rule="evenodd"{extra}/>'
+def P(geoms, k, fill, extra='', prec=1):
+    d = ''.join(poly_d(g, k, prec) for g in geoms if g is not None and not g.is_empty)
+    return f'<path d="{d}" fill="{fill}" fill-rule="evenodd"{extra}/>' if d else ''
 
 
-def layer_lines(geoms, k, stroke, width, extra=''):
-    d = ''.join(line_d(g, k) for g in geoms)
-    if not d:
-        return ''
-    return f'<path d="{d}" fill="none" stroke="{stroke}" stroke-width="{width}" stroke-linejoin="round" stroke-linecap="round"{extra}/>'
+def L(geoms, k, stroke, w, extra='', prec=1):
+    d = ''.join(line_d(g, k, prec) for g in geoms if g is not None and not g.is_empty)
+    return f'<path d="{d}" fill="none" stroke="{stroke}" stroke-width="{w:.2f}" stroke-linejoin="round" stroke-linecap="round"{extra}/>' if d else ''
 
 
-def clipg(geoms, view):
+def clip(geoms, view):
     out = []
     for g in geoms:
-        if not g.intersects(view):
+        if g is None or g.is_empty or not g.intersects(view):
             continue
         out.append(g if view.contains(g) else g.intersection(view))
     return out
 
 
-def draw_barrio(b, bid, k, view, detail=True, dim=False):
-    """Capas de un barrio. k: escala (unidades SVG por metro)."""
-    L = b['layers']
-    tint = MARKCOL[bid]
-    built = L['built'] if (detail or not L['blocks']) else L['blocks']
-    bc = mix(PAL['built'], tint, 0.16 if not dim else 0.05)
-    sc = mix(PAL['special'], tint, 0.42 if not dim else 0.1)
+def wild_contours(g, view):
+    """Curvas de nivel en la tierra fuera de la ciudad (sierra)."""
     out = []
-    land = clipg([b['land']], view)
-    out.append(layer_path(land, k, PAL['land']))
-    out.append(layer_path(clipg(L['beach'], view), k, PAL['beach']))
-    out.append(layer_path(clipg(L['slag'], view), k, PAL['slag']))
-    out.append(layer_path(clipg(L['green'], view), k, PAL['green']))
-    out.append(layer_lines(clipg(L['path'], view), k, PAL['path'], max(0.6, 5 * k)))
-    out.append(layer_path(clipg(L['plaza'], view), k, PAL['plaza']))
-    out.append(layer_path(clipg(L['water'], view), k, PAL['water']))
-    out.append(layer_path(clipg(built, view), k, bc))
-    out.append(layer_path(clipg(L['special'], view), k, sc))
-    out.append(layer_lines(clipg(L['rail'], view), k, PAL['rail'], max(0.8, 6 * k), f' stroke-dasharray="{max(2, 18 * k):.1f} {max(1.5, 10 * k):.1f}"'))
-    out.append(layer_lines(clipg(L['wall'], view), k, PAL['wall'], max(1.2, 12 * k)))
-    vi = clipg(L['viaduct'], view)
-    out.append(layer_lines(vi, k, '#0b0f17', max(2.4, 34 * k)))
-    out.append(layer_lines(vi, k, PAL['viaduct'], max(1.6, 24 * k)))
-    g = ''.join(out)
-    return f'<g opacity="{0.5 if dim else 1}">{g}</g>'
+    playable = unary_union([D['poly'] for D in g['D'].values()])
+    wild = unary_union([g['westland'], g['eastland']]).difference(playable.buffer(5))
+    for c, rs in [((-300, -400), [500, 1000, 1500, 2000, 2500, 3000]), ((8600, 1500), [600, 1200, 1800, 2400, 3000, 3600]),
+                  ((8900, 4300), [500, 1000, 1500, 2000]), ((-600, 3200), [600, 1200, 1800])]:
+        for r in rs:
+            ring = Point(c).buffer(r, quad_segs=24).exterior
+            pts = []
+            for i, (x, y) in enumerate(ring.coords):
+                a = math.atan2(y - c[1], x - c[0])
+                w = 1 + 0.06 * math.sin(5 * a + r / 300) + 0.03 * math.sin(11 * a)
+                pts.append((c[0] + (x - c[0]) * w, c[1] + (y - c[1]) * w))
+            out.append(LineString(pts).intersection(wild).intersection(view))
+    return out
+
+
+def district_layers(D, k, view, detail, roads_all):
+    """Capas de un barrio: base de asfalto, manzanas, zonas, edificios."""
+    out = []
+    poly = D['poly']
+    out.append(P(clip([poly], view), k, PAL['asphalt']))
+    blocks = D.get('_blocks')
+    if blocks is None:
+        A0 = D['areas']
+        holes = unary_union([road_area(D['roads'] + roads_all)] + [g_ for key in ('park', 'forest', 'water', 'beach', 'plaza', 'yard') for g_ in A0[key]])
+        blocks = [b for b in polys(poly.difference(holes)) if b.area > 200]
+        D['_blocks'] = blocks
+    out.append(P(clip(blocks, view), k, PAL['block']))
+    A = D['areas']
+    out.append(P(clip(A['beach'], view), k, PAL['beach']))
+    out.append(P(clip(A['yard'], view), k, PAL['yard']))
+    out.append(P(clip(A['plaza'], view), k, PAL['plaza']))
+    out.append(P(clip(A['park'], view), k, PAL['park']))
+    out.append(P(clip(A['forest'], view), k, PAL['forest']))
+    out.append(P(clip(A['water'], view), k, PAL['water']))
+    out.append(P(clip(A['pool'], view), k, PAL['pool']))
+    if detail:
+        # Edificios agrupados por color (altura) para que el SVG sea ligero
+        groups = {}
+        for fp, h, kind in D['bld']:
+            if not fp.intersects(view):
+                continue
+            if kind == 'container':
+                col = CONT[int(abs(fp.centroid.x * 7 + fp.centroid.y * 3)) % len(CONT)]
+            elif kind in KIND_COL and KIND_COL[kind]:
+                col = KIND_COL[kind]
+            else:
+                col = hcol(h)
+            groups.setdefault(col, []).append(fp)
+        for col, gs in groups.items():
+            out.append(P(gs, k, col, prec=1))
+    else:
+        # Plano general: manzanas sombreadas por la altura media de sus edificios
+        tree = STRtree([b for b, h, kd in D['bld']])
+        hs = [h for b, h, kd in D['bld']]
+        groups = {}
+        for b in clip(blocks, view):
+            idx = tree.query(b)
+            vals = [hs[i] for i in idx]
+            hm = (sum(vals) / len(vals)) if vals else 0
+            col = hcol(hm) if vals else PAL['block']
+            groups.setdefault(col, []).append(b)
+        for col, gs in groups.items():
+            out.append(P(gs, k, col, prec=0))
+        special = [(fp, kind) for fp, h, kind in D['bld'] if kind in KIND_COL and KIND_COL[kind] and kind not in ('container',)]
+        for fp, kind in special:
+            out.append(P(clip([fp], view), k, KIND_COL[kind], prec=1))
+    return ''.join(out)
+
+
+def road_layers(roads, k, view, detail):
+    by = {}
+    for l, c in roads:
+        if not detail and c in ('alley', 'path'):
+            continue
+        by.setdefault(c, []).append(l)
+    out = []
+    scale = k if detail else k * 1.6
+    for c in ('path', 'alley', 'st', 'ave'):
+        if c in by:
+            w = max(0.5, ROAD_W[c] * scale * (0.55 if c in ('st', 'alley') else 0.7))
+            if not detail and c == 'st':
+                w = max(0.45, 0.6 * w)
+            dash = ' stroke-dasharray="2 2"' if c == 'path' else ''
+            out.append(L(clip(by[c], view), k, PAL[c], w, dash))
+    if 'hwy' in by:
+        w = max(1.6, ROAD_W['hwy'] * scale * 0.85)
+        out.append(L(clip(by['hwy'], view), k, PAL['hwy_case'], w + 1.4))
+        out.append(L(clip(by['hwy'], view), k, PAL['hwy'], w))
+    return ''.join(out)
+
+
+def base_map(g, view, k, detail=False, focus=None):
+    parts = []
+    parts.append(P([box(*view.bounds)], k, PAL['ocean']))
+    land = unary_union([g['westland'], g['eastland'], g['island'], g['roca']]).intersection(view)
+    parts.append(P([land.buffer(28).difference(land)], k, PAL['shore'], ' opacity="0.55"'))
+    parts.append(P([land], k, PAL['wild']))
+    parts.append(L(wild_contours(g, view), k, PAL['wildline'], max(0.6, 3 * k)))
+    roads_all = [(l, c) for l, c, n in g['groads']]
+    for key, D in g['D'].items():
+        if not D['poly'].intersects(view):
+            continue
+        dim = focus is not None and key != focus
+        layer = district_layers(D, k, view, detail and not dim, roads_all)
+        parts.append(f'<g opacity="{0.45 if dim else 1}">{layer}</g>')
+    # Vías de tren y calles
+    rails = [r for D in g['D'].values() for r in D['rail']]
+    parts.append(L(clip(rails, view), k, PAL['rail'], max(0.5, 3 * k), f' stroke-dasharray="{max(1.5, 10 * k):.1f} {max(1, 6 * k):.1f}"'))
+    allroads = []
+    for key, D in g['D'].items():
+        if focus is not None and key != focus and not detail:
+            pass
+        allroads += D['roads'] if (detail and (focus is None or key == focus)) else [(l, c) for l, c in D['roads'] if c not in ('alley', 'path')]
+    parts.append(road_layers(allroads + roads_all, k, view, detail))
+    # Puentes
+    for name, l, c, a, b in g['bridges']:
+        if not l.intersects(view):
+            continue
+        if c == 'tunnel':
+            parts.append(L([l], k, PAL['ave'], max(1, 10 * k), f' stroke-dasharray="{max(2, 25 * k):.1f} {max(2, 18 * k):.1f}" opacity="0.7"'))
+            continue
+        w = max(2.4, 44 * k)
+        parts.append(L([l], k, '#05080c', w + 2.6))
+        parts.append(L([l], k, PAL['hwy'], w))
+        parts.append(L([l], k, '#fff3cf', max(0.6, w * 0.18)))
+    # Tren elevado
+    parts.append(L(clip(g['elevated'], view), k, '#0b0f15', max(2.2, 16 * k)))
+    parts.append(L(clip(g['elevated'], view), k, PAL['elev'], max(1, 7 * k), f' stroke-dasharray="{max(2, 24 * k):.1f} {max(1.2, 10 * k):.1f}"'))
+    return ''.join(parts)

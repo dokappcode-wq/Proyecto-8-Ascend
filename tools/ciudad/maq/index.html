@@ -11,124 +11,175 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffe
 renderer.setSize(W, H);
 renderer.setPixelRatio(1);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.95;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
 document.body.appendChild(renderer.domElement);
-
 const scene = new THREE.Scene();
-const sky = new THREE.Color('#b9c7d6');
-scene.background = sky;
-scene.fog = new THREE.Fog('#c3c9cf', 9000, 30000);
 
-const hemi = new THREE.HemisphereLight('#e9eef5', '#3a4250', 1.1);
-scene.add(hemi);
-const sun = new THREE.DirectionalLight('#ffe2bf', 2.4);
-sun.position.set(-1800, 3200, 5600);
-sun.target.position.set(3000, 0, 2500);
-sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
-const sc = sun.shadow.camera;
-sc.left = -4200; sc.right = 4200; sc.top = 3600; sc.bottom = -3600; sc.near = 100; sc.far = 14000;
-sun.shadow.bias = -0.0004;
+// Cielo de atardecer (degradado equirectangular: el horizonte en el centro)
+{
+  const c = document.createElement('canvas'); c.width = 8; c.height = 512;
+  const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 512);
+  gr.addColorStop(0, '#0f1a33'); gr.addColorStop(0.3, '#2c4170'); gr.addColorStop(0.44, '#a7768a'); gr.addColorStop(0.5, '#f3b27a'); gr.addColorStop(0.53, '#c4927f'); gr.addColorStop(0.62, '#7d6f7a'); gr.addColorStop(1, '#2a3346');
+  g.fillStyle = gr; g.fillRect(0, 0, 8, 512);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.mapping = THREE.EquirectangularReflectionMapping;
+  scene.background = t;
+  const pm = new THREE.PMREMGenerator(renderer);
+  scene.environment = pm.fromEquirectangular(t).texture;
+  scene.environmentIntensity = 0.55;
+}
+scene.fog = new THREE.Fog('#b98a86', 9000, 32000);
+scene.add(new THREE.HemisphereLight('#9fb4dc', '#3a3330', 1.1));
+const sun = new THREE.DirectionalLight('#ffb27a', 2.6);
+sun.position.set(-3500, 1600, 5200); sun.target.position.set(4400, 0, 3500);
+sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -6000, right: 6000, top: 6000, bottom: -6000, near: 100, far: 20000 });
+sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 
 // Agua
-const water = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshStandardMaterial({ color: '#2f5f86', roughness: 0.55, metalness: 0.0 }));
-water.rotation.x = -Math.PI / 2;
-water.position.set(3000, -0.2, 2500);
-water.receiveShadow = true;
+const water = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), new THREE.MeshStandardMaterial({ color: '#2f6390', roughness: 0.25, metalness: 0.15 }));
+water.rotation.x = -Math.PI / 2; water.position.set(4000, -0.4, 3500); water.receiveShadow = true;
 scene.add(water);
 
-// Montes alrededor (sierra norte, sur y valle este); al oeste, el mar
+const extra = await (await fetch('./extra.json')).json();
+// Relieve fuera de la ciudad
 {
-  const S = 26000, N = 260;
-  const g = new THREE.PlaneGeometry(S, S, N, N);
+  const hm = extra.hm, st = extra.step, [hx, hy] = extra.hm0;
+  const nz = hm.length, nx = hm[0].length;
+  const g = new THREE.PlaneGeometry((nx - 1) * st, (nz - 1) * st, nx - 1, nz - 1);
   g.rotateX(-Math.PI / 2);
-  const pos = g.attributes.position;
-  const col = [];
-  const c = new THREE.Color();
+  const pos = g.attributes.position, col = [], c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i) + 3000, z = pos.getZ(i) + 2500;
-    const dx = Math.max(0, -x, x - 6000), dz = Math.max(0, -z, z - 5000);
-    let d = Math.hypot(dx, dz);
-    let h = -30;
-    if (d === 0) {
-      const dd = Math.min(x, 6000 - x, z, 5000 - z);
-      if (dd < 140 && x > 320 && !(x > 5700 && Math.abs(z - 2100) < 220)) h = 0.3;
-    }
-    if (d > 0) {
-      const n = Math.sin(x / 700) * Math.cos(z / 900) * 0.5 + Math.sin(x / 260 + z / 330) * 0.25 + Math.sin(z / 1700 + x / 2100) * 0.4;
-      h = Math.min(1, d / 2600) * (380 + 260 * n) + n * 30;
-      // Valle de la ría al este (aguas arriba)
-      if (x > 6000) h *= 1 - Math.exp(-((z - 2100) ** 2) / (2 * 260 ** 2)) * 0.95;
-      // Mar al oeste
-      if (x < 0) h = -40 - d * 0.02;
-      else if (!(x > 6000 && Math.abs(z - 2100) < 160)) h = Math.max(1.5 + d * 0.01, h);
-      // Colina del prólogo (al norte del Distrito Cero)
-      h += 120 * Math.exp(-(((x - 4300) / 600) ** 2 + ((z + 700) / 450) ** 2));
-    }
+    const ix = i % nx, iz = Math.floor(i / nx);
+    const h = hm[iz][ix];
     pos.setY(i, h);
-    if (h < 0.1 && (x < 0 || x > 5700)) c.set('#2f5f86');
-    else if (h < 2) c.set('#4c6142');
-    else if (h < 60) c.set('#4c6142');
-    else if (h < 300) c.set('#3d5236').lerp(new THREE.Color('#5a5f4a'), (h - 60) / 240);
-    else c.set('#6b6a60').lerp(new THREE.Color('#9a958a'), Math.min(1, (h - 300) / 300));
+    if (h < 1) c.set('#2a3d2a'); else if (h < 80) c.set('#3d5a35'); else if (h < 300) c.set('#3f5a35').lerp(new THREE.Color('#5d6450'), (h - 80) / 220); else c.set('#6e6c60');
     col.push(c.r, c.g, c.b);
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
   const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }));
-  m.position.set(3000, 0, 2500);
+  m.position.set(hx + (nx - 1) * st / 2, -0.6, hy + (nz - 1) * st / 2);
   m.receiveShadow = true;
   scene.add(m);
 }
+
+// Ventanas iluminadas (textura repetida en coordenadas del mundo)
+function windowsTex(lit, seed) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, 256, 512);
+  let s = seed;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 8; x++) {
+    if (rnd() < lit) { const w = 0.7 + rnd() * 0.3; g.fillStyle = `rgb(${255 * w | 0},${(190 + 40 * rnd()) * w | 0},${(120 + 40 * rnd()) * w | 0})`; g.fillRect(x * 32 + 6, y * 32 + 8, 20, 18); }
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 24, 1 / 64); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const roofMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+const wallPlain = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+const wallWin = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, emissive: '#ffd49a', emissiveIntensity: 0.9, emissiveMap: windowsTex(0.3, 7) });
+const wallTorre = new THREE.MeshStandardMaterial({ color: '#2b3446', roughness: 0.3, metalness: 0.4, emissive: '#ffb547', emissiveIntensity: 1.6, emissiveMap: windowsTex(0.75, 3) });
 
 const data = await (await fetch('./city.json')).json();
-const geos = [];
+const bins = { roof: [], plain: [], win: [], torre: [] };
 const tmp = new THREE.Color();
 const path = (P, r) => { for (let i = 0; i < r.length; i += 2) { const x = r[i], y = -r[i + 1]; if (i === 0) P.moveTo(x, y); else P.lineTo(x, y); } return P; };
-for (const [h, base, colHex, rings] of data.items) {
+function part(g, grp) {
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = g.attributes[name];
+    out.setAttribute(name, new THREE.BufferAttribute(a.array.slice(grp.start * a.itemSize, (grp.start + grp.count) * a.itemSize), a.itemSize));
+  }
+  return out;
+}
+for (const [h, base, colHex, mat, rings] of data.items) {
   const sh = path(new THREE.Shape(), rings[0]);
   for (const r of rings.slice(1)) sh.holes.push(path(new THREE.Path(), r));
-  const g = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments: 1 });
+  let g = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments: 1 });
+  g = g.index ? g.toNonIndexed() : g;
   g.rotateX(-Math.PI / 2);
   if (base) g.translate(0, base, 0);
-  const n = g.attributes.position.count;
   tmp.set(colHex);
-  const arr = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) { arr[i * 3] = tmp.r; arr[i * 3 + 1] = tmp.g; arr[i * 3 + 2] = tmp.b; }
-  g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-  geos.push(g.index ? g.toNonIndexed() : g);
+  for (const grp of g.groups) {
+    const p = part(g, grp);
+    const n = p.attributes.position.count, arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { arr[i * 3] = tmp.r; arr[i * 3 + 1] = tmp.g; arr[i * 3 + 2] = tmp.b; }
+    p.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    if (grp.materialIndex === 0) bins.roof.push(p);
+    else bins[mat === 'win' ? 'win' : mat === 'torre' ? 'torre' : 'plain'].push(p);
+  }
 }
-const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0 });
-for (let i = 0; i < geos.length; i += 3000) {
-  const merged = mergeGeometries(geos.slice(i, i + 3000), false);
-  merged.computeVertexNormals();
-  const m = new THREE.Mesh(merged, mat);
-  m.castShadow = true;
-  m.receiveShadow = true;
-  scene.add(m);
+const mats = { roof: roofMat, plain: wallPlain, win: wallWin, torre: wallTorre };
+for (const [k, list] of Object.entries(bins)) {
+  for (let i = 0; i < list.length; i += 4000) {
+    const m = new THREE.Mesh(mergeGeometries(list.slice(i, i + 4000), false), mats[k]);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+  }
 }
 
-// Luces de la torre y de la ciudad (puntos emisivos)
-const beacon = new THREE.Mesh(new THREE.SphereGeometry(9, 12, 8), new THREE.MeshBasicMaterial({ color: '#ff3b3b' }));
-beacon.position.set(3000, 186, 2210);
-scene.add(beacon);
+// Barreras de la Defensa: cintas verticales con hexágonos y la cúpula del Centro
+function hexTex() {
+  const r = 32, W = 3 * r * 2, H = Math.round(Math.sqrt(3) * r * 2);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,220,160,1)'; g.lineWidth = 2.5;
+  const hx = (cx, cy) => { g.beginPath(); for (let i = 0; i <= 6; i++) { const a = Math.PI / 3 * i; const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a); if (i === 0) g.moveTo(x, y); else g.lineTo(x, y); } g.stroke(); };
+  const vy = Math.sqrt(3) * r;
+  for (let j = -1; j <= 2; j++) for (let i = -1; i <= 2; i++) { hx(i * 3 * r, j * vy); hx(i * 3 * r + 1.5 * r, j * vy + vy / 2); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+const hexT = hexTex();
+const barMat = new THREE.MeshBasicMaterial({ map: hexT, color: '#ffb547', transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: true });
+const fillMat = new THREE.MeshBasicMaterial({ color: '#ff9d2e', transparent: true, opacity: 0.045, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false });
+const HB = 300;
+for (const ring of extra.barriers) {
+  const pos = [], uv = [];
+  let dist = 0;
+  for (let i = 0; i < ring.length - 2; i += 2) {
+    const x0 = ring[i], z0 = ring[i + 1], x1 = ring[i + 2], z1 = ring[i + 3];
+    const d = Math.hypot(x1 - x0, z1 - z0);
+    pos.push(x0, 0, z0, x1, 0, z1, x1, HB, z1, x0, 0, z0, x1, HB, z1, x0, HB, z0);
+    const u0 = dist / 70, u1 = (dist + d) / 70, v = HB / 40.4;
+    uv.push(u0, 0, u1, 0, u1, v, u0, 0, u1, v, u0, v);
+    dist += d;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  scene.add(new THREE.Mesh(g, barMat));
+  scene.add(new THREE.Mesh(g, fillMat));
+}
+{
+  const g = new THREE.SphereGeometry(1, 96, 48, 0, Math.PI * 2, 0, Math.PI / 2);
+  const t = hexT.clone(); t.repeat.set(60, 12); t.needsUpdate = true;
+  const m = barMat.clone(); m.map = t; m.opacity = 0.34;
+  const dome = new THREE.Mesh(g, m);
+  dome.scale.set(1350, 640, 860); dome.position.set(4720, 0, 6050);
+  scene.add(dome);
+  const d2 = new THREE.Mesh(g, fillMat); d2.scale.copy(dome.scale); d2.position.copy(dome.position); scene.add(d2);
+}
+// Baliza de la torre
+const beacon = new THREE.Mesh(new THREE.SphereGeometry(10, 12, 8), new THREE.MeshBasicMaterial({ color: '#ff4040' }));
+beacon.position.set(4720, 528, 5770); scene.add(beacon);
 
-const camera = new THREE.PerspectiveCamera(38, W / H, 5, 40000);
+const camera = new THREE.PerspectiveCamera(40, W / H, 5, 80000);
 const VIEWS = {
-  ciudad: { pos: [-1700, 2900, 7900], look: [3150, 0, 2350], fov: 38 },
-  isla: { pos: [5600, 520, 650], look: [2800, 40, 2350], fov: 42 },
-  ria: { pos: [-350, 330, 3650], look: [1500, 0, 2350], fov: 46 },
-  sur: { pos: [4300, 700, 6400], look: [3600, 0, 3800], fov: 44 },
+  ciudad: { pos: [1500, 1700, 10600], look: [4600, 60, 3700], fov: 42 },
+  centro: { pos: [4050, 260, 8900], look: [4720, 200, 5650], fov: 46 },
+  midtown: { pos: [3230, 160, 4400], look: [5200, 140, 3200], fov: 52 },
+  colinas: { pos: [1900, 560, 1500], look: [4700, 120, 3200], fov: 50 },
 };
 window.view = (name) => {
   const v = VIEWS[name];
-  camera.fov = v.fov;
-  camera.updateProjectionMatrix();
-  camera.position.set(...v.pos);
-  camera.lookAt(...v.look);
+  camera.fov = v.fov; camera.updateProjectionMatrix();
+  camera.position.set(...v.pos); camera.lookAt(...v.look);
   renderer.render(scene, camera);
   return true;
 };

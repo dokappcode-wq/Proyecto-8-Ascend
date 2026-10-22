@@ -580,11 +580,14 @@ enemigo; el tipo base no cambia).
 ## Diseño de la ciudad (propuesta)
 
 La ciudad del acto I (nombre provisional: Ibaia) está **diseñada, no
-implementada**: 30 km² en diez barrios de 3 km² exactos alrededor de una
-isla fortificada, una marca por barrio como llave de cada frontera, secretos,
-áreas bloqueadas y una ruta en espiral hasta la Ciudadela. Resumen en
-[`docs/CIUDAD.md`](docs/CIUDAD.md); los generadores de planos y maqueta, en
-[`tools/ciudad/`](tools/ciudad/README.md).
+implementada**, al estilo de las ciudades de Spider-Man, inFamous Second Son,
+GTA y Watch Dogs: una isla de rascacielos con parque central, una península
+con colinas, puerto y playa, y una orilla este de casco antiguo e industria,
+unidas por puentes. Son 30 km² en diez barrios de 3 km², y cada barrio queda
+encerrado por una **barrera de la Defensa** que se rompe desde dentro, en su
+Ancla, con la marca de ese barrio. A mitad de juego se descubre que las
+barreras son una Encarnación. Resumen en [`docs/CIUDAD.md`](docs/CIUDAD.md);
+los generadores de planos y maqueta, en [`tools/ciudad/`](tools/ciudad/README.md).
 
 ## Etapa 7 — Pulido
 

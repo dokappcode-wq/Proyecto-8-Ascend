@@ -1,19 +1,17 @@
-"""Exporta la maqueta 3D: polígonos con altura y color por barrio."""
+"""Exporta la maqueta 3D (v2): edificios con altura, suelo, agua, puentes,
+tren elevado y las barreras de la Defensa."""
 import json
 import math
-from shapely.geometry import Point, LineString
-from city import build
-from render import MARKCOL, mix
-from fabric import polys
+import random
+from shapely.geometry import Point, LineString, Polygon
+from shapely.ops import unary_union
+from shapely import affinity
+import city
+from fabric import polys, lines, road_area
+from geo import FRAME
 
-c, P, wat, out, br = build()
-
-
-def hh(p, lo, hi):
-    """Altura pseudoaleatoria estable según la posición."""
-    x, y = p.centroid.x, p.centroid.y
-    t = (math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1
-    return lo + (hi - lo) * t
+g = city.build()
+rnd = random.Random(5)
 
 
 def flat(coords):
@@ -21,125 +19,114 @@ def flat(coords):
     return [v for xy in pts for v in (round(xy[0], 1), round(xy[1], 1))]
 
 
-def ring(p):
+def rings(p):
     return [flat(p.exterior.coords)] + [flat(i.coords) for i in p.interiors if len(i.coords) > 3]
 
 
-ITEMS = []  # [h, base, colorHex, flat ring]
+ITEMS = []  # [altura, base, color, material, anillos]
 
 
-def add(p, h, col, base=0.0):
-    for q in polys(p):
-        q = q.simplify(0.8)
-        if q.is_empty or q.area < 6 or len(q.exterior.coords) < 4:
+def add(geom, h, col, mat='plain', base=0.0, simp=0.5):
+    for q in polys(geom):
+        q = q.simplify(simp)
+        if q.is_empty or q.area < 4 or len(q.exterior.coords) < 4:
             continue
-        ITEMS.append([round(h, 1), round(base, 1), col, ring(q)])
+        ITEMS.append([round(h, 1), round(base, 1), col, mat, rings(q)])
 
 
-PALS = {
-    'B1': ['#b9ab97', '#a99a86', '#c4b6a0', '#9d8f7d', '#b3a48c'],
-    'B2': ['#c79a6b', '#b8865a', '#d0a87a', '#a97b55', '#c2926a', '#e0c7a0'],
-    'B3': ['#d9d2c3', '#5f8fb0', '#c66a4f', '#e2c26b', '#7fa37a', '#d9d2c3', '#cfc6b4'],
-    'B4': ['#7d8894', '#6c7682', '#8e98a3', '#5e6873', '#9a8a7a'],
-    'B5': ['#6e5a4c', '#5d4c41', '#7a6556', '#4f4640', '#86705d'],
-    'B6': ['#8a937a', '#7d8a6c', '#96a07f', '#6f7b5f'],
-    'B7': ['#d8cfbe', '#cbc0aa', '#e3dbca', '#bfb39b'],
-    'B8': ['#6b6560', '#77706a', '#5d5853', '#837a70', '#6f6a74'],
-    'B9': ['#e6e1d6', '#ddd6c8', '#efeae0', '#d3c9b8'],
-    'B10': ['#5f6470', '#585d68', '#6a6f7b'],
+KIND = {
+    'tower': (['#9aa4b2', '#8b96a6', '#a8b3c2', '#7f8a99', '#b4bcc8'], 'win'),
+    'mid': (['#b69a86', '#a3887a', '#c2a892', '#8f7a6e', '#c9b9a6'], 'win'),
+    'walled': (['#9a8f86', '#8a7f78', '#a69a8e'], 'win'),
+    'slab': (['#b9a48f', '#a99583'], 'win'),
+    'old': (['#a5735a', '#b5846a', '#946652', '#c19a7e'], 'win'),
+    'low': (['#e7dfcf', '#d9e4e6', '#efd9c4', '#cfe0d3', '#e9c9b8'], 'plain'),
+    'villa': (['#f0ece4', '#e6dfd2'], 'plain'),
+    'warehouse': (['#7d8794', '#6f7985', '#8e8a80'], 'plain'),
+    'industrial': (['#6e6b66', '#7d7974', '#5f5c58'], 'plain'),
+    'special': (['#c9c2b4'], 'plain'), 'glass': (['#7fc7dc'], 'plain'), 'stadium': (['#8c939c'], 'plain'),
+    'prison': (['#7a7d82'], 'plain'), 'container': (['#b5544a', '#3e7cb1', '#c9a24a', '#5f8f5a', '#8a5aa0', '#c7c7c7'], 'plain'),
+    'crane': (['#c96a3a'], 'plain'), 'tank': (['#c9ccd0'], 'plain'), 'chimney': (['#a7a29c'], 'plain'),
+    'torre': (['#3a4458'], 'torre'), 'letters': (['#f5f2ea'], 'plain'), 'wheel': (['#e9c46a'], 'plain'),
+    'coaster': (['#c95f5f'], 'plain'), 'lighthouse': (['#f0ece4'], 'plain'), 'fountain': (['#7ab8de'], 'plain'),
+    'antenna': (['#c0c5cc'], 'plain'), 'pier': (['#6a6152'], 'plain'),
 }
 
+roads_all = [(l, c) for l, c, n in g['groads']]
+for key, D in g['D'].items():
+    A = D['areas']
+    add(D['poly'], 0.5, '#3a3f47')                       # asfalto
+    blocks = D.get('_blocks') or [b for b in polys(D['poly'].difference(road_area(D['roads'] + roads_all))) if b.area > 200]
+    for b in blocks:
+        add(b, 0.8, '#5b5f66', simp=1.0)                  # aceras
+    for a in A['park']:
+        add(a, 1.0, '#4e7046', simp=1.0)
+    for a in A['forest']:
+        add(a, 7.0, '#2f5236', simp=1.0)
+    for a in A['beach']:
+        add(a, 0.9, '#d6c79a', simp=1.0)
+    for a in A['plaza'] + A['yard']:
+        add(a, 0.95, '#6c7078', simp=1.0)
+    for a in A['water'] + A['pool']:
+        add(a, 0.3, '#2b6a95')
+    for fp, h, kind in D['bld']:
+        pal, mat = KIND.get(kind, (['#a0a0a0'], 'plain'))
+        col = pal[int(abs(fp.centroid.x * 13 + fp.centroid.y * 7)) % len(pal)]
+        if kind == 'tower' and h > 120 and rnd.random() < 0.5:
+            col = rnd.choice(['#6f8fa8', '#5d7d96', '#8aa6bb'])
+        add(fp, h, col, mat if h > 22 else 'plain')
 
-def pick(bid, g):
-    x, y = g.centroid.x, g.centroid.y
-    t = (math.sin(x * 3.1 + y * 7.7) * 9871.13) % 1
-    pal = PALS[bid]
-    return mix(pal[int(t * len(pal)) % len(pal)], MARKCOL[bid], 0.1)
-
-
-BUILT_H = {'B1': (18, 30), 'B2': (6, 12), 'B3': (6, 11), 'B4': (8, 14), 'B5': (12, 24), 'B6': (5, 10),
-           'B7': (18, 28), 'B8': (6, 18), 'B9': (8, 13), 'B10': (12, 18)}
-core = Point(2400, 1030).buffer(370)
-
-for bid, b in out.items():
-    L = b['layers']
-    tint = MARKCOL[bid]
-    bcol = mix('#8d96a6', tint, 0.22)
-    add(b['land'], 0.6, '#4a4f58', 0)
-    for g in L['green']:
-        add(g, 0.9, '#4d6b42', 0)
-    for g in L['plaza'] + L['beach']:
-        add(g, 0.8, '#5a5a52' if g in L['beach'] else '#596273', 0)
-    for g in L['slag']:
-        add(g, 22 if bid == 'B4' else 26, '#4a3f38' if bid == 'B5' else '#5b4a52', 0)
-    lo, hi = BUILT_H[bid]
-    for g in L['built']:
-        h = hh(g, lo, hi)
-        if bid == 'B2' and core.contains(g.centroid):
-            h = hh(g, 14, 22)
-        if bid in ('B3', 'B4') and g.area > 1500:
-            h = hh(g, 12, 24)
-        if bid == 'B2' and g.area < 400 and Point(700, 330).distance(g.centroid) < 160:
-            h = 2.5
-        add(g, h, pick(bid, g))
-    for g in L['special']:
-        a = g.area
-        h = 14
-        if bid == 'B5':
-            h = 60 if 4000 < a < 7000 else 70 if a > 12000 and a < 20000 else 90 if a < 700 and a > 500 else 72 if a < 400 else 18
-        elif bid == 'B10':
-            h = 180
-        elif bid == 'B7':
-            h = 110 if a < 1000 else 26
-        elif bid == 'B9':
-            h = 22 if a > 30000 else 45 if a > 3000 else 14
-        elif bid == 'B6':
-            h = 30 if a < 1000 else 14
-        elif bid == 'B1':
-            h = 12
-        elif bid == 'B2':
-            h = 30
-        elif bid == 'B3':
-            h = 3
-        elif bid == 'B4':
-            h = 9 if a < 9000 else 25
-        if bid == 'B4' and g.area < 9000 and g.area > 1000:
-            add(g, h, '#7a5646')
-        else:
-            add(g, h, mix('#b4bac4', tint, 0.18))
-    for g in L['water']:
-        add(g, 0.3, '#2b5a80', 0)
-
-# Hitos sueltos
-extra = [
-    (Point(3520, 540).buffer(22, cap_style=3), 48, '#9aa6bb'),       # Hotel Excelsior
-    (Point(2612, 828).buffer(8, cap_style=3), 62, '#c9b28a'),        # Torre de San Telmo
-    (Point(470, 2290).buffer(7), 35, '#e9e2d0'),                      # Faro de la Barra
-    (Point(5265, 790).buffer(9, cap_style=3), 58, '#d8c9b6'),        # Torre de la basílica
-]
-for g, h, col in extra:
-    add(g, h, col)
-# Grúa Roja: dos patas y viga
-for x in (1735, 1785):
-    add(Point(x, 2610).buffer(4, cap_style=3), 70, '#c0392b')
-add(LineString([(1700, 2610), (1830, 2610)]).buffer(5, cap_style=2), 8, '#c0392b', 70)
-# Muralla de la Ciudadela (40 m) y del Casco Viejo (12 m)
-for g in out['B10']['layers']['wall']:
-    add(LineString(g.coords).buffer(13, cap_style=2), 40, '#8f8573')
-for g in out['B2']['layers']['wall']:
-    add(g.buffer(5, cap_style=2), 12, '#a0927a')
-# Viaductos (tablero a 22 m + pilares)
-for g in out['B8']['layers']['viaduct']:
-    add(g.buffer(12, cap_style=2), 3, '#8790a3', 22)
-    L = g.length
-    for i in range(int(L // 60) + 1):
-        p = g.interpolate(i * 60)
-        add(p.buffer(3.5, cap_style=3), 22, '#5d6577')
-# Puentes levadizos levantados (tableros inclinados: se dibujan como dos bloques)
-for bid, (a, b) in br.items():
-    seg = LineString([a, b])
-    add(seg.interpolate(0.15, normalized=True).buffer(10, cap_style=3), 26, '#b03a3a')
-    add(seg.interpolate(0.85, normalized=True).buffer(10, cap_style=3), 26, '#b03a3a')
+# Tierra fuera de la ciudad (relieve aparte en el visor)
+# Puentes: tablero y torres
+for name, l, c, a, b in g['bridges']:
+    if c == 'tunnel':
+        continue
+    add(l.buffer(17, cap_style='flat'), 3, '#8a8f97', base=24)
+    L = l.length
+    n = max(2, int(L / 70))
+    for i in range(1, n):
+        p = l.interpolate(i * L / n)
+        add(p.buffer(5, cap_style='square'), 24, '#6e737b')
+    if name in ('Puente de la Bahía', 'Puente del Este', 'Puente de la Ría'):
+        for t in (0.3, 0.7):
+            p = l.interpolate(t, normalized=True)
+            add(p.buffer(9, cap_style='square'), 150 if name == 'Puente de la Bahía' else 110, '#c0392b' if name == 'Puente de la Bahía' else '#9aa0a8')
+# Tren elevado
+for l in g['elevated']:
+    add(l.buffer(5, cap_style='flat'), 2, '#5a5f66', base=11)
 
 json.dump({'items': ITEMS}, open('maq/city.json', 'w'), separators=(',', ':'))
-print(len(ITEMS), 'items')
+
+# Barreras: anillos de cada barrio y la cúpula del Centro
+B = []
+for key, D in g['D'].items():
+    for p in polys(D['poly']):
+        r = p.buffer(-8).exterior.simplify(6)
+        B.append([v for xy in r.coords for v in (round(xy[0], 1), round(xy[1], 1))])
+# Relieve: alturas de la tierra no jugable (sierra) muestreadas en una rejilla
+play = unary_union([D['poly'] for D in g['D'].values()])
+wild = unary_union([g['westland'], g['eastland']])
+x0, y0, x1, y1 = FRAME
+step = 100
+hm = []
+for j in range(int((y1 - y0 + 4000) / step) + 1):
+    row = []
+    y = y0 - 2000 + j * step
+    for i in range(int((x1 - x0 + 4000) / step) + 1):
+        x = x0 - 2000 + i * step
+        p = Point(x, y)
+        if wild.contains(p) and not play.buffer(60).contains(p):
+            dd = play.distance(p)
+            n = math.sin(x / 600) * math.cos(y / 800) * 0.5 + math.sin(x / 230 + y / 310) * 0.25
+            row.append(round(min(1.0, dd / 1800) * (420 + 200 * n) + 6, 1))
+        elif x < x0 or x > x1 or y < y0 or y > y1:
+            # fuera del marco: sierra al norte y al este, mar al oeste y al sur
+            if (y < y0 and x > -200) or x > x1:
+                row.append(round(300 + 150 * math.sin(x / 500 + y / 700), 1))
+            else:
+                row.append(-30)
+        else:
+            row.append(-30 if not play.contains(p) else 0)
+    hm.append(row)
+json.dump({'barriers': B, 'hm': hm, 'hm0': [x0 - 2000, y0 - 2000], 'step': step}, open('maq/extra.json', 'w'), separators=(',', ':'))
+print(len(ITEMS), 'items', len(B), 'barreras', len(hm), 'x', len(hm[0]))
