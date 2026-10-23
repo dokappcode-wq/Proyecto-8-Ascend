@@ -319,6 +319,15 @@ puntos de anclaje indicados); se añadirán en su etapa, sin interfaces falsas.
   cuerda tensa podía meter el cuerpo a través de un muro fino: lo encontró la
   prueba de estrés). Tocar el suelo, un impulso, un desplazamiento o el picado
   sueltan el hilo.
+  **Impulso del péndulo** (`_pumpSwing`): la entrada horizontal se proyecta
+  en el plano perpendicular a la cuerda (en 3D), así que empujar hacia el
+  anclaje no da energía y empujar en el sentido del arco sí; contra el
+  movimiento frena un 40 %. **Recoger** (`reel`, S mientras se balancea):
+  la longitud de la cuerda baja `reel` m/s hasta `minLen`. **Soltar**
+  (`endSwing(boost, horizontal)`): impulso vertical y, con `horizontal`, un
+  empujón en la dirección que se llevaba. **Apuntar** (`ThreadPowerSystem._aimAnchor`):
+  primero el rayo de la cámara al centro de la pantalla; si no hay nada
+  arriba al alcance, la búsqueda por ángulos de siempre.
 - `powers/targeting.js` (`enemyAtCrosshair`) lo comparten Gravedad e Hilo.
 - `Enemy.bind` (aturdido + anillos de hilo) y daño por caída de los enemigos.
 

@@ -125,22 +125,72 @@ export class CharacterMotor {
    * actual). Mientras dure: gravedad normal, la entrada empuja el péndulo y
    * la cuerda no deja alejarse más del anclaje.
    */
-  startSwing(anchor, { pump = 16, maxSpeed = 32, maxLen = Infinity } = {}) {
+  startSwing(anchor, { pump = 16, maxSpeed = 32, maxLen = Infinity, reel = 6, minLen = 2.5 } = {}) {
     if (this.isBusy) return false;
     const p = this.position;
     // Con `maxLen` más corto que la distancia, el hilo tira del cuerpo hacia el anclaje
     const len = Math.min(maxLen, Math.hypot(anchor.x - p.x, anchor.y - (p.y + CharacterMotor.ROPE_POINT), anchor.z - p.z));
     if (len < 1.2) return false;
-    this._swing = { x: anchor.x, y: anchor.y, z: anchor.z, len, pump, maxSpeed };
+    this._swing = { x: anchor.x, y: anchor.y, z: anchor.z, len, pump, maxSpeed, reel, minLen: Math.min(minLen, len) };
     if (this.crouched) this.setCrouch(false);
     return true;
   }
 
-  /** Suelta el hilo conservando la velocidad (más un impulso vertical opcional). */
-  endSwing(boost = 0) {
+  /**
+   * Suelta el hilo conservando la velocidad: `boost` es impulso vertical y
+   * `horizontal` acelera en la dirección en la que se iba (el salto de salida).
+   */
+  endSwing(boost = 0, horizontal = 0) {
     if (!this._swing) return;
     this._swing = null;
-    this.velocity.y += boost;
+    const v = this.velocity;
+    const h = Math.hypot(v.x, v.z);
+    if (horizontal > 0 && h > 0.1) {
+      v.x += (v.x / h) * horizontal;
+      v.z += (v.z / h) * horizontal;
+    }
+    v.y += boost;
+  }
+
+  /**
+   * Impulso del péndulo: solo cuenta la parte de la entrada que empuja a lo
+   * largo del arco (perpendicular a la cuerda). Empujar hacia el anclaje no
+   * da energía, y empujar contra el movimiento frena un poco. Así, columpiarse
+   * a ritmo (adelante en el punto bajo, atrás en el alto) va sumando velocidad.
+   */
+  _pumpSwing(mx, mz, dt) {
+    const s = this._swing;
+    const p = this.position;
+    const v = this.velocity;
+    const inLen = Math.hypot(mx, mz);
+    if (inLen < 0.01) return;
+    const cx = p.x - s.x;
+    const cy = p.y + CharacterMotor.ROPE_POINT - s.y;
+    const cz = p.z - s.z;
+    const d = Math.hypot(cx, cy, cz) || 1;
+    const nx = cx / d;
+    const ny = cy / d;
+    const nz = cz / d;
+    // Entrada horizontal, en el espacio 3D: su parte perpendicular a la cuerda
+    // es la dirección en la que empuja el arco (también en el plano vertical)
+    const dot = mx * nx + mz * nz;
+    const tx = mx - dot * nx;
+    const ty = -dot * ny;
+    const tz = mz - dot * nz;
+    const tl = Math.hypot(tx, ty, tz);
+    if (tl < 0.05) return;
+    const vl = Math.hypot(v.x, v.y, v.z);
+    const along = vl > 0.1 ? (v.x * tx + v.y * ty + v.z * tz) / (vl * tl) : 1;
+    const f = s.pump * (along >= 0 ? 1 : 0.6) * Math.min(1, inLen) * dt;
+    v.x += tx * f;
+    v.y += ty * f;
+    v.z += tz * f;
+  }
+
+  /** Recoger hilo: la cuerda se acorta y el cuerpo sube hacia el anclaje. */
+  _reelSwing(dt) {
+    const s = this._swing;
+    s.len = Math.max(s.minLen, s.len - s.reel * dt);
   }
 
   _applyRope() {
@@ -499,9 +549,9 @@ export class CharacterMotor {
         this._burst = null;
       }
     } else if (this._swing) {
-      // Balanceándose: la entrada empuja el péndulo (sin frenar la velocidad)
-      v.x += mx * this._swing.pump * dt;
-      v.z += mz * this._swing.pump * dt;
+      // Balanceándose: S recoge hilo (sube el arco); el resto de la entrada empuja el péndulo
+      if (input.reel) this._reelSwing(dt);
+      else this._pumpSwing(mx, mz, dt);
     } else {
       const J = this.jumpAbilities;
       const glide = !!J && J.glide !== false && this._glideNow(input);

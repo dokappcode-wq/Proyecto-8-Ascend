@@ -110,3 +110,58 @@ test('Hilo: datos de la marca y árbol de mejoras', () => {
   assert.equal(mods.fistSpeedMul, 1.4);
   assert.equal(p.modifiers('gravedad').swingRangeAdd, 0);
 });
+
+test('Hilo: empujar en el sentido del arco da energía; hacia el anclaje no', () => {
+  // Columpio sin entrada, después con el empuje en el sentido del movimiento
+  const swing = (mode) => {
+    const m = new CharacterMotor(world());
+    m.teleport({ x: 0, y: 6, z: 8 });
+    m.startSwing({ x: 0, y: 16, z: 0 }, THREAD_CONFIG.swing);
+    let peak = 0;
+    for (let i = 0; i < 600; i++) {
+      const p = m.position;
+      const v = m.velocity;
+      let input = {};
+      if (mode === 'ritmo') {
+        // Empuja hacia donde va en horizontal
+        const h = Math.hypot(v.x, v.z) || 1;
+        input = { moveX: v.x / h, moveZ: v.z / h };
+      } else if (mode === 'anclaje') {
+        // Empuja hacia el anclaje (radial)
+        input = { moveX: -p.x / Math.max(1e-6, Math.hypot(p.x, p.z)), moveZ: -p.z / Math.max(1e-6, Math.hypot(p.x, p.z)) };
+      }
+      m.update(DT, input);
+      peak = Math.max(peak, Math.hypot(m.velocity.x, m.velocity.z));
+    }
+    return peak;
+  };
+  const ritmo = swing('ritmo');
+  const anclaje = swing('anclaje');
+  const quieto = swing('quieto');
+  assert.ok(ritmo > quieto + 3, `a ritmo se gana velocidad (${ritmo.toFixed(1)} frente a ${quieto.toFixed(1)} m/s)`);
+  assert.ok(anclaje < ritmo - 3, `empujar al anclaje no ayuda (${anclaje.toFixed(1)} m/s)`);
+});
+
+test('Hilo: S recoge hilo y acorta la cuerda hasta un mínimo', () => {
+  const m = new CharacterMotor(world());
+  m.teleport({ x: 0, y: 6, z: 8 });
+  m.startSwing({ x: 0, y: 16, z: 0 }, THREAD_CONFIG.swing);
+  const len0 = m.swingAnchor.len;
+  for (let i = 0; i < 60; i++) m.update(DT, { reel: true });
+  assert.ok(m.swingAnchor.len < len0 - 4, `la cuerda se acorta (${len0.toFixed(1)} → ${m.swingAnchor.len.toFixed(1)})`);
+  for (let i = 0; i < 600; i++) m.update(DT, { reel: true });
+  assert.equal(m.swingAnchor.len, THREAD_CONFIG.swing.minLen);
+});
+
+test('Hilo: al soltar con impulso horizontal se sale en la dirección del movimiento', () => {
+  const m = new CharacterMotor(world());
+  m.teleport({ x: 0, y: 6, z: 8 });
+  m.startSwing({ x: 0, y: 16, z: 0 }, THREAD_CONFIG.swing);
+  for (let i = 0; i < 40; i++) m.update(DT, {});
+  const s0 = Math.hypot(m.velocity.x, m.velocity.z);
+  const dir = { x: m.velocity.x, z: m.velocity.z };
+  m.endSwing(0, 3);
+  const s1 = Math.hypot(m.velocity.x, m.velocity.z);
+  assert.ok(Math.abs(s1 - (s0 + 3)) < 1e-6);
+  assert.ok(m.velocity.x * dir.x + m.velocity.z * dir.z > 0);
+});

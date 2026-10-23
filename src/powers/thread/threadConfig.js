@@ -13,11 +13,13 @@ export const THREAD_CONFIG = Object.freeze({
     cost: 2, cooldown: 0,
     damage: 14, range: 24, outSpeed: 70, backSpeed: 80, knockback: 3,
   },
-  /** Movimiento (Q, mantener): hilo a la estructura más próxima y balanceo. */
+  /** Movimiento (Q, mantener): hilo a donde apuntas (o a la estructura más próxima) y balanceo. */
   swing: {
     id: 'balanceo', name: 'Balanceo', action: 'special',
     cost: 4, cooldown: 0.25,
-    range: 30, minHeight: 2.5, pump: 16, maxSpeed: 32, releaseBoost: 5, hop: 7,
+    range: 30, minHeight: 2.5, pump: 18, maxSpeed: 34, releaseBoost: 3, releaseHorizontal: 3, hop: 7,
+    /** Recoger hilo (S mientras se balancea): m/s de cuerda y longitud mínima. */
+    reel: 6, minLen: 2.5,
   },
   /** Habilidad 1 (R): atar a un enemigo (inmovilizado). */
   bind: {

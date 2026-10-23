@@ -40,6 +40,7 @@ export class ThreadPowerSystem {
     this._flashes = []; // hilos que se ven un instante (atar, lanzar)
     this._lastFail = 0;
     this._hand = new THREE.Vector3();
+    this._aimDir = new THREE.Vector3();
 
     // Hilos visibles: el del balanceo/atraer y el del puño
     const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(WHITE).multiplyScalar(1.2), toneMapped: false });
@@ -176,7 +177,7 @@ export class ThreadPowerSystem {
       if (input.isDown('attack') || input.wasPressed('attack')) this._fireFist();
       if (input.wasPressed('special')) this._startSwing();
       if (motor.isSwinging && (!input.isDown('special') || input.wasPressed('jump'))) {
-        motor.endSwing(this.cfg.swing.releaseBoost + (input.wasPressed('jump') ? 3 : 0));
+        motor.endSwing(this.cfg.swing.releaseBoost + (input.wasPressed('jump') ? 3 : 0), this.cfg.swing.releaseHorizontal + (input.wasPressed('jump') ? 2 : 0));
         g.events.emit('thread:release');
       }
       if (input.wasPressed('charged')) this._bind();
@@ -268,6 +269,9 @@ export class ThreadPowerSystem {
     const p = g.player.motor.position;
     const o = { x: p.x, y: p.y + CharacterMotor.ROPE_POINT, z: p.z };
     const f = g.cameraController.forward();
+    // Primero, lo que marca la mira (como el disparo de tela de Spider-Man)
+    const aim = this._aimAnchor(o, p);
+    if (aim) return aim;
     const base = Math.atan2(f.x, f.z);
     let best = null;
     for (const elev of [35, 45, 55, 65, 75, 85]) {
@@ -287,6 +291,17 @@ export class ThreadPowerSystem {
     return best?.point ?? null;
   }
 
+  /** Estructura en la dirección exacta de la cámara, si está al alcance y por encima del suelo. */
+  _aimAnchor(o, p) {
+    const g = this.game;
+    const c = this.cfg.swing;
+    const dir = g.camera.getWorldDirection(this._aimDir);
+    const hit = g.world.raycastHit(o, { x: dir.x, y: dir.y, z: dir.z }, c.range, { ignoreTags: ['bounds'] });
+    if (!hit || hit.t < 3) return null;
+    const point = { x: o.x + dir.x * hit.t, y: o.y + dir.y * hit.t, z: o.z + dir.z * hit.t };
+    return point.y >= p.y + c.minHeight ? point : null;
+  }
+
   _startSwing() {
     const g = this.game;
     const a = this.abilities.dash;
@@ -304,7 +319,7 @@ export class ThreadPowerSystem {
     // La cuerda se acorta lo necesario para que el arco no toque el suelo
     const ground = g.world.groundHeight(motor.position.x, motor.position.z, 0.3, motor.position.y + 0.5);
     const maxLen = Math.max(3, anchor.y - (Number.isFinite(ground) ? ground : motor.position.y) - CharacterMotor.ROPE_POINT - 0.6);
-    if (!motor.startSwing(anchor, { pump: c.pump, maxSpeed: c.maxSpeed, maxLen })) return this._fail('dash');
+    if (!motor.startSwing(anchor, { pump: c.pump, maxSpeed: c.maxSpeed, maxLen, reel: c.reel, minLen: c.minLen })) return this._fail('dash');
     a.commit(this.energy);
     g.vfx.particles.burst(anchor, { count: 8, speed: 2, color: new THREE.Color(WHITE), size: 0.08, life: 0.3 });
     g.marks.pulse(0.45, 0.15);

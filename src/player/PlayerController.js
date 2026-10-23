@@ -212,6 +212,7 @@ export class PlayerController {
         dodge: on && i === 0 && inp.wasPressed('dodge'),
         drop: drop && i === 0,
         jumpHeld: on && inp.isDown('jump'),
+        reel: on && this.motor.isSwinging && inp.isDown('moveBack'),
         noParkour: !on || this.aiming || !!this.cover,
         facingX: Math.sin(this.facing),
         facingZ: Math.cos(this.facing),
