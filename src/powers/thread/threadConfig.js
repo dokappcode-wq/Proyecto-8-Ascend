@@ -20,6 +20,10 @@ export const THREAD_CONFIG = Object.freeze({
     range: 30, minHeight: 2.5, pump: 18, maxSpeed: 34, releaseBoost: 3, releaseHorizontal: 3, hop: 7,
     /** Recoger hilo (S mientras se balancea): m/s de cuerda y longitud mínima. */
     reel: 6, minLen: 2.5,
+    /** Resistencia del aire durante el balanceo (1/s): estabiliza sin frenar de golpe. */
+    drag: 0.04,
+    /** Bonus horizontal al soltar en el punto alto de un arco bien llevado (m/s). */
+    perfectBonus: 4,
   },
   /** Habilidad 1 (R): atar a un enemigo (inmovilizado). */
   bind: {

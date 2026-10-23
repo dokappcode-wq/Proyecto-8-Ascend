@@ -4,6 +4,7 @@ import { Ability } from '../powers/Ability.js';
 import { THREAD_CONFIG } from '../powers/thread/threadConfig.js';
 import { enemyAtCrosshair } from '../powers/targeting.js';
 import { CharacterMotor } from '../physics/CharacterMotor.js';
+import { findSwingAnchor, SWING_ANCHOR_CONFIG } from '../physics/swingAnchors.js';
 
 const WHITE = '#f2f4f8';
 const UP = new THREE.Vector3(0, 1, 0);
@@ -41,6 +42,8 @@ export class ThreadPowerSystem {
     this._lastFail = 0;
     this._hand = new THREE.Vector3();
     this._aimDir = new THREE.Vector3();
+    this._reacquireCd = 0;
+    this.anchorCfg = { ...SWING_ANCHOR_CONFIG, recheck: 0.2, cameraAssist: 1.6 };
 
     // Hilos visibles: el del balanceo/atraer y el del puño
     const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(WHITE).multiplyScalar(1.2), toneMapped: false });
@@ -177,8 +180,14 @@ export class ThreadPowerSystem {
       if (input.isDown('attack') || input.wasPressed('attack')) this._fireFist();
       if (input.wasPressed('special')) this._startSwing();
       if (motor.isSwinging && (!input.isDown('special') || input.wasPressed('jump'))) {
-        motor.endSwing(this.cfg.swing.releaseBoost + (input.wasPressed('jump') ? 3 : 0), this.cfg.swing.releaseHorizontal + (input.wasPressed('jump') ? 2 : 0));
-        g.events.emit('thread:release');
+        const c = this.cfg.swing;
+        const perfect = motor.releaseQuality() ? c.perfectBonus : 0;
+        const jump = input.wasPressed('jump');
+        motor.endSwing(c.releaseBoost + (jump ? 3 : 0), c.releaseHorizontal + perfect + (jump ? 2 : 0));
+        g.events.emit('thread:release', { perfect: !!perfect });
+      } else if (motor.isSwinging) {
+        this._keepSwing(dt);
+        this._assistCamera(dt);
       }
       if (input.wasPressed('charged')) this._bind();
       if (input.wasPressed('wave')) this._launch();
@@ -259,47 +268,31 @@ export class ThreadPowerSystem {
   }
 
   // ---------------------------------------------------------------- Balanceo (Q)
-  /**
-   * Punto de anclaje: la estructura más próxima por encima y por delante
-   * (según la cámara), dentro del alcance.
-   */
-  findAnchor() {
-    const g = this.game;
-    const c = this.cfg.swing;
-    const p = g.player.motor.position;
-    const o = { x: p.x, y: p.y + CharacterMotor.ROPE_POINT, z: p.z };
-    const f = g.cameraController.forward();
-    // Primero, lo que marca la mira (como el disparo de tela de Spider-Man)
-    const aim = this._aimAnchor(o, p);
-    if (aim) return aim;
-    const base = Math.atan2(f.x, f.z);
-    let best = null;
-    for (const elev of [35, 45, 55, 65, 75, 85]) {
-      for (const yawOff of [0, -20, 20, -40, 40, -70, 70]) {
-        const yaw = base + THREE.MathUtils.degToRad(yawOff);
-        const e = THREE.MathUtils.degToRad(elev);
-        const d = { x: Math.sin(yaw) * Math.cos(e), y: Math.sin(e), z: Math.cos(yaw) * Math.cos(e) };
-        const hit = g.world.raycastHit(o, d, c.range, { ignoreTags: ['bounds'] });
-        if (!hit || hit.t < 3) continue;
-        const point = { x: o.x + d.x * hit.t, y: o.y + d.y * hit.t, z: o.z + d.z * hit.t };
-        if (point.y < p.y + c.minHeight) continue;
-        // Preferencia: delante, a unos 55° de elevación y cerca
-        const score = Math.abs(elev - 55) / 12 + Math.abs(yawOff) / 25 + hit.t / 25;
-        if (!best || score < best.score) best = { point, score, dist: hit.t };
-      }
-    }
-    return best?.point ?? null;
+  /** Dirección de la cámara (unitaria) y de la última intención de movimiento. */
+  _view() {
+    return this.game.camera.getWorldDirection(this._aimDir);
   }
 
-  /** Estructura en la dirección exacta de la cámara, si está al alcance y por encima del suelo. */
-  _aimAnchor(o, p) {
-    const g = this.game;
-    const c = this.cfg.swing;
-    const dir = g.camera.getWorldDirection(this._aimDir);
-    const hit = g.world.raycastHit(o, { x: dir.x, y: dir.y, z: dir.z }, c.range, { ignoreTags: ['bounds'] });
-    if (!hit || hit.t < 3) return null;
-    const point = { x: o.x + dir.x * hit.t, y: o.y + dir.y * hit.t, z: o.z + dir.z * hit.t };
-    return point.y >= p.y + c.minHeight ? point : null;
+  /** Dirección horizontal del movimiento: la velocidad si ya se va, si no la mirada. */
+  _moveDir() {
+    const v = this.game.player.motor.velocity;
+    const h = Math.hypot(v.x, v.z);
+    if (h > 2) return { x: v.x / h, z: v.z / h };
+    const f = this.game.cameraController.forward();
+    return { x: f.x, z: f.z };
+  }
+
+  /** Mejor punto de enganche ahora mismo (o null si no hay ninguno válido). */
+  findAnchor(prev = null) {
+    const m = this.game.player.motor;
+    const o = { x: m.position.x, y: m.position.y + CharacterMotor.ROPE_POINT, z: m.position.z };
+    return findSwingAnchor(this.game.world, o, {
+      feetY: m.position.y,
+      view: this._view(),
+      move: this._moveDir(),
+      prev,
+      cfg: this.anchorCfg,
+    });
   }
 
   _startSwing() {
@@ -310,6 +303,7 @@ export class ThreadPowerSystem {
     if (motor.isBusy || motor.isSwinging) return;
     if (!a.canActivate(this.energy)) return this._fail('dash');
     const anchor = this.findAnchor();
+    // Sin punto válido el jugador sigue andando: no hay nada que frene de golpe
     if (!anchor) return this._fail('dash');
     if (motor.grounded) {
       // Pequeño salto para despegar y empezar a balancearse
@@ -319,11 +313,49 @@ export class ThreadPowerSystem {
     // La cuerda se acorta lo necesario para que el arco no toque el suelo
     const ground = g.world.groundHeight(motor.position.x, motor.position.z, 0.3, motor.position.y + 0.5);
     const maxLen = Math.max(3, anchor.y - (Number.isFinite(ground) ? ground : motor.position.y) - CharacterMotor.ROPE_POINT - 0.6);
-    if (!motor.startSwing(anchor, { pump: c.pump, maxSpeed: c.maxSpeed, maxLen, reel: c.reel, minLen: c.minLen })) return this._fail('dash');
+    if (!motor.startSwing(anchor, { pump: c.pump, maxSpeed: c.maxSpeed, maxLen, reel: c.reel, minLen: c.minLen, drag: c.drag })) return this._fail('dash');
+    this._reacquireCd = this.anchorCfg.recheck;
     a.commit(this.energy);
     g.vfx.particles.burst(anchor, { count: 8, speed: 2, color: new THREE.Color(WHITE), size: 0.08, life: 0.3 });
     g.marks.pulse(0.45, 0.15);
     g.events.emit('power:used', { id: 'balanceo', anchor });
+  }
+
+  /**
+   * Durante el balanceo: cada poco se comprueba que el anclaje siga a la
+   * vista y al alcance. Si se pierde, se engancha el mejor punto nuevo sin
+   * frenar; si no hay ninguno, se suelta con la velocidad que llevaba.
+   */
+  _keepSwing(dt) {
+    const g = this.game;
+    const motor = g.player.motor;
+    this._reacquireCd -= dt;
+    if (this._reacquireCd > 0) return;
+    this._reacquireCd = this.anchorCfg.recheck;
+    const s = motor.swingAnchor;
+    if (motor.swingOpen && Math.hypot(s.x - motor.position.x, s.y - motor.position.y, s.z - motor.position.z) < this.cfg.swing.range + 6) return;
+    const next = this.findAnchor(s);
+    if (next && motor.retarget(next, Infinity)) {
+      g.events.emit('thread:retarget', { anchor: next });
+      return;
+    }
+    motor.endSwing(0, 0);
+    g.events.emit('thread:release');
+  }
+
+  /** La cámara se orienta suavemente hacia donde va el balanceo (si el jugador no mueve el ratón). */
+  _assistCamera(dt) {
+    const g = this.game;
+    const motor = g.player.motor;
+    const input = g.input;
+    const v = motor.velocity;
+    const h = Math.hypot(v.x, v.z);
+    if (h < 6 || Math.hypot(input.mouseDX, input.mouseDY) > 0.5) return;
+    const cam = g.cameraController;
+    const target = Math.atan2(-v.x, -v.z);
+    let d = target - cam.yaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    cam.yaw += d * Math.min(1, dt * this.anchorCfg.cameraAssist);
   }
 
   // ---------------------------------------------------------------- Atar, lanzar, atraer

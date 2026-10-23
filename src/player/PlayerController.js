@@ -301,6 +301,8 @@ export class PlayerController {
       flying: !!this.motor.fly && !this.motor.grounded,
       skating: !!this.motor.skate && (this.motor.grounded || this.motor.isWallRiding),
       swinging: this.motor.isSwinging,
+      // Fase del balanceo ('rise' | 'fall' | null): punto de integración para animaciones propias
+      swingPhase: this.motor.swingPhase,
       climbDistance: this.motor.climbDistance,
       mantleProgress: this.motor.mantleProgress,
       // La cabeza mira hacia donde mira la cámara (salvo si la cámara está delante)

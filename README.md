@@ -255,7 +255,7 @@ Distrito; inicio y zonas del Campo).
 | Tecla | Habilidad | Coste | Efecto |
 | --- | --- | --- | --- |
 | Clic izq. | Hilos | 2 | El puño se convierte en hilo y golpea a distancia (24 m, 14 de daño). **Sin balas**, pero no puedes volver a golpear hasta que el puño ha vuelto |
-| Q (mantener) | Balanceo | 4 | Lanza un hilo a donde apuntas (30 m; si no hay nada, a la estructura más próxima) y te balanceas como Spider-Man: la cuerda se mantiene tensa, empujar en el sentido del arco da energía (en el punto bajo, adelante; en el alto, atrás), S recoge hilo y sube el arco, y al soltar Q (o saltar) sales disparado en la dirección que llevabas. Desde el suelo, el hilo tira de ti y despegas |
+| Q (mantener) | Balanceo | 4 | Lanza un hilo a la estructura que marcas con la cámara (entre 4 y 30 m, por encima de ti; si no hay una buena, a la mejor de su entorno) y te balanceas: la cuerda se mantiene tensa y el anclaje no se mueve; empujar en el sentido del arco da energía (en el punto bajo, adelante; en el alto, atrás); S recoge hilo y sube el arco; si el anclaje se tapa o se aleja, el hilo se re-engancha solo a otro punto sin frenarte; al soltar Q (o saltar) sales disparado en la dirección que llevabas, y si sueltas en el punto alto del arco hay un empujón extra. Desde el suelo, el hilo tira de ti y despegas |
 | R | Atar | 15 | Ata al enemigo de la mira y lo **inmoviliza 4 s** (hilos alrededor del cuerpo) |
 | G | Lanzar | 15 | Lanza al enemigo de la mira **por los aires** (≈5 m); al caer se hace daño |
 | X / clic central | Atraer | 10 | Te lleva **hasta el enemigo** (a distancia de golpe) o, si señalas una pared o superficie, **hasta ella** |

@@ -125,15 +125,67 @@ export class CharacterMotor {
    * actual). Mientras dure: gravedad normal, la entrada empuja el péndulo y
    * la cuerda no deja alejarse más del anclaje.
    */
-  startSwing(anchor, { pump = 16, maxSpeed = 32, maxLen = Infinity, reel = 6, minLen = 2.5 } = {}) {
+  startSwing(anchor, { pump = 16, maxSpeed = 32, maxLen = Infinity, reel = 6, minLen = 2.5, drag = 0.04 } = {}) {
     if (this.isBusy) return false;
     const p = this.position;
     // Con `maxLen` más corto que la distancia, el hilo tira del cuerpo hacia el anclaje
     const len = Math.min(maxLen, Math.hypot(anchor.x - p.x, anchor.y - (p.y + CharacterMotor.ROPE_POINT), anchor.z - p.z));
     if (len < 1.2) return false;
-    this._swing = { x: anchor.x, y: anchor.y, z: anchor.z, len, pump, maxSpeed, reel, minLen: Math.min(minLen, len) };
+    this._swing = { x: anchor.x, y: anchor.y, z: anchor.z, len, pump, maxSpeed, reel, minLen: Math.min(minLen, len), drag, maxLen, radial: 0 };
     if (this.crouched) this.setCrouch(false);
     return true;
+  }
+
+  /**
+   * Cambia el anclaje en uso (re-enganche) sin tocar la velocidad ni la
+   * posición: la cuerda pasa a medir la distancia actual al nuevo punto, así
+   * que no hay salto. Devuelve false si no hay balanceo o el punto está muy cerca.
+   */
+  retarget(anchor, maxLen = Infinity) {
+    const s = this._swing;
+    if (!s) return false;
+    const p = this.position;
+    const dist = Math.hypot(anchor.x - p.x, anchor.y - (p.y + CharacterMotor.ROPE_POINT), anchor.z - p.z);
+    if (dist < 1.2) return false;
+    const len = Math.min(maxLen, dist);
+    Object.assign(s, { x: anchor.x, y: anchor.y, z: anchor.z, len, minLen: Math.min(s.minLen, len), maxLen, radial: 0 });
+    return true;
+  }
+
+  /** ¿Puede el hilo llegar al anclaje en uso sin que nada lo tape? (comprobación barata) */
+  get swingOpen() {
+    return !!this._swing && this.world.raycastHit(
+      { x: this.position.x, y: this.position.y + CharacterMotor.ROPE_POINT, z: this.position.z },
+      this._swingDir(), Math.max(0, this._swing.len - 0.3), { ignoreTags: ['bounds', 'barrier', 'water'] },
+    ) === null;
+  }
+
+  _swingDir() {
+    const s = this._swing;
+    const cx = s.x - this.position.x;
+    const cy = s.y - (this.position.y + CharacterMotor.ROPE_POINT);
+    const cz = s.z - this.position.z;
+    const d = Math.hypot(cx, cy, cz) || 1;
+    return { x: cx / d, y: cy / d, z: cz / d };
+  }
+
+  /** Fase del balanceo para la animación: 'rise' (sube hacia el otro lado) o 'fall' (baja). */
+  get swingPhase() {
+    if (!this._swing) return null;
+    return this.velocity.y >= 0 ? 'rise' : 'fall';
+  }
+
+  /**
+   * Calidad del momento de soltar: 1 si el cuerpo sube y su movimiento va
+   * casi tangente a la cuerda (en el punto alto de un arco bien llevado), 0 si no.
+   */
+  releaseQuality() {
+    const s = this._swing;
+    if (!s) return 0;
+    const v = this.velocity;
+    const speed = Math.hypot(v.x, v.y, v.z);
+    if (speed < 8 || v.y <= 0) return 0;
+    return Math.abs(s.radial) < 0.3 * speed ? 1 : 0;
   }
 
   /**
@@ -201,6 +253,7 @@ export class CharacterMotor {
     const cy = p.y + CharacterMotor.ROPE_POINT - s.y;
     const cz = p.z - s.z;
     const d = Math.hypot(cx, cy, cz);
+    s.radial = d > 0 ? (v.x * cx + v.y * cy + v.z * cz) / d : 0;
     if (d > s.len) {
       const nx = cx / d;
       const ny = cy / d;
@@ -550,6 +603,11 @@ export class CharacterMotor {
       }
     } else if (this._swing) {
       // Balanceándose: S recoge hilo (sube el arco); el resto de la entrada empuja el péndulo
+      // Resistencia del aire: frena un poco, lo justo para que no se dispare
+      const k = Math.max(0, 1 - this._swing.drag * dt);
+      v.x *= k;
+      v.y *= k;
+      v.z *= k;
       if (input.reel) this._reelSwing(dt);
       else this._pumpSwing(mx, mz, dt);
     } else {

@@ -743,3 +743,48 @@ un edificio se omite. El mapa declara `factions: { pdc: 0 }` y
 controlan desde la administración (`adm-enemies`, `adm-pdc-calm`,
 `adm-pdc-hostile`).
 
+## Balanceo con hilo (reescrito)
+
+Piezas, sin Three.js salvo el sistema del Hilo:
+
+- **Selección de anclajes** (`physics/swingAnchors.js`, pura): un abanico de
+  ~45 rayos alrededor de la mirada (elevaciones 18–74°, desplazamientos ±56°,
+  cono máximo de 55° respecto a la cámara). Un rayo válido choca primero con
+  una superficie (eso ya es línea de visión), está entre `minRange` (4 m) y
+  `range` (30 m), y su punto queda al menos `minHeight` (3 m) por encima de
+  los pies. Puntuación (menor, mejor): distancia ideal de 16 m, altura ideal de
+  10 m, ángulo a la mirada, alineación con el movimiento y un bonus fijo para
+  el punto que ya se usa (no hay parpadeos). Las etiquetas `bounds`, `barrier`
+  y `water` no son enganchables. `anchorVisible` es un único rayo para
+  comprobarlo cada 0.2 s.
+- **Controlador de balanceo** (`CharacterMotor`, estado `_swing`): el cuerpo
+  sigue siendo cinemático con gravedad integrada por el mismo paso que el
+  resto. Tras integrar con colisiones, `_applyRope` quita la velocidad que
+  estira la cuerda y corrige la posición como mucho 0.2 m por paso (así la
+  cuerda no atraviesa muros finos). Además:
+  - **Impulso tangencial** (`_pumpSwing`): la entrada se proyecta en el plano
+    perpendicular a la cuerda en 3D; empujar hacia el anclaje no da energía y
+    contra el movimiento frena un 40 %.
+  - **Arrastre** (`drag`, 1/s): frena el aire un poco para estabilizar.
+  - **Recoger** (`reel`): S acorta la cuerda hasta `minLen`.
+  - **Retargeteo** (`retarget`): cambia el anclaje sin tocar posición ni
+    velocidad; la cuerda pasa a medir la distancia actual (no hay salto).
+  - **Calidad de soltada** (`releaseQuality`): 1 si el cuerpo sube y su
+    movimiento es casi tangente a la cuerda (el punto alto de un arco bien
+    llevado). Da `perfectBonus` (4 m/s) extra al soltar.
+  - **Fase** (`swingPhase`): 'rise' o 'fall', para animaciones.
+- **Sistema del Hilo** (`ThreadPowerSystem`): al pulsar Q, `findAnchor` y un
+  salto corto si estás en el suelo. Mientras dura, `_keepSwing` (cada 0.2 s)
+  comprueba el anclaje: si se ha tapado o está fuera de alcance, busca otro
+  (con el anclaje anterior como preferido) y lo retargetea; si no hay ninguno,
+  suelta conservando la velocidad. `_assistCamera` gira suavemente la cámara
+  hacia la dirección de la velocidad (≥ 6 m/s) mientras no muevas el ratón.
+- **Estados para animación**: el motor expone `swingPhase`; el estado de
+  `CharacterModel` ya tiene `swinging`. Preparación del lanzamiento, subida y
+  bajada con poses propias quedan como puntos de integración (aún sin
+  animaciones específicas: se usa la pose de balanceo existente).
+
+Lo que no se ha hecho: gamepad (el juego no tiene soporte de mando), sustituir
+el movimiento de la cámara por un seguimiento completo de la cuerda y
+animaciones dedicadas de preparación y lanzamiento.
+
