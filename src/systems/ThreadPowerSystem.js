@@ -4,7 +4,7 @@ import { Ability } from '../powers/Ability.js';
 import { THREAD_CONFIG } from '../powers/thread/threadConfig.js';
 import { enemyAtCrosshair } from '../powers/targeting.js';
 import { CharacterMotor } from '../physics/CharacterMotor.js';
-import { findSwingAnchor, SWING_ANCHOR_CONFIG } from '../physics/swingAnchors.js';
+import { findSwingAnchor, directionalAnchor, SWING_ANCHOR_CONFIG } from '../physics/swingAnchors.js';
 
 const WHITE = '#f2f4f8';
 const UP = new THREE.Vector3(0, 1, 0);
@@ -273,26 +273,46 @@ export class ThreadPowerSystem {
     return this.game.camera.getWorldDirection(this._aimDir);
   }
 
-  /** Dirección horizontal del movimiento: la velocidad si ya se va, si no la mirada. */
-  _moveDir() {
-    const v = this.game.player.motor.velocity;
-    const h = Math.hypot(v.x, v.z);
-    if (h > 2) return { x: v.x / h, z: v.z / h };
-    const f = this.game.cameraController.forward();
-    return { x: f.x, z: f.z };
+  /**
+   * Dirección en la que el jugador quiere ir: la de las teclas relativa a la
+   * cámara (W adelante, A/D a los lados) o, sin teclas, hacia donde mira.
+   */
+  _wishDir() {
+    const g = this.game;
+    const inp = g.input;
+    const cam = g.cameraController;
+    const fx = -Math.sin(cam.yaw);
+    const fz = -Math.cos(cam.yaw);
+    const rx = Math.cos(cam.yaw);
+    const rz = -Math.sin(cam.yaw);
+    const f = (inp.isDown('moveForward') ? 1 : 0);
+    const r = (inp.isDown('moveRight') ? 1 : 0) - (inp.isDown('moveLeft') ? 1 : 0);
+    let x = fx * f + rx * r;
+    let z = fz * f + rz * r;
+    const l = Math.hypot(x, z);
+    if (l < 1e-6) return { x: fx, z: fz };
+    return { x: x / l, z: z / l };
   }
 
-  /** Mejor punto de enganche ahora mismo (o null si no hay ninguno válido). */
+  /**
+   * Punto de enganche. Primero el direccional (delante y arriba, en la
+   * dirección deseada: el balanceo va hacia donde quieres, no hacia la
+   * pared). Si no hay estructuras para ello, una superficie real solo si
+   * queda por delante; nunca una que tire hacia atrás o hacia un lado.
+   */
   findAnchor(prev = null) {
     const m = this.game.player.motor;
     const o = { x: m.position.x, y: m.position.y + CharacterMotor.ROPE_POINT, z: m.position.z };
-    return findSwingAnchor(this.game.world, o, {
-      feetY: m.position.y,
-      view: this._view(),
-      move: this._moveDir(),
-      prev,
-      cfg: this.anchorCfg,
-    });
+    const dir = this._wishDir();
+    const speed = Math.hypot(m.velocity.x, m.velocity.z);
+    const a = directionalAnchor(this.game.world, o, { feetY: m.position.y, dir, speed, cfg: this.anchorCfg });
+    if (a) return a;
+    const b = findSwingAnchor(this.game.world, o, { feetY: m.position.y, view: this._view(), move: dir, prev, cfg: this.anchorCfg });
+    if (!b) return null;
+    const hx = b.x - o.x;
+    const hz = b.z - o.z;
+    const ahead = (hx * dir.x + hz * dir.z) / (Math.hypot(hx, hz) || 1);
+    return ahead > 0.6 ? b : null;
   }
 
   _startSwing() {
@@ -314,6 +334,14 @@ export class ThreadPowerSystem {
     const ground = g.world.groundHeight(motor.position.x, motor.position.z, 0.3, motor.position.y + 0.5);
     const maxLen = Math.max(3, anchor.y - (Number.isFinite(ground) ? ground : motor.position.y) - CharacterMotor.ROPE_POINT - 0.6);
     if (!motor.startSwing(anchor, { pump: c.pump, maxSpeed: c.maxSpeed, maxLen, reel: c.reel, minLen: c.minLen, drag: c.drag })) return this._fail('dash');
+    // Impulso de entrada: si vas despacio en esa dirección, el tirón del hilo te lanza hacia ella
+    const dir = this._wishDir();
+    const along = motor.velocity.x * dir.x + motor.velocity.z * dir.z;
+    if (along < c.entrySpeed) {
+      const add = (c.entrySpeed - along) * c.entryFactor;
+      motor.velocity.x += dir.x * add;
+      motor.velocity.z += dir.z * add;
+    }
     this._reacquireCd = this.anchorCfg.recheck;
     a.commit(this.energy);
     g.vfx.particles.burst(anchor, { count: 8, speed: 2, color: new THREE.Color(WHITE), size: 0.08, life: 0.3 });

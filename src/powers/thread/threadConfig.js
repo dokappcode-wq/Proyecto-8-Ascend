@@ -24,6 +24,8 @@ export const THREAD_CONFIG = Object.freeze({
     drag: 0.04,
     /** Bonus horizontal al soltar en el punto alto de un arco bien llevado (m/s). */
     perfectBonus: 4,
+    /** Al engancharse: velocidad mínima hacia la dirección deseada (m/s) y cuánto de lo que falta se añade. */
+    entrySpeed: 11, entryFactor: 0.7,
   },
   /** Habilidad 1 (R): atar a un enemigo (inmovilizado). */
   bind: {

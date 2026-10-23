@@ -757,6 +757,18 @@ Piezas, sin Three.js salvo el sistema del Hilo:
   el punto que ya se usa (no hay parpadeos). Las etiquetas `bounds`, `barrier`
   y `water` no son enganchables. `anchorVisible` es un único rayo para
   comprobarlo cada 0.2 s.
+- **Anclaje direccional** (`swingAnchors.directionalAnchor`, el que se usa
+  primero): el punto no es la pared que se ve sino uno a `aheadMin` +
+  `aheadPerSpeed`·velocidad (11–24 m) por delante en la dirección deseada y
+  `riseIdeal` (17 m) por encima, limitado a la cima de las estructuras en
+  `structRadius` (30 m) + `structSlack`. Si queda por debajo de `riseMin`
+  (campo abierto), dentro de un edificio o con el hilo atravesando uno, se
+  prueba más cerca (75 %, 50 %); si nada vale, no hay enganche. El selector
+  por puntuación de abajo solo se usa si este falla y su punto queda por
+  delante. La dirección deseada (`ThreadPowerSystem._wishDir`) es la de las
+  teclas relativa a la cámara; al engancharse, si la velocidad en esa
+  dirección es menor que `entrySpeed` (11 m/s), se añade el 70 % de lo que
+  falta.
 - **Controlador de balanceo** (`CharacterMotor`, estado `_swing`): el cuerpo
   sigue siendo cinemático con gravedad integrada por el mismo paso que el
   resto. Tras integrar con colisiones, `_applyRope` quita la velocidad que

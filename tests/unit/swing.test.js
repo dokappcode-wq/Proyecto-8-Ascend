@@ -111,3 +111,76 @@ test('Motor: la fase del balanceo distingue subida y bajada', () => {
   }
   assert.ok(phases.has('rise') && phases.has('fall'));
 });
+
+// ---------------------------------------------------------------- Anclaje direccional
+import { directionalAnchor } from '../../src/physics/swingAnchors.js';
+
+/** Calle de 24 m de ancho a lo largo de +Z, con edificios de 30 m a ambos lados. */
+function street() {
+  const boxes = [];
+  for (let z = -40; z < 800; z += 40) {
+    boxes.push([{ x: -40, y: 0, z }, { x: -12, y: 30, z: z + 34 }]);
+    boxes.push([{ x: 12, y: 0, z }, { x: 40, y: 30, z: z + 34 }]);
+  }
+  // Suelo a lo largo de toda la calle (el de `city` acaba en z = 200)
+  boxes.push([{ x: -40, y: -1, z: 190 }, { x: 40, y: 0, z: 800 }]);
+  return city(boxes);
+}
+
+test('Anclaje direccional: delante y arriba en la dirección deseada, en mitad de la calle', () => {
+  const w = street();
+  const a = directionalAnchor(w, { x: 0, y: R, z: 0 }, { feetY: 0, dir: { x: 0, z: 1 }, speed: 0 });
+  assert.ok(a, 'hay anclaje');
+  assert.ok(a.z > 8, `por delante (${a.z.toFixed(1)})`);
+  assert.ok(Math.abs(a.x) < 1e-9, 'sin desviarse hacia los edificios');
+  assert.ok(a.y >= SWING_ANCHOR_CONFIG.riseMin && a.y <= 30 + SWING_ANCHOR_CONFIG.structSlack);
+});
+
+test('Anclaje direccional: en campo abierto (sin estructuras) no hay enganche', () => {
+  assert.equal(directionalAnchor(city(), { x: 0, y: R, z: 0 }, { feetY: 0, dir: { x: 0, z: 1 }, speed: 10 }), null);
+});
+
+test('Anclaje direccional: nunca dentro de un edificio ni con el hilo atravesando uno', () => {
+  const w = street();
+  // Mirando hacia la fachada de la derecha, pegado a ella
+  const a = directionalAnchor(w, { x: 9, y: R, z: 5 }, { feetY: 0, dir: { x: 1, z: 0 }, speed: 0 });
+  assert.ok(!a || a.x < 12, 'no queda dentro del edificio');
+});
+
+test('Balanceo encadenado: con W se avanza calle adelante sin irse contra los edificios', () => {
+  const w = street();
+  const m = new CharacterMotor(w);
+  m.teleport({ x: 0, y: 0, z: 0 });
+  const dir = { x: 0, z: 1 };
+  const c = THREAD_CONFIG.swing;
+  let swings = 0;
+  let maxLateral = 0;
+  let minY = Infinity;
+  for (let i = 0; i < 60 * 20; i++) {
+    const p = m.position;
+    if (!m.isSwinging && (m.grounded || m.velocity.y < -2) && swings < 12) {
+      const o = { x: p.x, y: p.y + R, z: p.z };
+      const a = directionalAnchor(w, o, { feetY: p.y, dir, speed: Math.hypot(m.velocity.x, m.velocity.z) });
+      if (a) {
+        if (m.grounded) {
+          m.velocity.y = c.hop;
+          m.grounded = false;
+        }
+        const ground = w.groundHeight(p.x, p.z, 0.3, p.y + 0.5);
+        const maxLen = Math.max(3, a.y - ground - R - 0.6);
+        m.startSwing(a, { ...c, maxLen });
+        const along = m.velocity.z;
+        if (along < c.entrySpeed) m.velocity.z += (c.entrySpeed - along) * c.entryFactor;
+        swings++;
+      }
+    }
+    // Soltar al pasar el punto bajo y empezar a subir por delante del anclaje
+    if (m.isSwinging && m.velocity.y > 1 && m.position.z > m.swingAnchor.z) m.endSwing(c.releaseBoost, c.releaseHorizontal);
+    m.update(DT, { moveX: dir.x, moveZ: dir.z });
+    maxLateral = Math.max(maxLateral, Math.abs(m.position.x));
+    minY = Math.min(minY, m.position.y);
+  }
+  assert.ok(swings >= 4, `encadena balanceos (${swings})`);
+  assert.ok(m.position.z > 300, `avanza por la calle (${m.position.z.toFixed(0)} m)`);
+  assert.ok(maxLateral < 3, `no se desvía hacia los edificios (${maxLateral.toFixed(2)} m)`);
+});
