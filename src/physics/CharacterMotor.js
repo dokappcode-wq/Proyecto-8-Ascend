@@ -6,7 +6,7 @@
  * recibe una intención de movimiento ya expresada en coordenadas del mundo.
  */
 
-import { PARKOUR_CONFIG, isClimbable, probeWall, findLedge, standSpot, hangSpot, wallAboveLedge, vaultLanding, ledgeTop } from './Parkour.js';
+import { PARKOUR_CONFIG, isClimbable, probeWall, findLedge, standSpot, hangSpot, wallAboveLedge, vaultLanding, ledgeTop, onFace } from './Parkour.js';
 
 export const DEFAULT_MOTOR_CONFIG = Object.freeze({
   radius: 0.38,
@@ -642,8 +642,9 @@ export class CharacterMotor {
   _startWall(w) {
     const c = this.cfg;
     const p = this.position;
-    p.x = Math.abs(w.nx) > 0.5 ? w.x + w.nx * (c.radius + 0.02) : p.x;
-    p.z = Math.abs(w.nz) > 0.5 ? w.z + w.nz * (c.radius + 0.02) : p.z;
+    const q = onFace(p, w.nx, w.nz, w.nx * w.x + w.nz * w.z, c.radius + 0.02);
+    p.x = q.x;
+    p.z = q.z;
     this._climb = { mode: 'wall', nx: w.nx, nz: w.nz, ledgeY: null, time: 0, leap: 0, leapCd: 0, moved: 0 };
     this.velocity.x = this.velocity.y = this.velocity.z = 0;
     this.grounded = false;
@@ -867,8 +868,7 @@ export class CharacterMotor {
 
   /** Cornisa justo delante de las manos estando colgado. */
   _ledgeHere(p, cl) {
-    const sx = Math.abs(cl.nx) > 0.5 ? cl.front - cl.nx * 0.12 : p.x;
-    const sz = Math.abs(cl.nz) > 0.5 ? cl.front - cl.nz * 0.12 : p.z;
+    const { x: sx, z: sz } = onFace(p, cl.nx, cl.nz, cl.front, -0.12);
     const top = ledgeTop(this.world, sx, sz, cl.ledgeY + 0.4, cl.ledgeY - 0.3);
     if (!top || !isClimbable(top.collider)) return null;
     return { y: top.y, collider: top.collider, front: cl.front, nx: cl.nx, nz: cl.nz };

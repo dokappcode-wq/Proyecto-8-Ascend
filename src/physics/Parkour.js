@@ -2,8 +2,9 @@
  * Parkour — consultas geométricas para escalada, cornisas y obstáculos.
  *
  * Independiente de Three.js, como CollisionWorld y CharacterMotor. Las
- * normales de los muros son siempre horizontales y alineadas con los ejes
- * (los colisionadores son AABB), lo que simplifica el agarre.
+ * normales de los muros son horizontales; pueden ir en cualquier dirección
+ * (las cajas orientadas de la ciudad), así que las posiciones respecto a una
+ * cara se calculan con su plano: n·(x, z) = front.
  */
 
 export const PARKOUR_CONFIG = Object.freeze({
@@ -59,10 +60,27 @@ export function probeWall(world, p, dx, dz, y, maxDist) {
   return { t: hit.t, nx: n.x, nz: n.z, collider: hit.collider, x: p.x + dx * hit.t, z: p.z + dz * hit.t };
 }
 
-/** Cara exterior (en el eje de la normal) de una caja: coordenada del plano. */
+/**
+ * Cara exterior de una caja en la dirección de la normal: distancia del plano
+ * de esa cara (n·(x, z) = front). Para una caja alineada y n = +X es maxX;
+ * para n = -X, -minX.
+ */
 export function faceCoord(box, nx, nz) {
-  if (Math.abs(nx) > 0.5) return nx > 0 ? box.maxX : box.minX;
-  return nz > 0 ? box.maxZ : box.minZ;
+  if (box.obb) {
+    const a = nx * box.ux + nz * box.uz;
+    const b = -nx * box.uz + nz * box.ux;
+    return box.cx * nx + box.cz * nz + Math.abs(a) * box.hw + Math.abs(b) * box.hd;
+  }
+  return (nx > 0 ? box.maxX : box.minX) * nx + (nz > 0 ? box.maxZ : box.minZ) * nz;
+}
+
+/**
+ * Punto p desplazado a lo largo de la normal hasta quedar a `off` metros del
+ * plano de la cara (positivo: fuera; negativo: encima de la cornisa).
+ */
+export function onFace(p, nx, nz, front, off) {
+  const k = front + off - (nx * p.x + nz * p.z);
+  return { x: p.x + nx * k, z: p.z + nz * k };
 }
 
 /**
@@ -118,9 +136,7 @@ export function findLedge(world, p, n, radius, minRel, maxRel) {
  */
 export function standSpot(world, p, ledge, radius, height, crouchHeight) {
   const { nx, nz, front, y } = ledge;
-  const inset = radius + 0.18;
-  const x = Math.abs(nx) > 0.5 ? front - nx * inset : p.x;
-  const z = Math.abs(nz) > 0.5 ? front - nz * inset : p.z;
+  const { x, z } = onFace(p, nx, nz, front, -(radius + 0.18));
   const ground = world.groundHeight(x, z, radius * 0.85, y + 0.05);
   if (ground < y - 0.05) return null; // la cima es demasiado estrecha
   if (bodyFits(world, x, ground, z, radius, height)) return { x, y: ground, z, crouch: false };
@@ -134,8 +150,7 @@ export function standSpot(world, p, ledge, radius, height, crouchHeight) {
  */
 export function hangSpot(world, p, ledge, radius, height, reach) {
   const { nx, nz, front, y } = ledge;
-  const x = Math.abs(nx) > 0.5 ? front + nx * (radius + 0.03) : p.x;
-  const z = Math.abs(nz) > 0.5 ? front + nz * (radius + 0.03) : p.z;
+  const { x, z } = onFace(p, nx, nz, front, radius + 0.03);
   const feet = y - reach;
   if (!bodyFits(world, x, feet, z, radius, height)) return null;
   return { x, y: feet, z };
@@ -147,12 +162,9 @@ export function hangSpot(world, p, ledge, radius, height, reach) {
  */
 export function wallAboveLedge(world, p, ledge, radius, height) {
   const { nx, nz, front, y } = ledge;
-  const ox = Math.abs(nx) > 0.5 ? front + nx * 0.5 : p.x;
-  const oz = Math.abs(nz) > 0.5 ? front + nz * 0.5 : p.z;
-  const w = probeWall(world, { x: ox, z: oz }, -nx, -nz, y + 1.1, 1.6);
+  const w = probeWall(world, onFace(p, nx, nz, front, 0.5), -nx, -nz, y + 1.1, 1.6);
   if (!w || !isClimbable(w.collider) || Math.abs(w.nx - nx) > 0.1 || Math.abs(w.nz - nz) > 0.1) return null;
-  const x = Math.abs(nx) > 0.5 ? w.x + nx * (radius + 0.02) : p.x;
-  const z = Math.abs(nz) > 0.5 ? w.z + nz * (radius + 0.02) : p.z;
+  const { x, z } = onFace(p, nx, nz, nx * w.x + nz * w.z, radius + 0.02);
   if (!bodyFits(world, x, y + 0.02, z, radius, height)) return null;
   return { x, y: y + 0.02, z };
 }
@@ -163,10 +175,7 @@ export function wallAboveLedge(world, p, ledge, radius, height) {
  */
 export function vaultLanding(world, p, ledge, radius, height, maxDepth) {
   const { nx, nz, front, y } = ledge;
-  const along = (d) => ({
-    x: Math.abs(nx) > 0.5 ? front - nx * d : p.x,
-    z: Math.abs(nz) > 0.5 ? front - nz * d : p.z,
-  });
+  const along = (d) => onFace(p, nx, nz, front, -d);
   // Dónde termina la cima del obstáculo
   let depth = null;
   for (let d = 0.15; d <= maxDepth + 0.15; d += 0.1) {

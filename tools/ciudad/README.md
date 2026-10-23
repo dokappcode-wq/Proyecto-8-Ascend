@@ -1,6 +1,6 @@
 # tools/ciudad — diseño del mapa de la ciudad (v2)
 
-Generadores del diseño de la ciudad (propuesta): tres masas de tierra (la Isla,
+Generadores de la ciudad (Ibaia, ya jugable en el juego): tres masas de tierra (la Isla,
 la Península y la Orilla Este) con diez barrios de 3,00 km² exactos, red viaria
 por jerarquía, parcelación en solares, edificios con altura, las barreras de la
 Defensa, los planos SVG, la maqueta 3D y la página de diseño. El resumen está en
@@ -17,6 +17,7 @@ Defensa, los planos SVG, la maqueta 3D y la página de diseño. El resumen está
 | `export3d.py`, `maq/index.html`, `maqshot.mjs` | Maqueta 3D (three.js) con barreras y sus vistas |
 | `page.py`, `base.css`, `base.js` | Página HTML de diseño |
 | `doc.py` | Escribe `docs/CIUDAD.md` |
+| `export_game.py` | Datos del juego: `src/world/maps/ibaia/cityData.js` (cajas de edificios, suelo, máscara de agua, relieve, puentes, barreras, destinos) |
 
 ## Regenerar
 
@@ -33,6 +34,8 @@ venv/bin/python export3d.py          # maq/city.json y maq/extra.json
 node maqshot.mjs ciudad centro midtown colinas   # out/maq-*.jpg
 venv/bin/python page.py              # page/ciudad.html + page/img/
 venv/bin/python doc.py               # docs/CIUDAD.md
+venv/bin/python export_game.py       # src/world/maps/ibaia/cityData.js (el mapa del juego)
 ```
 
-`out/`, `page/` y `maq/*.json` son generados y no se versionan.
+`out/`, `page/` y `maq/*.json` son generados y no se versionan; `cityData.js` sí
+(el juego lo necesita para compilar).

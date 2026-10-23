@@ -35,6 +35,10 @@
             <span class="btn-title">Distrito Cero</span>
             <span class="btn-sub">El corazón de la ciudad · Operación: Distrito Cero<em class="mission-done" id="menu-mission-done"></em></span>
           </button>
+          <button class="menu-btn" data-action="play" data-map="ibaia">
+            <span class="btn-title">Ibaia · La ciudad</span>
+            <span class="btn-sub">Mundo abierto: diez barrios de 3 km² y las barreras de la Defensa (F4 para bajarlas)</span>
+          </button>
           <button class="menu-btn" data-action="settings">
             <span class="btn-title">Ajustes</span>
           </button>
@@ -42,7 +46,7 @@
             <span class="btn-title">Salir</span>
           </button>
         </nav>
-        <p class="build-tag">Prototipo · Etapa 8 — Historia y gráficos renovados</p>
+        <p class="build-tag">Prototipo · Etapa 8 — Historia, gráficos y la ciudad de Ibaia</p>
       </div>
     </section>
 
@@ -105,6 +109,7 @@
           <button class="menu-btn hidden" data-action="skip-scene"><span class="btn-title">Saltar escena</span></button>
           <button class="menu-btn" data-action="restart"><span class="btn-title">Reiniciar mapa</span></button>
           <button class="menu-btn" data-action="save-game"><span class="btn-title">Guardar partida</span></button>
+          <button class="menu-btn" data-action="adm-open"><span class="btn-title">Administración (F4)</span></button>
           <button class="menu-btn" data-action="settings"><span class="btn-title">Ajustes</span></button>
           <button class="menu-btn" data-action="menu"><span class="btn-title">Volver al menú</span></button>
         </nav>
@@ -168,6 +173,14 @@
       <div class="panel wide">
         <h2>Depuración</h2>
         <div id="debug-body"></div>
+      </div>
+    </section>
+
+    <!-- Administración de la ciudad (F4) -->
+    <section id="screen-admin" class="screen overlay" aria-label="Administración">
+      <div class="panel admin">
+        <h2>Administración · Ibaia</h2>
+        <div id="admin-body"></div>
       </div>
     </section>
 

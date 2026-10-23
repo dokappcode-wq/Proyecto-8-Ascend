@@ -11,6 +11,8 @@
  *          como colisión para que el desplazamiento sea suave).
  *  - Heightfield: terreno con relieve (rejilla de alturas). Cuestas,
  *          laderas y orillas; lo que es demasiado empinado hace de muro.
+ *  - ObbSet: miles de cajas orientadas estáticas con rejilla espacial
+ *          (edificios de la ciudad, puentes, barreras). Ver ObbSet.js.
  */
 
 const EPS = 1e-6;
@@ -26,12 +28,28 @@ export class CollisionWorld {
     this.boxes = [];
     this.ramps = [];
     this.heightfields = [];
+    this.obbSets = [];
+    this._obbHit = { t: 0, i: 0, nx: 0, ny: 0, nz: 0 };
   }
 
   clear() {
     this.boxes.length = 0;
     this.ramps.length = 0;
     this.heightfields.length = 0;
+    this.obbSets.length = 0;
+  }
+
+  /** Conjunto de cajas orientadas estáticas (ObbSet), con su rejilla ya construida. */
+  addObbSet(set) {
+    set.build();
+    this.obbSets.push(set);
+    return set;
+  }
+
+  /** ¿Alguna caja orientada activa ocupa este volumen? (las cajas normales no cuentan) */
+  obbOverlap(minX, maxX, minY, maxY, minZ, maxZ) {
+    for (const s of this.obbSets) if (s.overlaps(minX, maxX, minY, maxY, minZ, maxZ)) return true;
+    return false;
   }
 
   /**
@@ -186,6 +204,7 @@ export class CollisionWorld {
       const h = this.heightfieldAt(hf, x, z);
       if (h <= maxY && h > best) best = h;
     }
+    for (const s of this.obbSets) best = s.groundHeight(x, z, radius, maxY, best);
     return best;
   }
 
@@ -213,6 +232,7 @@ export class CollisionWorld {
       const dz = z - cz;
       if (dx * dx + dz * dz < r2) best = r.minY;
     }
+    for (const s of this.obbSets) best = s.ceilingHeight(x, z, radius, minY, best);
     return best;
   }
 
@@ -230,6 +250,7 @@ export class CollisionWorld {
       if (!b.enabled || b.maxY <= stepTop || b.minY >= head) continue;
       if (this._pushCircleOutOfRect(pos, radius, b)) contacts++;
     }
+    for (const s of this.obbSets) contacts += s.resolveHorizontal(pos, radius, stepTop, head);
 
     for (const r of this.ramps) {
       if (r.minY >= head) continue;
@@ -331,6 +352,13 @@ export class CollisionWorld {
           n[key] = dir[key] > 0 ? -1 : 1;
         }
         hit = { t: best, collider: b, normal: n };
+      }
+    }
+    const oh = this._obbHit;
+    for (const s of this.obbSets) {
+      if (s.raycast(origin, dir, best, opts, oh) && oh.t < best) {
+        best = oh.t;
+        hit = { t: best, collider: s.collider(oh.i), normal: { x: oh.nx, y: oh.ny, z: oh.nz } };
       }
     }
     for (const r of this.ramps) {

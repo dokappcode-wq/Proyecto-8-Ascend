@@ -385,3 +385,25 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 .story-flash { position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: 30; }
 .menu-btn.story-new { display: none; }
 .menu-btn.story-new.show { display: flex; }
+
+/* ---------- Administración de la ciudad (F4) ---------- */
+.panel.admin { max-width: min(96vw, 1180px); width: 100%; max-height: 94vh; overflow-y: auto; border-color: rgba(255, 181, 71, 0.35); }
+.panel.admin h2 { color: #ffd59a; }
+.adm-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .adm-grid { grid-template-columns: 1fr; } }
+.adm-map { margin: 0; }
+.adm-map canvas { width: 100%; height: auto; display: block; border: 1px solid var(--line); cursor: crosshair; image-rendering: auto; }
+.adm-map figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.adm-side h3 { margin: 4px 0 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.adm-side h3 + .dbg-row { margin-bottom: 12px; }
+.adm-count { font-family: var(--body); font-size: 12px; color: #ffb547; font-weight: 500; }
+.adm-list { display: grid; gap: 4px; margin-bottom: 14px; }
+.adm-barrier { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 6px 10px; background: rgba(255, 181, 71, 0.07); border: 1px solid rgba(255, 181, 71, 0.35); border-left: 4px solid var(--mk); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.adm-barrier:hover, .adm-barrier:focus-visible { background: rgba(255, 181, 71, 0.16); outline: none; }
+.adm-barrier.down { background: rgba(255, 255, 255, 0.02); border-color: rgba(142, 162, 186, 0.25); border-left-color: var(--mk); }
+.adm-n { font-family: var(--display); font-weight: 700; color: var(--muted); text-align: center; }
+.adm-name { font-family: var(--display); font-weight: 600; font-size: 16px; letter-spacing: .02em; display: flex; flex-direction: column; line-height: 1.15; }
+.adm-name small { font-family: var(--body); font-weight: 400; font-size: 11px; color: var(--muted); letter-spacing: 0; }
+.adm-state { font-size: 12px; padding: 1px 8px; border: 1px solid #ffb547; color: #ffb547; }
+.adm-barrier.down .adm-state { border-color: #5fd38a; color: #5fd38a; }
+.adm-primary { border-color: rgba(255, 181, 71, 0.6) !important; }

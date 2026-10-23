@@ -1,6 +1,6 @@
 # Ciudad de Ibaia (nombre provisional) — diseño v2
 
-Diseño del mapa de la ciudad del acto I (propuesta, sin implementar), al estilo de las ciudades de mundo
+Diseño del mapa de la ciudad del acto I (jugable en el juego como «Ibaia · La ciudad»), al estilo de las ciudades de mundo
 abierto (Spider-Man, inFamous Second Son, GTA, Watch Dogs y cinco más). La página con el plano interactivo,
 los planos de cada barrio y la maqueta 3D está publicada como artefacto: https://claude.ai/artifact/AHyJhScHBNGRTrHeyjeSMK
 

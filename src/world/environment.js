@@ -151,8 +151,10 @@ export function createSun({ color = '#ffd2a1', intensity = 2.2, direction = new 
 /** Recoloca el sol alrededor de un punto (el jugador). */
 export function followSun(sun, p) {
   const d = sun.userData.direction;
+  // Distancia del sol al jugador: más lejos donde hay edificios muy altos (la ciudad)
+  const k = sun.userData.distance ?? 100;
   sun.target.position.set(p.x, p.y, p.z);
-  sun.position.set(p.x - d.x * 100, p.y - d.y * 100, p.z - d.z * 100);
+  sun.position.set(p.x - d.x * k, p.y - d.y * k, p.z - d.z * k);
   sun.target.updateMatrixWorld();
 }
 

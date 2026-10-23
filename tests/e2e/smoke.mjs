@@ -17,6 +17,7 @@ import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { storySection } from './story.mjs';
+import { citySection } from './city.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const out = path.join(root, 'tests/e2e/output');
@@ -704,7 +705,8 @@ try {
   await page.waitForFunction(() => window.__ascend.powers.energy.value > 70, null, { timeout: 15000 }).catch(() => {});
   await page.screenshot({ path: path.join(out, 'powers-10-drain.png') });
   await page.keyboard.up('KeyE');
-  await page.waitForTimeout(300);
+  // Con render por software la absorción tarda algún fotograma en cerrarse al soltar E
+  await page.waitForFunction(() => !window.__ascend.drain.active, null, { timeout: 5000 }).catch(() => {});
   const drained = await g(() => ({
     e: window.__ascend.powers.energy.value, active: !!window.__ascend.drain.active,
     src: window.__ascend.drain.sources.find((s) => Math.abs(s.position.x - 6.5) < 0.1 && Math.abs(s.position.z - 18) < 0.1).reserve.value,
@@ -1956,6 +1958,11 @@ try {
     return { dt: a.menuScene._t - t0, restored: a.renderPass.scene === a.scene, hero: !!a.menuScene.hero.root.parent, city: !!a.menuScene.scene.getObjectByName('Ciudad') };
   });
   check(menu3d.dt > 0 && menu3d.restored && menu3d.hero && menu3d.city, 'Fondo 3D del menú animado (Jon en la azotea frente a la ciudad)');
+
+  // ---------------- Ibaia, la ciudad ----------------
+  console.log('\n[ibaia]');
+  await freshPage();
+  await citySection({ page, check, PORT, out });
 
   // ---------------- Modo historia ----------------
   console.log('\n[historia]');

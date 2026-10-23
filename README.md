@@ -65,6 +65,11 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   del puente son más fáciles; y la base de la PDC tiene puertas con sentido y
   guardias que rodean los obstáculos, se relevan en el cuartel y acuden a la
   alarma.
+- **Ibaia, la ciudad** ✅: el diseño v2 de la ciudad, jugable a escala real
+  (30 km², diez barrios de 3 km², ≈27 000 edificios, puentes, tren elevado,
+  parques y la sierra), con las **barreras de la Defensa** levantadas y un
+  **menú de administración (F4)** para bajarlas y subirlas (todas o por
+  barrio), ver el plano y viajar a cualquier punto.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -167,6 +172,7 @@ Para `test:e2e` en tu equipo, instala antes una vez el navegador de pruebas:
 | Caída en rayo | G en el aire (a más de 1.5 m del suelo) | ✅ |
 | Pausa | Esc | ✅ |
 | Menú de depuración | F2 o º | ✅ |
+| Administración de la ciudad (barreras, plano y viaje) | F4 (también en la pausa) | ✅ |
 | Ocultar ayuda / datos técnicos | H / F3 | ✅ |
 | Golpe (con energía: eléctrico y con embestida) | F | ✅ |
 | Interactuar / mantener para la voluntad | E | ✅ |
@@ -577,17 +583,46 @@ enemigo; el tipo base no cambia).
   norte no la abandona y los del helipuerto y el garaje vigilan la pasarela
   del anexo mientras Jon huye por las azoteas.
 
-## Diseño de la ciudad (propuesta)
+## Ibaia, la ciudad
 
-La ciudad del acto I (nombre provisional: Ibaia) está **diseñada, no
-implementada**, al estilo de las ciudades de Spider-Man, inFamous Second Son,
-GTA y Watch Dogs: una isla de rascacielos con parque central, una península
-con colinas, puerto y playa, y una orilla este de casco antiguo e industria,
-unidas por puentes. Son 30 km² en diez barrios de 3 km², y cada barrio queda
-encerrado por una **barrera de la Defensa** que se rompe desde dentro, en su
-Ancla, con la marca de ese barrio. A mitad de juego se descubre que las
-barreras son una Encarnación. Resumen en [`docs/CIUDAD.md`](docs/CIUDAD.md);
-los generadores de planos y maqueta, en [`tools/ciudad/`](tools/ciudad/README.md).
+Menú principal → **Ibaia · La ciudad**. Es la ciudad del diseño v2
+([`docs/CIUDAD.md`](docs/CIUDAD.md), generadores en
+[`tools/ciudad/`](tools/ciudad/README.md)) metida en el juego tal cual, a escala
+1 unidad = 1 m: la Isla (Los Bloques, Parque Central, Midtown, Barrio Chino y
+el Centro con La Roca), la Península (Las Colinas, El Puerto, La Costa) y la
+Orilla Este (Distrito Cero y La Fundición), unidas por el Puente de Hierro, el
+del Este, el de la Ría, el de la Bahía y la Pasarela de La Roca, con el tren
+elevado sobre la isla. Al atardecer: el sol se pone tras Midtown y las
+ventanas se van encendiendo.
+
+- **Llegada**: Jon aparece en la Autovía de la Sierra, dentro del Distrito
+  Cero. Al entrar en cada barrio sale su nombre, su marca y el estado de su
+  barrera.
+- **Barreras de la Defensa**: un muro de luz ámbar de hexágonos de 300 m
+  sigue el borde de cada barrio (y una cúpula cubre el Centro). No se
+  atraviesan, no se escalan y, con el vuelo, tampoco se pasan por encima.
+  Cada barrera tiene su **Ancla**, un cristal con un haz de luz sobre el
+  edificio, la chimenea o la calle del diseño (La Aguja, la Antorcha, la
+  Torre de la Defensa…).
+- **Menú de administración (F4)**, también desde la pausa: «Bajar todas» y
+  «Subir todas», una fila por barrio para bajar o subir solo esa barrera (el
+  muro se hunde en el suelo en ~2 s y su Ancla se apaga), el **plano de la
+  ciudad** (barreras, Anclas y dónde estás; un clic en el plano te lleva allí,
+  sobre la azotea si hay un edificio) y botones para viajar a cada barrio y a
+  cada Ancla. Lo que bajes se guarda y sigue bajado al volver a entrar.
+- **Moverse por la ciudad**: todo es transitable y escalable (los muros
+  girados también se trepan), los puentes tienen rampas y barandillas, al
+  tren elevado se sube por sus pilares y a las grúas del puerto por sus
+  patas. Caer al agua devuelve a la última orilla pisada.
+- **Recarga**: en las zonas de cada barrio hay fuentes de la marca del barrio
+  (farolas y armarios en el Distrito Cero, arcones y bidones en La Fundición,
+  tendederos en Midtown, escombros en El Puerto, palomares en el Barrio
+  Chino; farolas y máquinas en los barrios de marcas que aún no existen).
+
+**Aún no** (es la ciudad para explorar, sin el acto I): no hay enemigos, PDC,
+peatones ni tráfico; las Anclas no se rompen jugando (se bajan desde el
+menú); no están las Encarnaciones del diseño, los secretos ni las zonas
+bloqueadas; no hay interiores, metro ni el Túnel del Puerto.
 
 ## Etapa 7 — Pulido
 
@@ -948,7 +983,12 @@ traseras y los pilares del monorraíl.
   oscurece—, lluvia que no cae bajo techo, montañas y fusión de piezas del
   personaje) y 146 con el terreno con relieve (`terrain.test.js`: altura por
   triángulos, subir una cuesta de 25°, pared empinada que frena, cueva bajo la
-  ladera y rayo de la cámara);
+  ladera y rayo de la cámara), y 170 con la ciudad (`obb.test.js`: cajas
+  giradas, empuje por la normal de la cara, rayos iguales con y sin rejilla
+  en 400 rayos al azar, grupos que se apagan, tramos en rampa que se suben
+  andando y escalada en muros girados 30°, 45° y 126°; `city.test.js`: los
+  datos de Ibaia, aparición y destinos en la calle, agua y tablero de los
+  puentes, y la barrera que frena y deja pasar al bajarla);
   `story.test.js` comprueba los 29 puntos de control y su tramo de guion, las
   banderas de cada punto, qué poderes se permiten en cada tramo, el estado
   (las banderas no retroceden, la elección solo admite KILL/SPARE, completar),
@@ -1082,6 +1122,16 @@ traseras y los pilares del monorraíl.
     humo que se disipan; el pueblo tiene agua animada, montañas nevadas y
     materiales con relieve; el menú tiene su fondo 3D animado y, al volver
     de un mapa, el juego vuelve a dibujar su propia escena.
+  - **Ibaia** (`tests/e2e/city.mjs`): el botón del menú carga la ciudad
+    (≈2 s; unos 0.7 s en construirla), Jon aparece en el Distrito Cero, están
+    los ≈33 000 edificios con su colisión, las diez barreras levantadas, la
+    cámara de largo alcance, 148 fuentes y 21 destinos; anda por la calle con
+    el teclado; corriendo hacia la barrera se queda a un metro de ella; F4
+    abre la administración con el plano y diez filas; «Bajar todas» las baja
+    y lo guarda, la lista lo marca y Jon cruza al otro lado; los muros se
+    hunden; subir solo la del Distrito Cero deja las otras nueve bajadas; un
+    clic en el plano lleva a Midtown; al caer al río vuelve a la orilla; y
+    «Subir todas» las levanta otra vez.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería empieza con los ajustes de un equipo modesto (sin MSAA ni
     reflejos del cielo, resolución de render al 75 %): con el render por
@@ -1118,6 +1168,12 @@ cada sonido se genera, no su calidad). Conviene una sesión de juego manual.
 - La rotación de los objetos físicos es solo visual (su colisión es una caja
   alineada); la Sobrecarga y el árbol de mejoras llegan con la progresión.
 - *Salir* no puede cerrar una pestaña del navegador; muestra una pantalla de despedida.
+- **Ibaia**: con render por software la ciudad va a ~1 FPS (en una GPU no se
+  ha medido); el suelo de la calle es plano (las aceras y la calzada son solo
+  visuales: 6 cm por encima y por debajo de la colisión); los edificios son
+  cajas (los de planta irregular se componen de varias), sin interiores ni
+  detalles de fachada salvo las ventanas del shader; las farolas no tienen
+  colisión; no hay enemigos ni peatones.
 - **Prólogo**: dura bastante menos que los 80–105 min del guion (las escenas
   están condensadas y los recorridos son cortos); las cinemáticas usan los
   modelos y poses provisionales (sin animaciones faciales ni de manos: las

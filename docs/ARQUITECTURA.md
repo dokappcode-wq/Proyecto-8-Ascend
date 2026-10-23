@@ -10,9 +10,10 @@ src/
 │   ├── AutoQuality.js          Resolución dinámica según los FPS (sin Three.js)
 │   └── SaveSystem.js           Guardado versionado (ajustes, controles, perfil)
 ├── physics/
-│   ├── CollisionWorld.js       Cajas, rampas y terreno con relieve; consultas y raycast (sin Three.js)
+│   ├── CollisionWorld.js       Cajas, rampas, terreno con relieve y conjuntos de cajas orientadas; consultas y raycast (sin Three.js)
+│   ├── ObbSet.js               Miles de cajas orientadas estáticas con rejilla espacial y grupos activables (sin Three.js)
 │   ├── CharacterMotor.js       Controlador cinemático del personaje (sin Three.js)
-│   └── Parkour.js              Consultas de escalada, cornisas y obstáculos (sin Three.js)
+│   └── Parkour.js              Consultas de escalada, cornisas y obstáculos, con muros en cualquier dirección (sin Three.js)
 ├── player/
 │   ├── PlayerController.js     Input → motor, orientación, animación, cámara
 │   ├── CharacterModel.js       Personaje procedural detallado, animación y anclajes para marcas
@@ -40,7 +41,14 @@ src/
 │       ├── TrainingGround.js   Mapa 1 — Campo de Pruebas
 │       ├── DistrictZero.js     Mapa 2 — Distrito Cero
 │       ├── Village.js          Historia — pueblo costero de noche (base PDC) y de día
-│       └── Forest.js           Historia — valle, viaducto, bosque, puente destruido y colina
+│       ├── Forest.js           Historia — valle, viaducto, bosque, puente destruido y colina
+│       ├── Ibaia.js            Ibaia, la ciudad (30 km²): carga, luz, agua, sierra, fuentes, vida de la ciudad
+│       └── ibaia/
+│           ├── cityData.js     Datos generados por tools/ciudad/export_game.py (no se edita a mano)
+│           ├── decode.js       Lectura de los datos, máscara de agua, barrios y colisión de la ciudad (sin Three.js)
+│           ├── meshes.js       Edificios con ventanas en el shader, suelo, árboles, farolas, puentes y tren por celdas
+│           ├── barriers.js     Barreras de la Defensa: muros de hexágonos de 300 m, cúpula y animación de bajada
+│           └── landmarks.js    Torre de la Defensa, Anclas, depósitos, chimeneas, grúas, noria, faro…
 ├── story/                      Modo historia (prólogo)
 │   ├── storyData.js            Fases, misiones y los 29 puntos de control (sin Three.js)
 │   ├── StoryState.js           Estado persistente: punto, banderas, misión (sin Three.js)
@@ -93,6 +101,7 @@ src/
 └── ui/
     ├── UIManager.js            Menús, HUD, ajustes y transiciones
     ├── MenuScene.js            Fondo 3D animado del menú principal
+    ├── cityMap.js              Plano de Ibaia del menú de administración (barreras, Anclas, jugador, clic para ir)
     └── styles.css
 ```
 
@@ -620,3 +629,80 @@ la escena del juego) mientras el estado es `menu`: Jon en una azotea al
 anochecer frente a la ciudad, motas de energía, baliza intermitente y cámara
 que se mece. El HTML del menú entra con una animación escalonada (se omite con
 `prefers-reduced-motion`).
+
+## Ibaia, la ciudad
+
+**Datos.** `tools/ciudad/export_game.py` (Python con shapely, el mismo
+generador del diseño v2) escribe `world/maps/ibaia/cityData.js`: un objeto
+`CITY` (barrios con su contorno, el anillo de su barrera, el Ancla, zonas con
+un punto de calle libre para viajar, puentes con el perfil de su tablero,
+tren elevado, hitos y aparición) y `BIN`, binarios en base64 (≈1.2 MB en
+total): edificios como cajas orientadas cuantizadas (los que no son
+rectángulos se parten en varias cajas hasta cubrir su huella), polígonos de
+aceras, parques, playas, plazas y estanques en medios metros, árboles,
+farolas y marcas viales, una máscara tierra/agua de 4 m (por tramos) y el
+relieve de la sierra cada 50 m. Coordenadas del juego: X = x − 4500,
+Z = y − 3500 (el norte es −Z). `decode.js` lo lee sin Three.js.
+
+**Colisión.** `ObbSet` guarda las cajas en arrays tipados (centro, eje, semiejes,
+base y cima que puede ir en rampa de `y0` a `y1`) y las indexa en una rejilla
+de 48 m. `CollisionWorld` le pasa `groundHeight`, `ceilingHeight`,
+`resolveHorizontal` y `raycastHit` (el rayo recorre la rejilla celda a celda;
+contra cada caja, recorte con sus seis planos). Los impactos devuelven un
+colisionador con la misma forma que una caja (`kind: 'box'`, `minX…maxZ`,
+`maxY`, `tag`, `climbable`) más `obb: true`; `enabled` depende de su grupo, y
+`setGroup` apaga o enciende un grupo entero (la barrera de un barrio) sin
+reconstruir la rejilla. Las barreras no bloquean la cámara (`cameraBlocking:
+false`). La ciudad tiene además una caja de suelo en y = 0 (también bajo el
+agua) y el relieve de la sierra como `Heightfield`; caer al agua lo detecta la
+máscara (`CityLife`), que devuelve a la última orilla pisada.
+
+**Escalada en muros girados.** `Parkour.faceCoord` devuelve el plano de la
+cara (n·(x, z) = front) también para cajas orientadas, y `onFace(p, n, front,
+desplazamiento)` sustituye a las fórmulas por ejes: colgarse, subir a una
+cornisa, saltar un obstáculo y pegarse a la pared funcionan en cualquier
+dirección (en una caja alineada dan el mismo resultado de antes).
+
+**Dibujo.** Todo lo repetido va por celdas de 400 m (`chunkGroup`): cada
+celda tiene una malla con sus edificios (cuatro fachadas y azotea por caja,
+atributos `facade` = metros a lo largo de la fachada y altura, y `bstyle` =
+estilo de ventanas y semilla) y mallas instanciadas de árboles, farolas (poste,
+brazo, luz y charco de luz aditivo) y marcas viales. `CityLod` oculta las
+celdas a más de 3.9 km (la niebla ya las ha borrado). `buildingMaterial`
+añade al `MeshStandardMaterial` la rejilla de ventanas por estilo (muro
+cortina, oficinas, ladrillo, casas, naves; escaparates en la planta baja),
+algunas encendidas (cálidas o frías, emisivas) y, a lo lejos, su tono medio
+(según `fwidth`) para que no haga moaré. La semilla se redondea en el shader:
+interpolada llega con un error mínimo que el hash convertiría en ruido. El
+suelo son polígonos triangulados con `ShapeUtils` a alturas escalonadas
+(calzada −6 cm, aceras +6 cm con bordillo, parques +8 cm con desplazamiento
+de polígono), muelles solo donde la tierra da al agua, la sierra como una
+rejilla con color por altura y pendiente, y el mar como un plano de 26 km.
+Puentes, tren elevado e hitos son mallas estáticas que `mergeStatic` fusiona.
+
+**Barreras.** `DefenseBarriers` crea una cinta vertical por barrio (UV en
+metros recorridos y altura) con un `ShaderMaterial` aditivo: hexágonos
+procedurales cuyo borde se funde en un velo a lo lejos, celdas que
+parpadean, bandas que suben, brillo a ras de suelo y menos intensidad desde
+arriba o lejos. `uLevel` hunde el muro (los fragmentos bajo el suelo se
+descartan); la cúpula del Centro escala su altura. Al bajar una barrera su
+grupo de colisión se apaga en el acto; al subirla se enciende al empezar.
+`Anchors` pone un cristal y un haz sobre lo que haya en cada Ancla (azotea,
+chimenea o calle) y se apaga con su barrera.
+
+**Administración (F4).** El mapa devuelve, además de `spawn` y `sun`,
+`waypoints` (barrios, Anclas y la autovía, calculados al construir) y
+`admin`, su API: `barriers`, `anchors`, `setBarrier(id, bajada)`,
+`setAll(bajadas)`, `districtAt`, `landAt` y `landing(x, z)` (punto de llegada
+sobre lo más alto que haya). `MapManager.current` los guarda;
+`GameManager._openAdmin` pausa y pide a `UIManager.renderAdmin` la lista de
+barreras, los destinos y el plano (`ui/cityMap.js`: la base se dibuja una vez
+por carga; encima, barreras, Anclas y jugador). Las acciones `adm-*` bajan o
+suben barreras (el estado se guarda en `save.data.debug.cityBarriers` y se
+aplica al cargar el mapa) y `_travel` lleva al destino con un fundido corto.
+
+**Cámara y sol.** Un mapa puede pedir `view: { near, far }` (Ibaia: 0.25 y
+9000 m; el resto vuelve a 0.1 y 1200). `followSun` coloca el sol a
+`sun.userData.distance` (700 m en la ciudad) para que los rascacielos
+proyecten sombra.
+

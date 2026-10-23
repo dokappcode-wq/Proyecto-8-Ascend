@@ -8,7 +8,8 @@ import { normalMapFor } from './textures.js';
  *
  * Un mapa es un módulo con { id, name, description, build(ctx) } donde
  * build recibe { group, world, builder, scene, combat, events, addEntity }
- * y devuelve { spawn, sun }. Las entidades (dianas, maniquíes, objetos
+ * y devuelve { spawn, sun } (y opcionalmente `waypoints` calculados y
+ * `admin`, la API del menú de administración: barreras de la ciudad). Las entidades (dianas, maniquíes, objetos
  * físicos…) se actualizan cada frame y se liberan al descargar el mapa.
  * Todos los mapas comparten el mismo CollisionWorld, jugador y cámara:
  * al cambiar de mapa solo se reemplaza la geometría.
@@ -55,7 +56,12 @@ export class MapManager {
     applyNormalMaps(group);
     // Rendimiento: la geometría estática se fusiona por material
     this.lastMerge = mergeStatic(group);
-    this.current = { def, group, entities, spawn: result.spawn, sun: result.sun ?? null, story: result.story ?? null };
+    this.current = {
+      def, group, entities, spawn: result.spawn, sun: result.sun ?? null, story: result.story ?? null,
+      // Destinos de viaje calculados al construir (si no, los fijos del mapa) y API de administración
+      waypoints: result.waypoints ?? def.waypoints ?? [],
+      admin: result.admin ?? null,
+    };
     this.events.emit('map:loaded', { id, name: def.name });
     return this.current;
   }

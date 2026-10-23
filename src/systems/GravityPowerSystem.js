@@ -247,7 +247,9 @@ export class GravityPowerSystem {
   /** ¿Cabe una roca aquí sin meterse en muros ni techos? */
   _spaceFree(x, z, bottom, top, size, ground) {
     const half = size / 2 - 0.1;
-    for (const b of this.game.world.boxes) {
+    const w = this.game.world;
+    if (w.obbOverlap(x - half, x + half, bottom + (ground ? 0.5 : 0.05), top + 1.8, z - half, z + half)) return false;
+    for (const b of w.boxes) {
       if (!b.enabled || b.tag === 'stone') continue;
       if (b.maxX <= x - half || b.minX >= x + half || b.maxZ <= z - half || b.minZ >= z + half) continue;
       if (b.maxY <= bottom + (ground ? 0.5 : 0.05) || b.minY >= top + 1.8) continue;

@@ -247,7 +247,12 @@ export class GameManager {
     this.player.model.root.rotation.x = 0;
     this.player.autopilot = null;
     this.acquisition.cancel();
-    const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain, save: this.save });
+    const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain, save: this.save, player: this.player, ui: this.ui });
+    // Alcance de la cámara: la ciudad se ve a kilómetros; el resto de mapas, a 1200 m
+    const view = def.view ?? {};
+    this.camera.near = view.near ?? 0.1;
+    this.camera.far = view.far ?? 1200;
+    this.camera.updateProjectionMatrix();
     this._applyMapLook(def);
     this.vfx.warmup(this.renderer, this.camera);
     this.playerCombat.attach();
@@ -263,7 +268,7 @@ export class GameManager {
     this.ui.hideAll();
     this.ui.setHudVisible(true);
     this.ui.setMapName(def.name, def.description);
-    this.ui.setWaypoints(def.waypoints ?? []);
+    this.ui.setWaypoints(map.waypoints);
     this._onMarkChanged();
     this.ui.showDeath(false);
     this.state = 'playing';
@@ -415,6 +420,12 @@ export class GameManager {
         else if (this.state === 'paused' && this.ui.currentScreen === 'marks') this.resume();
         return;
       }
+      if (this.input.bindings.adminMenu.includes(e.code)) {
+        e.preventDefault();
+        if (this.state === 'playing') this._openAdmin();
+        else if (this.state === 'paused' && this.ui.currentScreen === 'admin') this.resume();
+        return;
+      }
       if (this.input.bindings.debugMenu.includes(e.code)) {
         e.preventDefault();
         if (this.state === 'playing') this._openDebug();
@@ -564,6 +575,48 @@ export class GameManager {
   _openDebug() {
     this.ui.renderDebug(this._debugState());
     this.pause('debug');
+  }
+
+  /** Menú de administración (F4): barreras de la ciudad, plano y viaje. */
+  _openAdmin() {
+    if (this.state === 'paused' && this.ui.currentScreen !== 'admin') {
+      this.ui.renderAdmin(this._adminState());
+      this.ui.show('admin');
+      return;
+    }
+    this.ui.renderAdmin(this._adminState());
+    this.pause('admin');
+  }
+
+  _adminState() {
+    const cur = this.mapManager.current;
+    const adm = cur?.admin ?? null;
+    const p = this.player.motor.position;
+    return {
+      mapName: cur?.def.name ?? '',
+      admin: adm,
+      waypoints: cur?.waypoints ?? [],
+      player: { x: p.x, z: p.z, facing: this.player.facing },
+      district: adm?.districtAt(p.x, p.z) ?? null,
+    };
+  }
+
+  _saveBarriers(state) {
+    this.save.data.debug.cityBarriers = state;
+    this.save.save();
+  }
+
+  /** Viaje del menú de administración: fundido corto y aparece en el destino. */
+  async _travel(wp, label = wp.name) {
+    this.ui.hideAll();
+    await this.ui.fade(label ?? '', () => {
+      this.player.spawnAt(wp);
+      this.state = 'playing';
+      this.audio.setPaused(false);
+      this.input.clear();
+      this._clock.update();
+    });
+    this.input.requestPointerLock();
   }
 
   _debugState() {
@@ -768,15 +821,54 @@ export class GameManager {
         this.resume();
         return;
       case 'dbg-teleport': {
-        const wp = (this.mapManager.current?.def.waypoints ?? []).find((w) => w.id === data.wp);
+        const wp = (this.mapManager.current?.waypoints ?? []).find((w) => w.id === data.wp);
         if (wp) this.player.spawnAt(wp);
         this.resume();
+        return;
+      }
+      // --- Administración de la ciudad (F4) ---
+      case 'adm-open':
+        this._openAdmin();
+        return;
+      case 'adm-city':
+        this.startMap('ibaia');
+        return;
+      case 'adm-barrier': {
+        const adm = this.mapManager.current?.admin;
+        if (!adm) return;
+        const down = !adm.barriers.isDown(data.id);
+        this._saveBarriers(adm.setBarrier(data.id, down));
+        const b = adm.barriers.get(data.id);
+        this.ui.toast(`Barrera de ${b.name}`, down ? 'Bajada: el barrio queda abierto' : 'Levantada', 1800);
+        break;
+      }
+      case 'adm-all-down':
+      case 'adm-all-up': {
+        const adm = this.mapManager.current?.admin;
+        if (!adm) return;
+        const down = action === 'adm-all-down';
+        this._saveBarriers(adm.setAll(down));
+        this.ui.toast('Barreras de la Defensa', down ? 'Todas bajadas: la ciudad entera está abierta' : 'Todas levantadas', 2200);
+        break;
+      }
+      case 'adm-travel': {
+        const wp = (this.mapManager.current?.waypoints ?? []).find((w) => w.id === data.wp);
+        if (wp) this._travel(wp);
+        return;
+      }
+      case 'adm-goto': {
+        const adm = this.mapManager.current?.admin;
+        if (!adm) return;
+        const p = adm.landing(Number(data.x), Number(data.z));
+        const d = adm.districtAt(p.x, p.z);
+        this._travel({ ...p, yaw: this.player.facing }, d ? d.name : 'Fuera de los barrios');
         return;
       }
       default:
         break;
     }
     if (action.startsWith('dbg-') && this.ui.currentScreen === 'debug') this.ui.renderDebug(this._debugState());
+    if (action.startsWith('adm-') && this.ui.currentScreen === 'admin') this.ui.renderAdmin(this._adminState());
   }
 
   /** Genera un Agente PDC y un Acólito unos metros por delante del jugador (depuración). */
@@ -1050,7 +1142,7 @@ export class GameManager {
             `proy. ${this.projectiles.list.length} · partículas ${this.vfx.particles.count}`,
             `salud ${this.playerCombat.health.value.toFixed(0)} / ${this.playerCombat.health.max}`,
             ...this.enemies.list.map((e) => `enem. ${e.type.name}: ${e.stateName} · ${Math.round(e.health.value)} PS`),
-            `col.  ${this.world.boxes.length} cajas · ${this.world.ramps.length} rampas`,
+            `col.  ${this.world.boxes.length} cajas · ${this.world.ramps.length} rampas · ${this.world.obbSets.reduce((n, s) => n + s.n, 0)} orientadas`,
             `draw  ${this.renderer.info.render.calls} llamadas · ${this.renderer.info.render.triangles} tri`,
           ].join('\n')
         : null,

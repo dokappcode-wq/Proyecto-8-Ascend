@@ -3,6 +3,7 @@ import { Input } from '../core/Input.js';
 import { markSymbolTexture } from '../player/markTextures.js';
 import { MARKS } from '../data/marks.js';
 import { checkpoint, STORY_MISSIONS } from '../story/storyData.js';
+import { CityMap } from './cityMap.js';
 
 /**
  * UIManager — menús (principal, pausa, ajustes, depuración, salir), HUD y
@@ -28,6 +29,7 @@ const CONTROL_ROWS = [
   ['Cambiar de marca', ['switchMark'], true],
   ['Pausa', null, true, 'Esc'],
   ['Menú de depuración', ['debugMenu'], true],
+  ['Administración de la ciudad (barreras, plano y viaje)', ['adminMenu'], true],
   ['Datos de depuración', ['debug'], true],
   ['Golpe (con energía: puños eléctricos y embestida)', ['melee'], true],
   ['Interactuar', ['interact'], true],
@@ -86,6 +88,7 @@ export class UIManager {
       pause: this.$('screen-pause'),
       settings: this.$('screen-settings'),
       debug: this.$('screen-debug'),
+      admin: this.$('screen-admin'),
       marks: this.$('screen-marks'),
       quit: this.$('screen-quit'),
       mission: this.$('screen-mission'),
@@ -670,6 +673,71 @@ export class UIManager {
         ${btn('menu', 'Volver al menú')}
         ${btn('resume', 'Cerrar (F2)')}
       </nav>`;
+  }
+
+  // ---------------------------------------------------------------- Administración (F4)
+  /**
+   * Menú de administración: barreras de la Defensa (todas o por barrio),
+   * plano de la ciudad (clic para ir) y lista de destinos.
+   * @param {object} state { mapName, admin (API del mapa o null), waypoints, player, district }
+   */
+  renderAdmin(state) {
+    const body = this.$('admin-body');
+    const adm = state.admin;
+    const btn = (action, label, extra = '', cls = '') => `<button class="menu-btn ${cls}" data-action="${action}" ${extra}><span class="btn-title">${label}</span></button>`;
+    if (!adm) {
+      body.innerHTML = `
+        <p class="note">Las barreras de la Defensa solo existen en Ibaia, la ciudad. Estás en ${escapeHtml(state.mapName || 'el menú')}.</p>
+        <nav class="menu-list compact row">${btn('adm-city', 'Ir a Ibaia')}${btn('resume', 'Cerrar (F4)')}</nav>`;
+      return;
+    }
+    const city = adm.city;
+    const down = city.districts.filter((d) => adm.barriers.isDown(d.id)).length;
+    const rows = city.districts.map((d, i) => {
+      const isDown = adm.barriers.isDown(d.id);
+      return `<button class="adm-barrier${isDown ? ' down' : ''}" data-action="adm-barrier" data-id="${d.id}" style="--mk:${d.color}">
+        <span class="adm-n">${i + 1}</span>
+        <span class="adm-name">${escapeHtml(d.name)}<small>${escapeHtml(d.area)} · ${escapeHtml(d.markName)}</small></span>
+        <span class="adm-state">${isDown ? 'Bajada' : 'Levantada'}</span>
+      </button>`;
+    }).join('');
+    const here = state.district ? `${escapeHtml(state.district.name)} · ` : '';
+    const wps = state.waypoints.filter((w) => !w.anchor).map((w) => btn('adm-travel', escapeHtml(w.name), `data-wp="${escapeHtml(w.id)}"`)).join('');
+    const anchors = state.waypoints.filter((w) => w.anchor).map((w) => btn('adm-travel', escapeHtml(w.name), `data-wp="${escapeHtml(w.id)}"`)).join('');
+    body.innerHTML = `
+      <div class="adm-grid">
+        <figure class="adm-map">
+          <canvas id="admin-map" aria-label="Plano de Ibaia: clic para ir a ese punto"></canvas>
+          <figcaption id="admin-map-cap">${here}${Math.round(state.player.x)}, ${Math.round(state.player.z)} · Clic en el plano para ir allí</figcaption>
+        </figure>
+        <div class="adm-side">
+          <h3>Barreras de la Defensa <span class="adm-count">${down}/10 bajadas</span></h3>
+          <div class="dbg-row">${btn('adm-all-down', 'Bajar todas', '', 'adm-primary')}${btn('adm-all-up', 'Subir todas')}</div>
+          <div class="adm-list">${rows}</div>
+          <h3>Viajar a</h3>
+          <div class="dbg-row">${wps}</div>
+          <h3>Anclas</h3>
+          <div class="dbg-row">${anchors}</div>
+        </div>
+      </div>
+      <nav class="menu-list compact row">${btn('resume', 'Cerrar (F4)')}${btn('menu', 'Volver al menú')}</nav>`;
+    const canvas = this.$('admin-map');
+    this._cityMap ??= new CityMap();
+    this._cityMap.draw(canvas, adm, state.player);
+    const cap = this.$('admin-map-cap');
+    const at = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return this._cityMap.toWorld(city, ((e.clientX - r.left) / r.width) * canvas.width, ((e.clientY - r.top) / r.height) * canvas.height);
+    };
+    canvas.addEventListener('mousemove', (e) => {
+      const p = at(e);
+      const d = adm.districtAt(p.x, p.z);
+      cap.textContent = `${d ? `${d.name} · ` : adm.landAt(p.x, p.z) ? 'Sierra · ' : 'Agua · '}${Math.round(p.x)}, ${Math.round(p.z)} · Clic para ir`;
+    });
+    canvas.addEventListener('click', (e) => {
+      const p = at(e);
+      this.onAction('adm-goto', { x: p.x, z: p.z });
+    });
   }
 
   // ---------------------------------------------------------------- Etapa 6: misión

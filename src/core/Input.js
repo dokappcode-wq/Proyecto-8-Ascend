@@ -26,12 +26,13 @@ export const DEFAULT_BINDINGS = Object.freeze({
   powerMenu: ['Tab'],
   debug: ['F3'],
   debugMenu: ['F2', 'Backquote'],
+  adminMenu: ['F4'], // administración de la ciudad: barreras, plano y viaje
   attack: ['Mouse0'],
   aim: ['Mouse2'],
 });
 
 /** Teclas cuyo comportamiento por defecto en el navegador hay que impedir. */
-const PREVENT = new Set(['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F3', 'F2', 'KeyC', 'ControlLeft', 'ControlRight', 'AltLeft']);
+const PREVENT = new Set(['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F3', 'F2', 'F4', 'KeyC', 'ControlLeft', 'ControlRight', 'AltLeft']);
 
 export class Input {
   constructor(target, bindings = null) {
