@@ -19,6 +19,7 @@ from shapely.geometry import Point, LineString, Polygon, box
 from shapely.ops import unary_union, nearest_points
 from shapely import affinity, contains_xy
 from shapely.prepared import prep
+from shapely.strtree import STRtree
 import city
 import data
 from fabric import polys, lines, road_area, ROAD_W
@@ -404,6 +405,162 @@ for s in np.arange(0, auto.length, 5):
         break
 print('aparición', spawn)
 
+# ---------------------------------------------------------------- PDC y enemigos
+# Presencia según el nivel PDC de cada barrio (1 Distrito Cero … 5 el Centro):
+# su torre de vigilancia, controles en las entradas de los puentes y del metro,
+# patrullas a pie por calles rectas y libres, francotiradores en azoteas
+# (nivel ≥ 2), drones sobre las avenidas (nivel ≥ 3) y los campamentos de los
+# Acólitos del diseño. Todo dentro de la barrera del barrio.
+bld_list = [(fp, h, k) for D in g['D'].values() for fp, h, k in D['bld']]
+bld_tree = STRtree([b[0] for b in bld_list])
+inner_of = {k: g['D'][k]['poly'].buffer(-26) for k in data.ORDER}
+
+
+def clear_at(x, y, r):
+    p = Point(x, y)
+    return all(bld_list[i][0].distance(p) >= r for i in bld_tree.query(p.buffer(r)))
+
+
+def segment_clear(a, b, r):
+    s = LineString([a, b]).buffer(r)
+    return not any(bld_list[i][0].intersects(s) for i in bld_tree.query(s))
+
+
+def district_of(x, y):
+    p = Point(x, y)
+    for k in data.ORDER:
+        if inner_of[k].contains(p):
+            return k
+    return None
+
+
+def road_lines(key, classes):
+    D = g['D'][key]
+    out = []
+    for l, c in D['roads'] + roads_all:
+        if c in classes:
+            out += [(ln, c) for ln in lines(l.intersection(inner_of[key]))]
+    return out
+
+
+def road_dir(key, x, y):
+    """Dirección (rad, en el plano XZ del juego) y ancho de la calle más cercana."""
+    p = Point(x, y)
+    ln, c = min(road_lines(key, ('st', 'ave', 'hwy')), key=lambda lc: lc[0].distance(p))
+    s = ln.project(p)
+    a = ln.interpolate(max(0.0, s - 4))
+    b = ln.interpolate(min(ln.length, s + 4))
+    return math.atan2(b.y - a.y, b.x - a.x), ROAD_W[c]
+
+
+def free_near(key, x, y, r=5, maxd=90):
+    """Punto libre de edificios (radio r) cerca de (x, y), dentro de la barrera."""
+    for d in range(0, maxd, 4):
+        for a in range(0, 360, 24 if d else 360):
+            t = (x + d * math.cos(math.radians(a)), y + d * math.sin(math.radians(a)))
+            if inner_of[key].contains(Point(t)) and clear_at(t[0], t[1], r):
+                return t
+    return None
+
+
+pdc_posts = []
+taken = []  # (x, y) de lo ya colocado, para repartir
+
+
+def add_post(key, kind, name, x, y):
+    if not inner_of[key].contains(Point(x, y)):
+        return
+    ang, w = road_dir(key, x, y)
+    pdc_posts.append({'id': f'{key}-{kind}-{len([p for p in pdc_posts if p["d"] == key])}', 'd': key, 'kind': kind, 'name': name,
+                      'x': round(gx(x), 1), 'z': round(gz(y), 1), 'ang': round(ang, 3), 'w': w})
+    taken.append((x, y))
+
+
+for key in data.ORDER:
+    info = data.B[key]
+    tx, ty = snap_road(key, *info['tower'])
+    add_post(key, 'tower', f'Torre de vigilancia · {info["name"]}', tx, ty)
+    for k, m in enumerate(info['metro']):
+        mx, my = snap_road(key, *m)
+        add_post(key, 'metro', f'Control del metro · {info["name"]}', mx, my)
+# Controles a la entrada de cada puente (a ~30 m de la orilla, tierra adentro)
+for br in bridges_out:
+    for end, nxt in ((br['pts'][0], br['pts'][1]), (br['pts'][-1], br['pts'][-2])):
+        ex, ey = end[0] + OX, end[1] + OZ
+        dx, dy = ex - (nxt[0] + OX), ey - (nxt[1] + OZ)
+        L = math.hypot(dx, dy) or 1
+        px, py = ex + dx / L * 34, ey + dy / L * 34
+        key = district_of(px, py)
+        if key:
+            add_post(key, 'bridge', f'Control · {br["name"]}', px, py)
+
+pdc_patrols = []
+prng = random.Random(23)
+for key in data.ORDER:
+    lvl = data.B[key]['pdc']
+    for kind, n, classes, L, sep in (('foot', 2 + 2 * lvl, ('st', 'ave'), 110, 230), ('drone', max(0, lvl - 2) * 2, ('ave', 'hwy'), 170, 300)):
+        cands = []
+        for ln, c in road_lines(key, classes):
+            s = 10.0
+            while s + L < ln.length - 10:
+                a = ln.interpolate(s)
+                b = ln.interpolate(s + L)
+                if abs(a.distance(b) - L) < 6 and segment_clear((a.x, a.y), (b.x, b.y), 2.2):
+                    cands.append(((a.x, a.y), (b.x, b.y)))
+                s += 45
+        prng.shuffle(cands)
+        got = 0
+        for a, b in cands:
+            if got >= n:
+                break
+            m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            if any(math.hypot(m[0] - t[0], m[1] - t[1]) < sep for t in taken):
+                continue
+            taken.append(m)
+            got += 1
+            pdc_patrols.append({'id': f'{key}-{kind}-{got}', 'd': key, 'kind': kind,
+                                'pts': [[round(gx(a[0]), 1), round(gz(a[1]), 1)], [round(gx(b[0]), 1), round(gz(b[1]), 1)]]})
+
+# Francotiradores en azoteas de 14–45 m cerca de los puestos y las zonas del barrio
+pdc_snipers = []
+for key in data.ORDER:
+    lvl = data.B[key]['pdc']
+    n = lvl - 1 + (1 if key == 'industrial' else 0)
+    if n <= 0:
+        continue
+    focus = [(p['x'] + OX, p['z'] + OZ) for p in pdc_posts if p['d'] == key] + [z for _, z in data.B[key]['zones']]
+    cands = []
+    for i in bld_tree.query(inner_of[key]):
+        fp, h, kind = bld_list[i]
+        if not (14 <= h <= 45) or kind in ('tank', 'chimney', 'crane', 'container', 'antenna', 'wheel') or fp.area < 150:
+            continue
+        rp = fp.representative_point()
+        if not fp.buffer(-3).contains(rp) or not inner_of[key].contains(rp):
+            continue
+        d, fx, fy = min((math.hypot(rp.x - x, rp.y - y), x, y) for x, y in focus)
+        if d < 140:
+            cands.append((d, rp.x, rp.y, h, fx, fy))
+    cands.sort()
+    got = []
+    for d, x, y, h, fx, fy in cands:
+        if len(got) >= n:
+            break
+        if any(math.hypot(x - u, y - v) < 180 for u, v in got):
+            continue
+        got.append((x, y))
+        pdc_snipers.append({'id': f'{key}-sniper-{len(got)}', 'd': key, 'x': round(gx(x), 1), 'z': round(gz(y), 1), 'y': round(h, 2),
+                            'yaw': round(math.atan2(fx - x, fy - y), 3)})
+
+# Campamentos de los Acólitos (secretos y textos del diseño)
+ACOLYTE_CAMPS = [('industrial', 'Altar del horno apagado', (6620, 3080)), ('parque', 'Campamento del bosque', (4500, 1750)),
+                 ('chino', 'Altar de los Acólitos', (3950, 5050)), ('bloques', 'Sótano del estadio', (4200, 900))]
+acolyte_cells = []
+for key, name, (x, y) in ACOLYTE_CAMPS:
+    t = free_near(key, x, y, r=7)
+    if t:
+        acolyte_cells.append({'id': f'{key}-acolitos', 'd': key, 'name': name, 'x': round(gx(t[0]), 1), 'z': round(gz(t[1]), 1), 'n': 3 if key != 'bloques' else 2})
+print('PDC:', len(pdc_posts), 'puestos,', len(pdc_patrols), 'patrullas,', len(pdc_snipers), 'francotiradores,', len(acolyte_cells), 'campamentos de Acólitos')
+
 # Hitos para el plano: carreteras principales simplificadas
 major = []
 for l, c in all_roads:
@@ -429,6 +586,7 @@ city_json = {
     'roads': major,
     'torre': {'x': gx(4720), 'z': gz(5770)},
     'dome': {'x': gx(4720), 'z': gz(6050), 'rx': 1350, 'ry': 640, 'rz': 860},
+    'pdc': {'posts': pdc_posts, 'patrols': pdc_patrols, 'snipers': pdc_snipers, 'acolytes': acolyte_cells},
 }
 bins = {
     'buildings': base64.b64encode(buildings_bin).decode('ascii'),

@@ -151,6 +151,17 @@ export class CityMap {
       g.fillStyle = '#eef2f8';
       g.fillText(d.name.toUpperCase(), x, y);
     }
+    // La PDC: puestos (cuadrados azules), campamentos de Acólitos (violeta) y enemigos de la zona (rojo)
+    const pop = admin.population;
+    if (pop?.enabled) {
+      for (const gr of pop.groups) {
+        if (gr.kind !== 'post' && gr.kind !== 'acolytes') continue;
+        g.fillStyle = gr.kind === 'post' ? '#3ac8ff' : '#b45cff';
+        g.fillRect(X(gr.x) - 2.5, Z(gr.z) - 2.5, 5, 5);
+      }
+      g.fillStyle = '#ff4a3a';
+      for (const e of pop.units) g.fillRect(X(e.position.x) - 1.5, Z(e.position.z) - 1.5, 3, 3);
+    }
     // Anclas
     for (const a of admin.anchors.items) {
       const x = X(a.x);

@@ -157,6 +157,72 @@ export async function citySection({ page, check, PORT, out }) {
   }, null, 60000);
   check(ashore, 'Al caer al agua vuelve a la última orilla pisada');
 
+  // ---------------- La PDC y los enemigos ----------------
+  const hudPdc = await g(() => document.getElementById('hud-faction').textContent);
+  check(/PDC/.test(hudPdc) && /Tranquila/i.test(hudPdc), `La reputación de la PDC está en el HUD (${hudPdc.trim()})`);
+  // Junto a la torre de vigilancia del Distrito Cero
+  await g(() => {
+    const a = window.__ascend;
+    const adm = a.mapManager.current.admin;
+    const g0 = adm.population.groups.find((x) => x.id === 'cero-tower-0');
+    const u = { x: Math.cos(g0.post.ang), z: Math.sin(g0.post.ang) };
+    const s = { x: g0.x - u.x * 20 - u.z * 4, y: 0.1, z: g0.z - u.z * 20 + u.x * 4 };
+    a.player.spawnAt({ ...s, yaw: Math.atan2(g0.x - s.x, g0.z - s.z) });
+  });
+  const towerUp = await until(() => {
+    const pop = window.__ascend.mapManager.current.admin.population;
+    return pop.active.some((x) => x.id === 'cero-tower-0') && pop.units.filter((e) => e.tag === 'ibaia:cero-tower-0').length >= 2;
+  });
+  check(towerUp, 'La torre de vigilancia del Distrito Cero tiene sus agentes en su puesto');
+  const posts = await g(() => ({ pieces: window.__ascend.world.obbSets[1]?.n ?? 0, far: window.__ascend.mapManager.current.admin.population.active.some((x) => x.d === 'centro') }));
+  check(posts.pieces > 100 && !posts.far, `Puestos con colisión (${posts.pieces} piezas) y solo se crean los grupos cercanos`);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(out, 'ibaia-04-pdc.png') });
+  // Atacar a un agente: la PDC se vuelve hostil y bajan refuerzos del camión
+  await g(() => {
+    const a = window.__ascend;
+    window.__reinf = 0;
+    a.events.on('city:reinforcements', () => window.__reinf++);
+    const e = a.mapManager.current.admin.population.units.find((x) => x.tag === 'ibaia:cero-tower-0');
+    a.combat.applyDamage(e, 10, { faction: 'player' });
+  });
+  const hostile = await until(() => window.__ascend.factions.pdcLevel.id === 'hostile' && window.__reinf > 0);
+  check(hostile, 'Atacar a un agente vuelve hostil a la PDC y bajan refuerzos del camión');
+  const reinf = await until(() => window.__ascend.enemies.list.filter((e) => /refuerzo/.test(e.tag ?? '') && e.alive && !e.scripted).length >= 2, null, 60000);
+  check(reinf, 'Los refuerzos salen del camión y entran en combate');
+  // Neutralizarlos: no vuelven enseguida
+  const downed = await g(() => {
+    const a = window.__ascend;
+    const pop = a.mapManager.current.admin.population;
+    for (const e of pop.units.filter((x) => x.tag === 'ibaia:cero-tower-0')) a.combat.applyDamage(e, 999, { faction: 'player' });
+    const gr = pop.groups.find((x) => x.id === 'cero-tower-0');
+    return { n: pop.neutralized, dead: gr.units.filter((u) => u.deadUntil > pop.time).length };
+  });
+  check(downed.n >= 2 && downed.dead >= 2, `Los neutralizados quedan fuera de servicio (${downed.n})`);
+  // Calmar a la PDC desde la administración y retirar a los enemigos
+  await page.keyboard.press('F4');
+  await until(() => document.querySelector('#screen-admin.active'));
+  check(await page.isVisible('[data-action="adm-enemies"]'), 'La administración tiene la sección «PDC y enemigos»');
+  await page.click('[data-action="adm-pdc-calm"]');
+  check(await until(() => window.__ascend.factions.pdcLevel.id === 'calm'), '«PDC tranquila» calma a la PDC');
+  await page.click('[data-action="adm-enemies"]');
+  const off = await until(() => !window.__ascend.mapManager.current.admin.population.enabled && window.__ascend.enemies.list.filter((e) => /^ibaia:/.test(e.tag ?? '')).length === 0 && window.__ascend.save.data.debug.cityEnemies === false);
+  check(off, '«Enemigos en la ciudad: No» los retira y se guarda');
+  await page.click('[data-action="adm-enemies"]');
+  await page.keyboard.press('F4');
+  await until(() => window.__ascend.state === 'playing');
+  // Campamento de los Acólitos en La Fundición: siempre hostiles
+  await g(() => {
+    const a = window.__ascend;
+    const c = a.mapManager.current.admin.population.groups.find((x) => x.id === 'industrial-acolitos');
+    a.player.spawnAt({ x: c.x + 14, y: 0.1, z: c.z, yaw: -Math.PI / 2 });
+  });
+  const camp = await until(() => window.__ascend.mapManager.current.admin.population.units.filter((e) => e.type.id === 'acolyte').length >= 3);
+  check(camp, 'Los Acólitos acampan en el altar del horno apagado (La Fundición)');
+  check(await g(() => window.__ascend.enemies.attitude('acolitos') === 'hostile'), 'Los Acólitos atacan siempre');
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: path.join(out, 'ibaia-05-acolitos.png') });
+
   // Volver a subirlas todas
   await page.keyboard.press('F4');
   await until(() => document.querySelector('#screen-admin.active'));

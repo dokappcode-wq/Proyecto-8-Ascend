@@ -69,7 +69,9 @@ Videojuego 3D de acción y aventura en tercera persona. Estado actual:
   (30 km², diez barrios de 3 km², ≈27 000 edificios, puentes, tren elevado,
   parques y la sierra), con las **barreras de la Defensa** levantadas y un
   **menú de administración (F4)** para bajarlas y subirlas (todas o por
-  barrio), ver el plano y viajar a cualquier punto.
+  barrio), ver el plano y viajar a cualquier punto. La **PDC ocupa la ciudad**
+  según el nivel de cada barrio (torres de vigilancia, controles, patrullas,
+  francotiradores, drones) y los **Acólitos** acampan en cuatro escondites.
 - **Mecánicas añadidas**: agacharse (C) y coberturas con asomarse al apuntar;
   golpe elemental con energía (puños eléctricos y embestida) y golpe normal
   sin energía.
@@ -609,18 +611,47 @@ ventanas se van encendiendo.
   muro se hunde en el suelo en ~2 s y su Ancla se apaga), el **plano de la
   ciudad** (barreras, Anclas y dónde estás; un clic en el plano te lleva allí,
   sobre la azotea si hay un edificio) y botones para viajar a cada barrio y a
-  cada Ancla. Lo que bajes se guarda y sigue bajado al volver a entrar.
+  cada Ancla. Lo que bajes se guarda y sigue bajado al volver a entrar. La
+  sección **PDC y enemigos** enciende o apaga a todos los enemigos de la
+  ciudad (para explorar en paz; también se guarda), calma a la PDC o la
+  vuelve hostil, y el plano marca sus puestos (azul), los campamentos de
+  Acólitos (violeta) y los enemigos de la zona (rojo).
 - **Moverse por la ciudad**: todo es transitable y escalable (los muros
   girados también se trepan), los puentes tienen rampas y barandillas, al
   tren elevado se sube por sus pilares y a las grúas del puerto por sus
   patas. Caer al agua devuelve a la última orilla pisada.
+- **La PDC** ocupa cada barrio según su nivel del diseño (1 en el Distrito
+  Cero … 5 en el Centro): 149 grupos (33 puestos, 96 patrullas, 16
+  francotiradores y 4 campamentos de Acólitos):
+  - **Torre de vigilancia** de cada barrio y **controles** a la entrada de los
+    puentes y del metro: vallas que cortan medio carril, garita, torre de
+    escaneo con anillos azules, foco y un camión aparcado (todo con colisión).
+    Con más nivel, más gente: Blindados desde el nivel 2, agentes reforzados
+    desde el 4 y un dron posado en lo alto de la torre desde el 3.
+  - **Patrullas** de dos agentes por calles rectas (de 4 en el Distrito Cero a
+    12 en el Centro), **drones** sobre las avenidas desde el nivel 3 y
+    **francotiradores** en azoteas de 14–45 m desde el nivel 2 (en La
+    Fundición, uno más).
+  - Como en el Distrito Cero, la PDC empieza **tranquila** y su reputación
+    sale en el HUD: usar poderes a su vista la pone vigilante; atacar a un
+    agente, **hostil**. Entonces avisa por radio, del camión del puesto más
+    cercano **bajan dos refuerzos** y despegan los drones de las torres. En
+    Los Bloques, el Barrio Chino y el Centro hay **toque de queda**: basta con
+    que te vean para que se inquiete.
+  - **Acólitos** (siempre hostiles) alrededor de su hoguera en el altar del
+    horno apagado (La Fundición), el campamento del bosque (Parque Central), el
+    altar del Barrio Chino y el sótano del estadio (Los Bloques).
+  - Nadie aparece de la nada: todos están siempre en su sitio y el juego solo
+    crea los que están a menos de 300 m (se retiran pasados 380 m si no están
+    peleando; 32 a la vez como máximo). Un neutralizado no vuelve a su puesto
+    hasta pasados 5 minutos.
 - **Recarga**: en las zonas de cada barrio hay fuentes de la marca del barrio
   (farolas y armarios en el Distrito Cero, arcones y bidones en La Fundición,
   tendederos en Midtown, escombros en El Puerto, palomares en el Barrio
   Chino; farolas y máquinas en los barrios de marcas que aún no existen).
 
-**Aún no** (es la ciudad para explorar, sin el acto I): no hay enemigos, PDC,
-peatones ni tráfico; las Anclas no se rompen jugando (se bajan desde el
+**Aún no** (es la ciudad para explorar, sin el acto I): no hay peatones ni
+tráfico, ni misiones de la PDC; las Anclas no se rompen jugando (se bajan desde el
 menú); no están las Encarnaciones del diseño, los secretos ni las zonas
 bloqueadas; no hay interiores, metro ni el Túnel del Puerto.
 
@@ -988,7 +1019,11 @@ traseras y los pilares del monorraíl.
   en 400 rayos al azar, grupos que se apagan, tramos en rampa que se suben
   andando y escalada en muros girados 30°, 45° y 126°; `city.test.js`: los
   datos de Ibaia, aparición y destinos en la calle, agua y tablero de los
-  puentes, y la barrera que frena y deja pasar al bajarla);
+  puentes, y la barrera que frena y deja pasar al bajarla) y 173 con la PDC
+  (más presencia cuanto más nivel, puestos y patrullas en la calle y dentro
+  de su barrio, rutas que no atraviesan edificios, francotiradores sobre su
+  azotea, y qué grupos se crean o se retiran según la distancia, el tope y
+  los neutralizados);
   `story.test.js` comprueba los 29 puntos de control y su tramo de guion, las
   banderas de cada punto, qué poderes se permiten en cada tramo, el estado
   (las banderas no retroceden, la elección solo admite KILL/SPARE, completar),
@@ -1130,8 +1165,13 @@ traseras y los pilares del monorraíl.
     abre la administración con el plano y diez filas; «Bajar todas» las baja
     y lo guarda, la lista lo marca y Jon cruza al otro lado; los muros se
     hunden; subir solo la del Distrito Cero deja las otras nueve bajadas; un
-    clic en el plano lleva a Midtown; al caer al río vuelve a la orilla; y
-    «Subir todas» las levanta otra vez.
+    clic en el plano lleva a Midtown; al caer al río vuelve a la orilla; la
+    reputación de la PDC sale en el HUD; junto a la torre de vigilancia del
+    Distrito Cero están sus agentes (y no los grupos lejanos); atacar a uno
+    vuelve hostil a la PDC, bajan dos refuerzos del camión y entran en
+    combate; los neutralizados no vuelven enseguida; la administración calma
+    a la PDC y retira a los enemigos (y lo guarda); los Acólitos acampan en
+    La Fundición y atacan siempre; y «Subir todas» levanta las barreras.
   - Sin errores en consola. Capturas en `tests/e2e/output/`.
   - La batería empieza con los ajustes de un equipo modesto (sin MSAA ni
     reflejos del cielo, resolución de render al 75 %): con el render por
@@ -1173,7 +1213,10 @@ cada sonido se genera, no su calidad). Conviene una sesión de juego manual.
   visuales: 6 cm por encima y por debajo de la colisión); los edificios son
   cajas (los de planta irregular se componen de varias), sin interiores ni
   detalles de fachada salvo las ventanas del shader; las farolas no tienen
-  colisión; no hay enemigos ni peatones.
+  colisión; no hay peatones ni tráfico. Los enemigos de la ciudad usan la
+  navegación sencilla de siempre (línea recta, rodean al atascarse): entre
+  manzanas grandes pueden quedarse atascados persiguiendo a Jon, y no
+  cruzan las barreras ni suben a las azoteas.
 - **Prólogo**: dura bastante menos que los 80–105 min del guion (las escenas
   están condensadas y los recorridos son cortos); las cinemáticas usan los
   modelos y poses provisionales (sin animaciones faciales ni de manos: las

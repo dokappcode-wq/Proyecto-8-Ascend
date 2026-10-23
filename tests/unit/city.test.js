@@ -95,3 +95,78 @@ test('Ibaia: andar por la calle desde la aparición no atraviesa edificios', () 
   assert.ok(Math.hypot(m.position.x - s.x, m.position.z - s.z) > 15, 'avanza');
   assert.ok(free(m.position.x, m.position.z) || m.position.y > 0.5);
 });
+
+// ---------------------------------------------------------------- La PDC y los enemigos
+import { buildGroups, plan, POP, truckDoor } from '../../src/world/maps/ibaia/pdcPlan.js';
+
+const groups = buildGroups(CITY);
+const unitsIn = (d) => groups.filter((g) => g.d === d).reduce((n, g) => n + g.units.length, 0);
+
+test('PDC: cada barrio tiene su torre de vigilancia y más presencia cuanto más alto su nivel', () => {
+  for (const d of CITY.districts) {
+    assert.ok(groups.some((g) => g.d === d.id && g.postKind === 'tower'), `torre en ${d.id}`);
+    assert.ok(groups.filter((g) => g.d === d.id && g.kind === 'patrol').length >= 2 + d.pdc, `patrullas en ${d.id}`);
+  }
+  assert.ok(unitsIn('centro') > unitsIn('cero') * 2, `Centro ${unitsIn('centro')} frente a Distrito Cero ${unitsIn('cero')}`);
+  // Nivel ≥ 2: francotiradores; nivel ≥ 3: drones
+  assert.equal(groups.some((g) => g.d === 'cero' && (g.kind === 'sniper' || g.units.some((u) => u.type === 'dron'))), false);
+  assert.ok(groups.some((g) => g.d === 'industrial' && g.kind === 'sniper'));
+  assert.ok(groups.some((g) => g.d === 'midtown' && g.units.some((u) => u.type === 'dron')));
+  // Los Acólitos acampan en sus escondites del diseño
+  assert.deepEqual(groups.filter((g) => g.kind === 'acolytes').map((g) => g.d).sort(), ['bloques', 'chino', 'industrial', 'parque']);
+});
+
+test('PDC: puestos, patrullas y campamentos en la calle, dentro de su barrio; francotiradores en azoteas', () => {
+  let blocked = 0;
+  let total = 0;
+  for (const g of groups) {
+    assert.equal(districtAt(CITY, g.x, g.z)?.id, g.d, `${g.id} en su barrio`);
+    for (const u of g.units) {
+      if (u.type === 'dron' || u.type === 'francotirador') continue;
+      total++;
+      if (!free(u.x, u.z)) blocked++;
+    }
+    if (g.kind === 'sniper') {
+      const u = g.units[0];
+      assert.ok(Math.abs(world.groundHeight(u.x, u.z, 0.3, u.y + 1) - (u.y - 0.1)) < 0.05, `${g.id} sobre la azotea`);
+    }
+    if (g.kind === 'patrol') {
+      const [a, b] = g.units[0].patrol;
+      const L = Math.hypot(b.x - a.x, b.z - a.z);
+      const hit = world.raycastHit({ x: a.x, y: 1, z: a.z }, { x: (b.x - a.x) / L, y: 0, z: (b.z - a.z) / L }, L, { ignoreTags: ['barrier'] });
+      assert.equal(hit, null, `${g.id}: la ruta no atraviesa edificios`);
+    }
+  }
+  assert.ok(blocked <= total * 0.05, `${blocked}/${total} unidades a pie dentro de un edificio`);
+  // La puerta del camión está en la calzada
+  for (const g of groups.filter((x) => x.truck)) {
+    const d = truckDoor(g.post);
+    assert.ok(Number.isFinite(d.x) && Number.isFinite(d.z));
+  }
+});
+
+test('PDC: solo se crean los grupos cercanos, los más próximos primero y con un tope', () => {
+  const gs = [
+    { id: 'a', x: 0, z: 100, units: [{}, {}] },
+    { id: 'b', x: 0, z: 250, units: [{}, {}, {}] },
+    { id: 'c', x: 0, z: 900, units: [{}] },
+    { id: 'd', x: 0, z: 150, units: [{ deadUntil: 50 }] },
+  ];
+  let r = plan(gs, 0, 0, { time: 10 });
+  assert.deepEqual(r.activate, ['a', 'b']);
+  // Muertos hasta t = 50: el grupo d no se crea; después sí
+  r = plan(gs, 0, 0, { time: 60 });
+  assert.deepEqual(r.activate, ['a', 'd', 'b']);
+  // Tope de unidades
+  r = plan(gs, 0, 0, { time: 60, cfg: { ...POP, maxUnits: 3 } });
+  assert.deepEqual(r.activate, ['a', 'd']);
+  // Se retira lejos (con margen) salvo si está peleando
+  gs[2].active = true;
+  gs[1].active = true;
+  r = plan(gs, 0, 0, { time: 60 });
+  assert.deepEqual(r.deactivate, ['c']);
+  r = plan(gs, 0, 0, { time: 60, busy: (id) => id === 'c' });
+  assert.deepEqual(r.deactivate, []);
+  r = plan(gs, 0, 650, { time: 60 });
+  assert.deepEqual(r.deactivate, ['b']);
+});

@@ -7,6 +7,9 @@ import { decodeCity, cityColliders, landAt, districtAt } from './ibaia/decode.js
 import { buildingMaterial, buildBuildings, buildGround, buildTrees, buildLamps, buildDashes, buildBridges, buildRail, CHUNK } from './ibaia/meshes.js';
 import { DefenseBarriers } from './ibaia/barriers.js';
 import { buildTorre, buildSpecials, Anchors } from './ibaia/landmarks.js';
+import { buildPdcPosts, buildCamp } from './ibaia/pdcPosts.js';
+import { CityPopulation } from './ibaia/population.js';
+import { ObbSet } from '../../physics/ObbSet.js';
 
 /**
  * MAPA — IBAIA, LA CIUDAD
@@ -19,6 +22,10 @@ import { buildTorre, buildSpecials, Anchors } from './ibaia/landmarks.js';
  * Cada barrio está cerrado por una barrera de la Encarnación de la Defensa
  * (muros de luz de 300 m y la cúpula del Centro). El menú de administración
  * (F4) las baja y las sube, enseña el plano y lleva a cualquier punto.
+ *
+ * La PDC ocupa la ciudad según el nivel de cada barrio (torres de vigilancia,
+ * controles en puentes y metro, patrullas, francotiradores y drones) y los
+ * Acólitos acampan en cuatro escondites; ver ibaia/pdcPlan.js y population.js.
  *
  * Al caer al agua se vuelve a la última orilla pisada.
  */
@@ -41,12 +48,15 @@ const yawTo = (x, z, tx, tz) => Math.atan2(tx - x, tz - z);
 export default {
   id: 'ibaia',
   name: 'Ibaia',
-  description: 'La ciudad: diez barrios cerrados por las barreras de la Defensa · F4 administración',
+  description: 'Ocupada por la PDC y cerrada por la Defensa · F4 administración',
   /** Cámara: la ciudad se ve a kilómetros (la Torre mide 520 m). */
   view: { near: 0.25, far: 9000 },
   envIntensity: 0.5,
   grade: { contrast: 1.06, saturation: 1.08, shadows: '#1d2442', highlights: '#ffd2a6', split: 0.08, lift: 0.02, vignette: 0.28 },
   bounds: { minX: FX0 + 30, maxX: FX1 - 30, minZ: FZ0 + 30, maxZ: FZ1 - 30 },
+  /** La PDC empieza tranquila y reacciona a lo que haga Jon (como en el Distrito Cero). */
+  factions: { pdc: 0 },
+  reputation: true,
   city: CITY,
 
   build(ctx) {
@@ -105,6 +115,12 @@ export default {
     buildTorre(group, CITY);
     buildSpecials(group, CITY, data.buildings);
 
+    // --- La PDC: puestos en las calles (con colisión) y campamentos de los Acólitos ---
+    const pdcSet = new ObbSet({ cell: 48 });
+    const posts = buildPdcPosts(group, CITY, pdcSet, (...b) => set.overlaps(...b));
+    world.addObbSet(pdcSet);
+    for (const c of CITY.pdc.acolytes) buildCamp(group, c);
+
     // --- Barreras de la Defensa y sus Anclas ---
     const saved = ctx.save?.data.debug.cityBarriers ?? {};
     const barriers = new DefenseBarriers(ctx, CITY, set, saved);
@@ -128,6 +144,7 @@ export default {
     }
 
     const life = ctx.addEntity(new CityLife(ctx, { data, barriers, anchors }));
+    const population = ctx.addEntity(new CityPopulation(ctx, CITY, { enabled: ctx.save?.data.debug.cityEnemies !== false }));
     const admin = {
       city: CITY,
       data,
@@ -154,6 +171,13 @@ export default {
         return { x, y: Math.max(0, top) + 0.1, z };
       },
       life,
+      population,
+      posts,
+      /** Enemigos y PDC de la ciudad: encendidos o apagados (para explorar en paz). */
+      setEnemies(on) {
+        population.setEnabled(on);
+        return on;
+      },
     };
     console.info(`[Ibaia] ${drawn} cajas de edificios, ${chunks.size} celdas, ${set.n} colisionadores en ${(performance.now() - t0).toFixed(0)} ms`);
     return { spawn, sun, waypoints, admin };

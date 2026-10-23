@@ -247,7 +247,7 @@ export class GameManager {
     this.player.model.root.rotation.x = 0;
     this.player.autopilot = null;
     this.acquisition.cancel();
-    const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain, save: this.save, player: this.player, ui: this.ui });
+    const map = this.mapManager.load(id, { combat: this.combat, enemies: this.enemies, interactions: this.interactions, acquisition: this.acquisition, vfx: this.vfx, energySources: this.drain, save: this.save, player: this.player, ui: this.ui, factions: this.factions });
     // Alcance de la cámara: la ciudad se ve a kilómetros; el resto de mapas, a 1200 m
     const view = def.view ?? {};
     this.camera.near = view.near ?? 0.1;
@@ -598,6 +598,7 @@ export class GameManager {
       waypoints: cur?.waypoints ?? [],
       player: { x: p.x, z: p.z, facing: this.player.facing },
       district: adm?.districtAt(p.x, p.z) ?? null,
+      pdc: this.factions.pdcLevel,
     };
   }
 
@@ -849,6 +850,26 @@ export class GameManager {
         const down = action === 'adm-all-down';
         this._saveBarriers(adm.setAll(down));
         this.ui.toast('Barreras de la Defensa', down ? 'Todas bajadas: la ciudad entera está abierta' : 'Todas levantadas', 2200);
+        break;
+      }
+      case 'adm-enemies': {
+        const adm = this.mapManager.current?.admin;
+        if (!adm) return;
+        const on = !adm.population.enabled;
+        adm.setEnemies(on);
+        this.save.data.debug.cityEnemies = on;
+        this.save.save();
+        this.ui.toast('PDC y enemigos', on ? 'Vuelven a sus puestos' : 'Retirados: la ciudad queda vacía para explorar', 2000);
+        break;
+      }
+      case 'adm-pdc-calm':
+      case 'adm-pdc-hostile': {
+        const rep = this.factions.reputation;
+        const target = action === 'adm-pdc-hostile' ? 100 : 0;
+        const from = rep.level('pdc').id;
+        rep.hostility.pdc = Math.max(rep.base.pdc, target);
+        const to = rep.level('pdc').id;
+        if (from !== to) this.factions._apply([{ faction: 'pdc', before: 0, after: rep.hostility.pdc, from, to }]);
         break;
       }
       case 'adm-travel': {

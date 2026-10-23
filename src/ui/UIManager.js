@@ -692,6 +692,7 @@ export class UIManager {
       return;
     }
     const city = adm.city;
+    const pop = adm.population;
     const down = city.districts.filter((d) => adm.barriers.isDown(d.id)).length;
     const rows = city.districts.map((d, i) => {
       const isDown = adm.barriers.isDown(d.id);
@@ -714,6 +715,13 @@ export class UIManager {
           <h3>Barreras de la Defensa <span class="adm-count">${down}/10 bajadas</span></h3>
           <div class="dbg-row">${btn('adm-all-down', 'Bajar todas', '', 'adm-primary')}${btn('adm-all-up', 'Subir todas')}</div>
           <div class="adm-list">${rows}</div>
+          <h3>PDC y enemigos <span class="adm-count">${pop.enabled ? `${pop.units.length} en la zona · ${pop.neutralized} neutralizados` : 'retirados'}</span></h3>
+          <div class="dbg-row">
+            <button class="menu-btn" data-action="adm-enemies"><span class="btn-title">Enemigos en la ciudad</span><span class="dbg-state ${pop.enabled ? 'on' : 'off'}">${pop.enabled ? 'Sí' : 'No'}</span></button>
+            ${btn('adm-pdc-calm', 'PDC tranquila', '', state.pdc?.id === 'calm' ? 'adm-primary' : '')}
+            ${btn('adm-pdc-hostile', 'PDC hostil', '', state.pdc?.id === 'hostile' ? 'adm-primary' : '')}
+          </div>
+          <p class="note adm-note">PDC: ${escapeHtml(state.pdc?.name ?? '—')} · ${pop.groups.filter((g) => g.kind === 'post').length} puestos, ${pop.groups.filter((g) => g.kind === 'patrol').length} patrullas, ${pop.groups.filter((g) => g.kind === 'sniper').length} francotiradores y ${pop.groups.filter((g) => g.kind === 'acolytes').length} campamentos de Acólitos.</p>
           <h3>Viajar a</h3>
           <div class="dbg-row">${wps}</div>
           <h3>Anclas</h3>

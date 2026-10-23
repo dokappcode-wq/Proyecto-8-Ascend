@@ -48,7 +48,10 @@ src/
 │           ├── decode.js       Lectura de los datos, máscara de agua, barrios y colisión de la ciudad (sin Three.js)
 │           ├── meshes.js       Edificios con ventanas en el shader, suelo, árboles, farolas, puentes y tren por celdas
 │           ├── barriers.js     Barreras de la Defensa: muros de hexágonos de 300 m, cúpula y animación de bajada
-│           └── landmarks.js    Torre de la Defensa, Anclas, depósitos, chimeneas, grúas, noria, faro…
+│           ├── landmarks.js    Torre de la Defensa, Anclas, depósitos, chimeneas, grúas, noria, faro…
+│           ├── pdcPlan.js      La PDC y los Acólitos: grupos por puesto/patrulla y qué se crea según la distancia (sin Three.js)
+│           ├── pdcPosts.js     Puestos de la PDC girados con la calle (vallas, garita, escáner, camión, foco) y hogueras
+│           └── population.js   Población por distancia, neutralizados, refuerzos del camión, drones y toque de queda
 ├── story/                      Modo historia (prólogo)
 │   ├── storyData.js            Fases, misiones y los 29 puntos de control (sin Three.js)
 │   ├── StoryState.js           Estado persistente: punto, banderas, misión (sin Three.js)
@@ -705,4 +708,29 @@ aplica al cargar el mapa) y `_travel` lleva al destino con un fundido corto.
 9000 m; el resto vuelve a 0.1 y 1200). `followSun` coloca el sol a
 `sun.userData.distance` (700 m en la ciudad) para que los rascacielos
 proyecten sombra.
+
+**La PDC y los Acólitos.** `export_game.py` coloca, con el nivel PDC de cada
+barrio, su torre de vigilancia y controles en las entradas de puentes y
+metro (en la calle más cercana, con su dirección y ancho), patrullas en
+tramos rectos de calle cuya franja de 2.2 m no toca ningún edificio
+(repartidas a ≥ 230 m), drones sobre avenidas, francotiradores en azoteas de
+14–45 m cerca de puestos y zonas, y los campamentos de Acólitos del diseño:
+`CITY.pdc`. `pdcPlan.buildGroups` lo convierte en grupos con sus unidades
+(tipo, posición, orientación, ruta, `dormant`) según el tipo de puesto y el
+nivel; `plan(grupos, x, z, { time, busy })` (puro) decide qué grupos crear
+(< 300 m, los más cercanos primero, tope de 32 unidades, sin los
+neutralizados hasta `deadUntil`) y cuáles retirar (> 380 m y sin pelear).
+`CityPopulation` (entidad del mapa) aplica el plan cada 0.5 s con
+`EnemySystem.spawn/remove` (etiqueta `ibaia:<grupo>`), apunta los
+neutralizados (`enemy:neutralized`) y, con `faction:changed` a hostil, saca
+dos refuerzos del camión del puesto activo más cercano (`entrance` desde la
+puerta trasera; al bajar, `alertTo`) y despierta los drones posados en las
+torres cercanas. En barrios de nivel ≥ 4, mientras la PDC ve al jugador,
+`Reputation.report('pdc:curfew')` cada segundo (toque de queda). Los puestos
+(`pdcPosts.js`) son cajas giradas en el marco de la calle (u a lo largo, v a
+lo ancho) con su colisión en un segundo `ObbSet`; la pieza que chocaría con
+un edificio se omite. El mapa declara `factions: { pdc: 0 }` y
+`reputation: true` (HUD de la PDC), y `admin.setEnemies` y la reputación se
+controlan desde la administración (`adm-enemies`, `adm-pdc-calm`,
+`adm-pdc-hostile`).
 

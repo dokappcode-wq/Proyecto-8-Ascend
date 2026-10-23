@@ -19,6 +19,7 @@ export const REPUTATION_RULES = Object.freeze({
   'pdc:attacked': { pdc: 70 }, // dañar a un agente
   'pdc:killed': { pdc: 100 }, // neutralizar a un agente
   'pdc:power-seen': { pdc: 22 }, // usar poderes a la vista de la PDC
+  'pdc:curfew': { pdc: 9 }, // toque de queda: dejarse ver en un barrio de nivel PDC alto (cada segundo)
 });
 
 export const HOSTILITY_LEVELS = Object.freeze([

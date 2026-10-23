@@ -407,3 +407,4 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 .adm-state { font-size: 12px; padding: 1px 8px; border: 1px solid #ffb547; color: #ffb547; }
 .adm-barrier.down .adm-state { border-color: #5fd38a; color: #5fd38a; }
 .adm-primary { border-color: rgba(255, 181, 71, 0.6) !important; }
+.adm-note { margin: 4px 0 14px; font-size: 12px; color: var(--muted); }
