@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { storySection } from './story.mjs';
 import { citySection } from './city.mjs';
+import { campaignSection } from './campaign.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const out = path.join(root, 'tests/e2e/output');
@@ -1963,6 +1964,11 @@ try {
   console.log('\n[ibaia]');
   await freshPage();
   await citySection({ page, check, PORT, out });
+
+  // ---------------- Campaña de la ciudad ----------------
+  console.log('\n[campaña]');
+  await freshPage();
+  await campaignSection({ page, check, PORT, out });
 
   // ---------------- Modo historia ----------------
   console.log('\n[historia]');

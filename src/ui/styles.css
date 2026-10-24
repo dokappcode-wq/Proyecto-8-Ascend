@@ -408,3 +408,29 @@ kbd { font-family: var(--display); font-weight: 600; background: rgba(255,255,25
 .adm-barrier.down .adm-state { border-color: #5fd38a; color: #5fd38a; }
 .adm-primary { border-color: rgba(255, 181, 71, 0.6) !important; }
 .adm-note { margin: 4px 0 14px; font-size: 12px; color: var(--muted); }
+
+/* --- Campaña de la ciudad -------------------------------------------------- */
+.marker.city-story { color: #ffc04a; font-size: 13px; }
+.marker.city-story .gem { width: 18px; height: 18px; background: rgba(255,192,74,.35); box-shadow: 0 0 14px rgba(255,192,74,.8); }
+.marker.city-side { color: #e6edf6; }
+.marker.city-side .gem { border-radius: 3px; transform: none; background: rgba(230,237,246,.2); box-shadow: 0 0 8px rgba(230,237,246,.5); }
+.marker.city-act { color: #4fc3ff; }
+.marker.city-act .gem { background: rgba(79,195,255,.25); box-shadow: 0 0 10px rgba(79,195,255,.6); }
+.marker.city-event { color: #ff5a5a; }
+.marker.city-event .gem { background: rgba(255,90,90,.3); box-shadow: 0 0 12px rgba(255,90,90,.7); }
+.city-control { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 14px 8px; background: rgba(8,12,18,.55); border: 1px solid rgba(224,96,90,.35); font-size: 12px; letter-spacing: .08em; color: #c9d4e3; pointer-events: none; min-width: 180px; }
+.city-control b { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: #f1f4f8; }
+.city-control .bar { width: 100%; height: 4px; background: rgba(255,255,255,.12); }
+.city-control .bar div { height: 100%; background: #e0605a; transition: width .6s; }
+.city-control.off { display: none; }
+.city-photo { position: absolute; right: 18px; top: 120px; margin: 0; padding: 8px 8px 6px; background: #f1ece0; box-shadow: 0 8px 24px rgba(0,0,0,.6); transform: rotate(1.5deg); display: none; flex-direction: column; gap: 4px; pointer-events: none; }
+.city-photo.show { display: flex; }
+.city-photo img { width: 240px; height: auto; display: block; filter: contrast(1.15); }
+.city-photo figcaption { font: 600 12px/1.2 'Courier New', monospace; color: #2a2620; text-align: center; letter-spacing: .06em; }
+.adm-group { border: 1px solid rgba(255,255,255,.08); margin: 4px 0; }
+.adm-group summary { cursor: pointer; padding: 6px 10px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #c9d4e3; }
+.adm-mission { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-top: 1px solid rgba(255,255,255,.05); }
+.adm-mission .adm-name { flex: 1; min-width: 0; font-size: 13px; }
+.adm-mission .adm-name small { display: block; color: #8fa0b6; font-size: 11px; }
+.adm-mission.done .adm-name { color: #8fd3a0; }
+.adm-mission .menu-btn { padding: 3px 8px; min-height: 0; }

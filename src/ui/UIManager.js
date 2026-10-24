@@ -722,6 +722,7 @@ export class UIManager {
             ${btn('adm-pdc-hostile', 'PDC hostil', '', state.pdc?.id === 'hostile' ? 'adm-primary' : '')}
           </div>
           <p class="note adm-note">PDC: ${escapeHtml(state.pdc?.name ?? '—')} · ${pop.groups.filter((g) => g.kind === 'post').length} puestos, ${pop.groups.filter((g) => g.kind === 'patrol').length} patrullas, ${pop.groups.filter((g) => g.kind === 'sniper').length} francotiradores y ${pop.groups.filter((g) => g.kind === 'acolytes').length} campamentos de Acólitos.</p>
+          ${this._adminCampaign(state.campaign, btn)}
           <h3>Viajar a</h3>
           <div class="dbg-row">${wps}</div>
           <h3>Anclas</h3>
@@ -731,7 +732,7 @@ export class UIManager {
       <nav class="menu-list compact row">${btn('resume', 'Cerrar (F4)')}${btn('menu', 'Volver al menú')}</nav>`;
     const canvas = this.$('admin-map');
     this._cityMap ??= new CityMap();
-    this._cityMap.draw(canvas, adm, state.player);
+    this._cityMap.draw(canvas, adm, state.player, state.campaign?.points);
     const cap = this.$('admin-map-cap');
     const at = (e) => {
       const r = canvas.getBoundingClientRect();
@@ -746,6 +747,26 @@ export class UIManager {
       const p = at(e);
       this.onAction('adm-goto', { x: p.x, z: p.z });
     });
+  }
+
+  /** Sección «Campaña» del menú de administración. */
+  _adminCampaign(c, btn) {
+    if (!c) return '';
+    const head = `<h3>Campaña <span class="adm-count">${c.districts.map((d) => `${escapeHtml(d.name)} · PDC ${d.control} %`).join(' · ')}</span></h3>
+      <div class="dbg-row">
+        <button class="menu-btn" data-action="adm-campaign-toggle"><span class="btn-title">Campaña activa</span><span class="dbg-state ${c.enabled ? 'on' : 'off'}">${c.enabled ? 'Sí' : 'No'}</span></button>
+        ${btn('adm-campaign-reset', 'Reiniciar la campaña')}
+      </div>`;
+    if (!c.active) return `${head}<p class="note adm-note">Con la campaña apagada, la ciudad se recorre libre, sin misiones.</p>`;
+    const cur = c.mission ? `<p class="note adm-note">En curso: <b>${escapeHtml(c.mission.title)}</b> (punto de control ${c.mission.step}).</p>` : '';
+    const row = (m) => {
+      const state = m.kind === 'act' ? `${m.medals}/${m.done}` : m.done ? 'Hecha' : m.available ? 'Disponible' : 'Bloqueada';
+      const label = m.kind === 'story' ? `${m.n}. ${m.title}` : m.title;
+      return `<div class="adm-mission ${m.done === true ? 'done' : ''}"><span class="adm-name">${escapeHtml(label)}<small>${state}</small></span>
+        ${btn('adm-mission-start', m.kind === 'event' ? 'Lanzar' : 'Jugar', `data-id="${m.id}"`)}${m.kind === 'story' || m.kind === 'side' ? btn('adm-mission-done', 'Completar', `data-id="${m.id}"`) : ''}</div>`;
+    };
+    const group = (kind, title) => `<details class="adm-group"><summary>${title}</summary>${c.list.filter((m) => m.kind === kind).map(row).join('')}</details>`;
+    return `${head}${cur}${group('story', 'Historia · «Línea Cero»')}${group('side', 'Secundarias')}${group('act', 'Actividades (sitios con medalla)')}${group('event', 'Sucesos')}`;
   }
 
   // ---------------------------------------------------------------- Etapa 6: misión
@@ -813,7 +834,7 @@ export class UIManager {
         el.querySelector('.arrow').style.transform = `rotate(${ang}rad)`;
       }
       const d = from ? Math.round(Math.hypot(m.x - from.x, m.y - 2.6 - from.y, m.z - from.z)) : null;
-      el.querySelector('.label').textContent = `${m.label}${d !== null ? ` · ${d} m` : ''}`;
+      el.querySelector('.label').textContent = m.label ? `${m.label}${d !== null ? ` · ${d} m` : ''}` : '';
     });
   }
 
@@ -848,9 +869,11 @@ export class UIManager {
   }
 
   /** En la historia, «Reiniciar» vuelve al último punto de control. */
-  setStoryPause(on, canSkip = false) {
+  setStoryPause(on, canSkip = false, cityMission = null) {
     const t = this.screens.pause?.querySelector('[data-action="restart"] .btn-title');
-    if (t) t.textContent = on ? 'Reiniciar desde el punto de control' : 'Reiniciar mapa';
+    if (t) t.textContent = cityMission ? (cityMission.kind === 'act' ? 'Reintentar la actividad' : 'Reintentar desde el punto de control') : on ? 'Reiniciar desde el punto de control' : 'Reiniciar mapa';
+    // En la ciudad, una misión en curso se puede abandonar
+    this.screens.pause?.querySelector('[data-action="city-abandon"]')?.classList.toggle('hidden', !cityMission);
     // «Saltar escena» solo durante una cinemática de la historia
     this.screens.pause?.querySelector('[data-action="skip-scene"]')?.classList.toggle('hidden', !canSkip);
   }

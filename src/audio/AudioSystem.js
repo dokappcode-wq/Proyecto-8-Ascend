@@ -519,6 +519,18 @@ const SFX = {
     noise(a, o, t, 0.8, { type: 'lowpass', freq: 500, freq2: 200, peak: 0.3, attack: 0.05, buffer: 'brown' });
     tone(a, o, t + 0.75, 0.15, { type: 'square', freq: 120, peak: 0.12, lp: 600 });
   },
+  // Teléfono de cabina: dos timbrazos
+  phone: (a, o, t) => {
+    for (let i = 0; i < 2; i++) {
+      tone(a, o, t + i * 0.42, 0.34, { type: 'square', freq: 440, freq2: 480, peak: 0.06, lp: 2400 });
+      tone(a, o, t + i * 0.42, 0.34, { type: 'square', freq: 480, peak: 0.04, lp: 2400 });
+    }
+  },
+  // Obturador de cámara de fotos
+  camera: (a, o, t) => {
+    noise(a, o, t, 0.04, { type: 'highpass', freq: 3000, peak: 0.25, attack: 0.001 });
+    noise(a, o, t + 0.07, 0.05, { type: 'bandpass', freq: 1800, q: 1.5, peak: 0.2, attack: 0.001 });
+  },
   zipline: (a, o, t) => noise(a, o, t, 3.8, { type: 'bandpass', freq: 2600, freq2: 1400, q: 3, peak: 0.12, attack: 0.2 }),
   sangre: (a, o, t) => {
     tone(a, o, t, 1.6, { type: 'sawtooth', freq: 70, freq2: 55, peak: 0.12, lp: 500 });

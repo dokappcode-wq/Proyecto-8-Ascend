@@ -30,6 +30,8 @@ export class CityPopulation {
     /** Refuerzos que, al bajar del camión, van a por el jugador: { e, at } */
     this._pending = [];
     this.neutralized = 0;
+    /** Barrios liberados (la campaña los fija): no aparece la PDC. */
+    this.liberated = new Set();
     this._offs = [
       ctx.events.on('enemy:neutralized', ({ enemy }) => this._onDown(enemy)),
       ctx.events.on('enemy:removed', ({ enemy }) => this._onRemoved(enemy)),
@@ -171,7 +173,10 @@ export class CityPopulation {
     if (this._check <= 0) {
       this._check = 0.5;
       if (this.enabled) {
-        const { activate, deactivate } = plan(this.groups, p.x, p.z, { time: this.time, busy: (id) => this._busy(this.byId.get(id)) });
+        // Barrios liberados por la campaña: sin PDC (los Acólitos siguen)
+        const lib = this.liberated;
+        const groups = lib?.size ? this.groups.filter((g) => g.active || !(lib.has(g.d) && g.kind !== 'acolytes')) : this.groups;
+        const { activate, deactivate } = plan(groups, p.x, p.z, { time: this.time, busy: (id) => this._busy(this.byId.get(id)) });
         for (const id of deactivate) this._despawnGroup(this.byId.get(id));
         for (const id of activate) this._spawnGroup(this.byId.get(id));
       }

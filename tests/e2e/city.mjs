@@ -19,6 +19,8 @@ export async function citySection({ page, check, PORT, out }) {
     Object.assign(a.save.settings, { shadows: false, bloom: false, reflections: false, antialias: false, renderScale: 0.5, autoQuality: false });
     a._applySettings(a.save.settings);
     a.save.data.debug.cityBarriers = {};
+    // Esta prueba recorre la ciudad sin la campaña (la campaña tiene su propia prueba)
+    a.save.data.debug.cityCampaign = false;
     a.save.save();
   });
 

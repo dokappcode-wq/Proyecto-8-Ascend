@@ -1,4 +1,5 @@
 import { createStoryState } from '../story/StoryState.js';
+import { createCityState, mergeCityState } from '../city/CityState.js';
 
 /**
  * SaveSystem — persistencia local del progreso y la configuración.
@@ -60,9 +61,12 @@ export function createDefaultSave() {
       maxMarks: false, // fuerza las marcas al máximo para revisar efectos
       invulnerable: false, // el jugador no recibe daño
       classicZoneE: false, // la Encarnación de la Energía vuelve a la Zona E (práctica)
+      cityCampaign: true, // Ibaia: misiones, actividades y sucesos (las pruebas de la ciudad la apagan)
     },
     // Modo historia: prólogo (ver story/StoryState.js)
     story: createStoryState(),
+    // Campaña de la ciudad (ver city/CityState.js)
+    city: createCityState(),
   };
 }
 
@@ -139,6 +143,7 @@ export class SaveSystem {
         profile: { ...base.profile, ...(parsed.profile || {}) },
         debug: { ...base.debug, ...(parsed.debug || {}) },
         story: mergeStory(base.story, parsed.story),
+        city: mergeCityState(base.city, parsed.city),
         stage: parsed.stage ?? 0, // los guardados anteriores no la tenían
       };
       return migrate(merged);

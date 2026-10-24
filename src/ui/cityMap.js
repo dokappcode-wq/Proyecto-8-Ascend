@@ -2,7 +2,8 @@
  * Plano de Ibaia para el menú de administración: agua, sierra, barrios con
  * el color de su marca, edificios, avenidas, puentes y tren elevado (la base
  * se dibuja una vez por carga del mapa); encima, las barreras (ámbar si
- * están levantadas, discontinuas si están bajadas), las Anclas y el jugador.
+ * están levantadas, discontinuas si están bajadas), las Anclas, lo que se
+ * puede jugar de la campaña y el jugador.
  * Un clic en el plano lleva a ese punto.
  */
 const W = 760;
@@ -113,7 +114,7 @@ export class CityMap {
   }
 
   /** Dibuja el plano con el estado actual. */
-  draw(canvas, admin, player) {
+  draw(canvas, admin, player, points = null) {
     const city = admin.city;
     const f = this.frame(city);
     canvas.width = f.w;
@@ -177,6 +178,36 @@ export class CityMap {
       g.strokeStyle = '#120c04';
       g.lineWidth = 1;
       g.stroke();
+    }
+    // Campaña: historia (estrella dorada), secundarias (cuadro blanco) y actividades (círculo azul; relleno con medalla)
+    for (const p of points ?? []) {
+      const x = X(p.x);
+      const y = Z(p.z);
+      g.lineWidth = 1.5;
+      g.strokeStyle = '#06090d';
+      if (p.kind === 'story') {
+        g.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const r = i % 2 ? 3.2 : 7.5;
+          const a = -Math.PI / 2 + (i * Math.PI) / 5;
+          (i ? g.lineTo : g.moveTo).call(g, x + Math.cos(a) * r, y + Math.sin(a) * r);
+        }
+        g.closePath();
+        g.fillStyle = '#ffc04a';
+        g.fill();
+        g.stroke();
+      } else if (p.kind === 'side') {
+        g.fillStyle = '#e6edf6';
+        g.fillRect(x - 3.5, y - 3.5, 7, 7);
+        g.strokeRect(x - 3.5, y - 3.5, 7, 7);
+      } else {
+        g.beginPath();
+        g.arc(x, y, 3.2, 0, Math.PI * 2);
+        g.fillStyle = p.medal ? ['#4fc3ff', '#c98a4a', '#cfd6df', '#ffd84d'][p.medal] : 'rgba(79,195,255,0.25)';
+        g.fill();
+        g.strokeStyle = '#4fc3ff';
+        g.stroke();
+      }
     }
     // Jugador: flecha hacia donde mira
     if (player) {

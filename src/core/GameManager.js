@@ -40,6 +40,9 @@ import { AudioSystem } from '../audio/AudioSystem.js';
 import { Progression } from '../powers/Progression.js';
 import { PROGRESSION } from '../data/progression.js';
 import { StoryDirector } from '../story/StoryDirector.js';
+import { CityDirector } from '../city/CityDirector.js';
+import { registerCampaign } from '../city/campaign.js';
+import { createCityState } from '../city/CityState.js';
 import { CHECKPOINTS } from '../story/storyData.js';
 
 /**
@@ -152,6 +155,9 @@ export class GameManager {
     this.progression = new Progression(this.save.data.profile);
     /** Modo historia (prólogo). */
     this.story = new StoryDirector(this);
+    /** Campaña de la ciudad (Ibaia): misiones, actividades y sucesos. */
+    this.city = new CityDirector(this);
+    registerCampaign(this.city);
     /** Aleatoriedad del juego (las pruebas pueden sustituirla). */
     this.rng = Math.random;
     this._time = 0;
@@ -168,6 +174,11 @@ export class GameManager {
     this._resize();
     this.ui.show('menu');
     this.renderer.setAnimationLoop(() => this._frame());
+  }
+
+  /** Director de guion activo: el prólogo o la campaña de la ciudad. */
+  get director() {
+    return this.city.active ? this.city : this.story;
   }
 
   /** Familia de poderes de la marca activa (Energía o Gravedad). */
@@ -222,9 +233,12 @@ export class GameManager {
     const def = this.mapManager.maps.get(id);
     if (!def) return;
     if (this.story.active) this.story.stop();
+    this.city.stop();
     this.input.clear();
     await this.ui.fade(`Cargando ${def.name}…`, () => {
       this._loadMap(id);
+      // Ibaia es la campaña de la ciudad
+      if (id === 'ibaia' && this.save.data.debug.cityCampaign !== false) this.city.begin();
       if (id === 'campo' && !this.marks.activeFamily) {
         setTimeout(() => this.ui.toast('Sin poderes todavía', 'Juega el Prólogo (Historia) para conseguir la marca de la Energía', 4000), 3000);
       }
@@ -339,6 +353,11 @@ export class GameManager {
   }
 
   restartMap() {
+    if (this.city.active && this.city.mission) {
+      this.resume();
+      this.city.retry();
+      return;
+    }
     if (this.story.active) {
       this.resume();
       this.story.reload();
@@ -355,6 +374,7 @@ export class GameManager {
         this.story.stop();
         this._applyModifiers();
       }
+      this.city.stop();
       this._clearTransient();
       this.mapManager.unload();
       this.player.object3d.visible = false;
@@ -376,14 +396,14 @@ export class GameManager {
   pause(screen = 'pause') {
     if (this.state !== 'playing') return;
     // Pausar durante un salto de cinemática lo termina (la escena sigue normal)
-    if (this.story.skipping) this.story.endSkip();
-    this.story.ui.skipHint(false);
+    if (this.director.skipping) this.director.endSkip();
+    this.director.ui.skipHint(false);
     this.state = 'paused';
     this._pausedAt = performance.now();
     this.input.clear();
     this.input.exitPointerLock();
     this.audio.setPaused(true);
-    this.ui.setStoryPause(this.story.active, this.story.canSkip);
+    this.ui.setStoryPause(this.story.active, this.director.canSkip, this.city.active ? this.city.mission?.def : null);
     this.ui.show(screen);
   }
 
@@ -402,7 +422,7 @@ export class GameManager {
     document.addEventListener('pointerlockchange', () => {
       // El navegador libera el puntero con Esc: se interpreta como pausa.
       // (Salvo en la pantalla de elección de la historia, que necesita el ratón.)
-      if (!document.pointerLockElement && this.state === 'playing' && !this.story.modal) this.pause();
+      if (!document.pointerLockElement && this.state === 'playing' && !this.director.modal) this.pause();
     });
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape') {
@@ -436,7 +456,7 @@ export class GameManager {
       if (e.code === 'KeyH') this.ui.toggleHint();
     });
     this.canvas.addEventListener('click', () => {
-      if (this.state === 'playing' && !this.story.modal) this.input.requestPointerLock();
+      if (this.state === 'playing' && !this.director.modal) this.input.requestPointerLock();
     });
     // La Zona E del Campo lleva al Prólogo
     this.events.on('story:request', () => this.startStory(false));
@@ -599,7 +619,63 @@ export class GameManager {
       player: { x: p.x, z: p.z, facing: this.player.facing },
       district: adm?.districtAt(p.x, p.z) ?? null,
       pdc: this.factions.pdcLevel,
+      campaign: this._campaignState(),
     };
+  }
+
+  /** Resumen de la campaña de la ciudad para el menú de administración. */
+  _campaignState() {
+    const C = this.city;
+    const st = C.state;
+    const list = [...C.registry.values()].map((d) => ({
+      id: d.id, title: d.title, kind: d.kind, n: d.n,
+      done: d.kind === 'act' ? (C.districts.get(d.district)?.content.acts.find((a) => a.id === d.act)?.count ?? 0) : !!st.done[d.id],
+      medals: d.kind === 'act' ? Object.entries(st.acts).filter(([k, v]) => k.startsWith(`${d.act}-`) && v > 0).length : 0,
+      available: d.kind === 'event' ? true : C.available().includes(d),
+    }));
+    // Puntos para el plano: lo que se puede empezar ahora (y las actividades con su medalla)
+    const points = [];
+    if (C.active) {
+      for (const d of C.available()) {
+        if (d.kind === 'act') d.spots(C).forEach((p, i) => points.push({ x: p.x, z: p.z, kind: 'act', medal: st.acts[`${d.act}-${i}`] ?? 0 }));
+        else {
+          const p = d.where?.(C);
+          if (p) points.push({ x: p.x, z: p.z, kind: d.kind });
+        }
+      }
+    }
+    return {
+      points,
+      enabled: this.save.data.debug.cityCampaign !== false,
+      active: C.active,
+      mission: C.mission ? { id: C.mission.def.id, title: C.mission.def.title, step: C.mission.step } : null,
+      districts: [...C.districts.values()].map((d) => ({ id: d.id, name: d.name, control: C.control(d.id) })),
+      tower: !!st.towers.cero,
+      pello: st.flags.pello ?? null,
+      list,
+    };
+  }
+
+  /** Empieza una misión desde el menú de administración (viaja a su sitio). */
+  _adminMission(id) {
+    const C = this.city;
+    const def = C.registry.get(id);
+    if (!def || !C.active) return;
+    if (C.mission) C.abandon('');
+    if (def.kind === 'event') {
+      C.triggerEvent(id);
+      return;
+    }
+    let inst = 0;
+    let at = def.where?.(C);
+    if (def.kind === 'act') {
+      const spots = def.spots(C);
+      const p = this.player.motor.position;
+      inst = spots.reduce((bi, s, i) => (Math.hypot(s.x - p.x, s.z - p.z) < Math.hypot(spots[bi].x - p.x, spots[bi].z - p.z) ? i : bi), 0);
+      at = spots[inst];
+    }
+    if (at) this.player.spawnAt({ x: at.x + 2, y: this.mapManager.current.admin.landing(at.x + 2, at.z + 2).y, z: at.z + 2, yaw: this.player.facing });
+    C.start(def, { inst });
   }
 
   _saveBarriers(state) {
@@ -632,7 +708,9 @@ export class GameManager {
         this.startMap(data.map);
         break;
       case 'story':
-        this.startStory(false);
+        // Con el prólogo terminado, la historia sigue en la ciudad
+        if (this.save.data.story?.completed) this.startMap('ibaia');
+        else this.startStory(false);
         break;
       case 'story-new':
         this.startStory(true);
@@ -651,10 +729,14 @@ export class GameManager {
         break;
       case 'skip-scene':
         this.resume();
-        this.story.skip();
+        this.director.skip();
         break;
       case 'restart':
         this.restartMap();
+        break;
+      case 'city-abandon':
+        this.resume();
+        this.city.abandon('Misión abandonada');
         break;
       case 'save-game':
         this.ui.toast(this.save.save() ? 'Partida guardada' : 'No se pudo guardar', 'Marcas, progreso y ajustes (también se guardan solos)', 1800);
@@ -828,6 +910,45 @@ export class GameManager {
         return;
       }
       // --- Administración de la ciudad (F4) ---
+      case 'adm-mission-start':
+        this.resume();
+        this._adminMission(data.id);
+        break;
+      case 'adm-mission-done': {
+        const C = this.city;
+        const def = C.registry.get(data.id);
+        if (def) {
+          if (C.mission?.def === def) C.abandon('');
+          C.state.done[def.id] = true;
+          if (def.id === 'cero-h4') C.state.towers.cero = true;
+          if (def.id === 'cero-h2') C.state.flags.pisoFranco = true;
+          if (def.id === 'cero-h8' && !C.state.flags.pello) C.state.flags.pello = 'entregado';
+          if (def.id === 'cero-h10') this._saveBarriers(this.mapManager.current.admin.setBarrier('cero', true));
+          this.save.save();
+          C._refreshControl(true);
+        }
+        this.ui.renderAdmin(this._adminState());
+        break;
+      }
+      case 'adm-campaign-reset': {
+        const C = this.city;
+        if (C.mission) C.abandon('');
+        this.save.data.city = { ...createCityState(), started: true };
+        this.save.save();
+        if (C.active) C._refreshControl(false);
+        this.ui.toast('Campaña reiniciada', 'La historia del Distrito Cero vuelve a empezar', 2200);
+        this.ui.renderAdmin(this._adminState());
+        break;
+      }
+      case 'adm-campaign-toggle': {
+        const on = this.save.data.debug.cityCampaign === false;
+        this.save.data.debug.cityCampaign = on;
+        this.save.save();
+        if (on && this.mapManager.current?.def.id === 'ibaia') this.city.begin();
+        if (!on) this.city.stop();
+        this.ui.renderAdmin(this._adminState());
+        break;
+      }
       case 'adm-open':
         this._openAdmin();
         return;
@@ -1026,7 +1147,7 @@ export class GameManager {
     const realDt = Math.min(rawDt, 0.1);
     if (realDt > 0) this._fps += (1 / realDt - this._fps) * 0.05;
     // Resolución dinámica: solo mide mientras se juega (no en menús ni pausas)
-    if (this.state === 'playing' && !this.story.skipping && this.save.settings.autoQuality !== false && this.autoQuality.frame(rawDt)) {
+    if (this.state === 'playing' && !this.director.skipping && this.save.settings.autoQuality !== false && this.autoQuality.frame(rawDt)) {
       this._applyMsaa();
       this._resize();
     }
@@ -1036,11 +1157,11 @@ export class GameManager {
 
     if (this.state === 'playing') {
       if (this.input.wasPressed('debug')) this.ui.toggleDebug();
-      if (this.story.skipping) this._skipStep();
+      if (this.director.skipping) this._skipStep();
       else this._step(dt);
     }
 
-    if (this.story.skipping && this.state === 'playing') {
+    if (this.director.skipping && this.state === 'playing') {
       // Saltando una cinemática: la pantalla está en negro, no se dibuja
     } else if (this.state === 'playing' || this.state === 'paused') {
       if (this.fillLight.visible) {
@@ -1061,7 +1182,7 @@ export class GameManager {
 
   /** Un paso de la simulación del juego (todo salvo el dibujo). */
   _step(dt) {
-    this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active || this.story.controlsLocked;
+    this.player.disabled = this.playerCombat.dead || this.acquisition.active || !!this.drain.active || this.director.controlsLocked;
     this.player.update(dt);
     this.playerCombat.update(dt);
     this.powers.update(dt);
@@ -1076,6 +1197,7 @@ export class GameManager {
     this.factions.update(dt);
     this.missions.update(dt);
     this.story.update(dt);
+    this.city.update(dt);
     this.projectiles.update(dt);
     this.mapManager.update(dt);
     this.mapManager.cull(this.camera.position);
@@ -1096,7 +1218,7 @@ export class GameManager {
    * resuelven entre frames).
    */
   _skipStep() {
-    const st = this.story;
+    const st = this.director;
     const t0 = performance.now();
     for (let i = 0; i < 120 && performance.now() - t0 < 14; i++) {
       if (!st.skipShouldContinue()) {

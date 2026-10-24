@@ -614,7 +614,8 @@ export class Enemy {
       this.seesPlayer = this._computeCanSee(player);
     }
     // Solo ataca si su facción es hostil; vigilante: se detiene a observar
-    const attitude = sys.attitude(this.type.faction ?? 'enemy');
+    // Los enemigos de una misión de la ciudad atacan siempre (forceHostile)
+    const attitude = this.forceHostile ? 'hostile' : sys.attitude(this.type.faction ?? 'enemy');
     const hostile = attitude === 'hostile';
     this._canSee = hostile && this.seesPlayer;
     this.watching = !hostile && attitude === 'watchful' && this.seesPlayer;

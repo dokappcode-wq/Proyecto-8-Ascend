@@ -4,7 +4,7 @@
  * Crea sus propios elementos (no depende del HTML de la página).
  */
 
-const SPEAKER_COLORS = {
+export const SPEAKER_COLORS = {
   JON: '#9fd0ff',
   IKER: '#9ff2b0',
   ABUELA: '#ffd59a',
@@ -24,6 +24,27 @@ const SPEAKER_COLORS = {
   VENDEDORA: '#f2b8d0',
   VECINA: '#e8d7b0',
   VECINO: '#e8d7b0',
+  // Ciudad · Distrito Cero
+  CENTRALITA: '#ffb24a',
+  'CENTRALITA (RADIO)': '#ffb24a',
+  TXEMA: '#e0a878',
+  ROSA: '#9fc8ff',
+  PELLO: '#ff8a8a',
+  SALABERRI: '#c7d0dc',
+  'SALABERRI (RADIO)': '#c7d0dc',
+  'SALABERRI (MEGÁFONO)': '#c7d0dc',
+  'SALABERRI (GRABACIÓN)': '#c7d0dc',
+  'EL DIÁCONO': '#c99bff',
+  ACÓLITO: '#b48ad8',
+  ANSELMO: '#e8d7b0',
+  'DON JULIÁN': '#e6e6e6',
+  BENITO: '#d0c8b8',
+  NEKANE: '#ffd56a',
+  MARIPAZ: '#e8a0e0',
+  CHARO: '#a8e0d0',
+  ITXASO: '#a8d8a0',
+  JUANA: '#ffd59a',
+  MIKEL: '#c8d0e0',
 };
 
 function esc(s) {

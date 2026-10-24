@@ -650,10 +650,65 @@ ventanas se van encendiendo.
   tendederos en Midtown, escombros en El Puerto, palomares en el Barrio
   Chino; farolas y máquinas en los barrios de marcas que aún no existen).
 
-**Aún no** (es la ciudad para explorar, sin el acto I): no hay peatones ni
-tráfico, ni misiones de la PDC; las Anclas no se rompen jugando (se bajan desde el
-menú); no están las Encarnaciones del diseño, los secretos ni las zonas
-bloqueadas; no hay interiores, metro ni el Túnel del Puerto.
+**Aún no**: no hay peatones ni tráfico; solo el Distrito Cero tiene campaña
+(ver abajo); no están las Encarnaciones del resto de barrios, los secretos ni
+las zonas bloqueadas; no hay interiores, metro ni el Túnel del Puerto.
+
+## Campaña de la ciudad · Distrito Cero
+
+Al entrar en **Ibaia** empieza la campaña (también desde **Historia** cuando
+el prólogo está terminado). El plan de los diez barrios está en
+[`docs/PLAN_BARRIOS.md`](docs/PLAN_BARRIOS.md); el Distrito Cero es el primero
+jugable: **«Línea Cero»**, un thriller noir de espionaje.
+
+- **Cómo se juega.** Como en Spider-Man o GTA: la siguiente misión de la
+  historia siempre tiene su marcador dorado (★); las secundarias (blanco) se
+  ven a menos de ~380 m, con quien la da esperando en la calle; las
+  actividades (azul), a menos de ~260 m. Se empiezan con **E** en el
+  marcador. Arriba, el **control de la PDC** del barrio (100 % al llegar).
+- **Historia (10 misiones, ≈5 h).** Jon llega por la autovía, una cabina de
+  la plaza del Kilómetro Cero suena a su paso (la **Centralita**), defiende el
+  bar La Catenaria (desde entonces, **piso franco**: si cae fuera de una
+  misión, vuelve allí), registra cuatro pisos asaltados y deduce quién es el
+  chivato, toma la **torre de la PDC** (desde entonces se ven las
+  actividades), salta al techo de un tren del elevado para pinchar la línea
+  de Salaberri, se cuela en la misa acólita de San Roque (jefe: el Diácono),
+  sigue a Pello sin que le vea, decide en el Puente de Hierro si lo entrega o
+  le deja huir (la decisión se guarda para Los Bloques), conduce el tranvía
+  de la línea 0 recargando la catenaria y, al final, sobrecarga el Ancla de la
+  Subestación aguantando cuatro oleadas: cae la barrera de la Avenida de la
+  Fundición.
+- **Secundarias (10, ≈5 h).** Las siete letras del Cine Ascenso, el tranvía
+  fantasma, la fianza del sobrino de Txema (alcanzar un furgón en marcha), los
+  micrófonos del claustro (sigilo), escoltar al exdirector del Banco del Este,
+  reparar la red de cabinas, el cobrador acólito, las medicinas del mercado
+  (contrarreloj), fotografiar a los agentes de paisano (botón derecho para
+  apuntar, E para la foto) y la radio de la abuela de Jon.
+- **Actividades (6 tipos, 32 sitios, con medalla de bronce, plata u oro).**
+  Bases acólitas (tres rondas de oleadas), Línea 0 (el tranvía: dispara a las
+  cajas de empalme para recargarlo y rompe las barricadas de la vía),
+  cabinas de la Centralita (sigue el cable y carga las cajas en orden),
+  ojos de Salaberri (rompe cámaras sin que ninguna vea caer a otra),
+  carreras de tejados contra el fantasma de Pello y buzones muertos (una foto
+  en blanco y negro del sitio y ningún marcador).
+- **Sucesos.** Cada uno o dos minutos aparece uno cerca (marcador rojo):
+  una redada en un portal, un cortocircuito con saqueadores, un tranvía sin
+  frenos al que hay que robarle la carga y una cabina que suena con un
+  encargo contrarreloj.
+- **Control de la PDC.** La torre baja un 15 %, las secundarias un 35 %, las
+  actividades un 40 % (el primer sitio completado de cada una) y cinco sucesos
+  un 10 %. A 0 % el barrio queda **liberado**: sin patrullas de la PDC.
+- **Fallar.** Si Jon cae, le descubren o se acaba el tiempo, la misión se
+  repite desde su último punto de control, sin volver a cargar la ciudad. En
+  la pausa: **Reintentar** y **Abandonar la misión**. Las actividades se
+  terminan sin medalla.
+- **Menú de administración (F4) → Campaña**: control del barrio, jugar o dar
+  por hecha cualquier misión (viaja a su sitio), lanzar sucesos, reiniciar
+  la campaña o apagarla (para recorrer la ciudad sin misiones).
+
+Los diálogos son provisionales hasta que llegue el guion de la IA
+([`docs/guiones/01-cero.md`](docs/guiones/01-cero.md)): se sustituyen en
+`src/city/cero/*.js` sin tocar la lógica.
 
 ## Etapa 7 — Pulido
 

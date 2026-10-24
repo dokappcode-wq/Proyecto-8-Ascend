@@ -223,7 +223,7 @@ export class StealthGuard {
     this.speed = o.speed ?? 1.6;
     this.range = o.range ?? 13;
     this.fov = THREE.MathUtils.degToRad(o.fov ?? 38);
-    this.model = new CharacterModel({ variant: 'pdc' });
+    this.model = new CharacterModel({ variant: o.variant ?? 'pdc', palette: o.palette ?? null });
     ctx.group.add(this.model.root);
     const start = o.route[0];
     this.position = { x: start.x, y: o.y ?? this._ground(start.x, start.z, 50), z: start.z };

@@ -743,6 +743,68 @@ un edificio se omite. El mapa declara `factions: { pdc: 0 }` y
 controlan desde la administración (`adm-enemies`, `adm-pdc-calm`,
 `adm-pdc-hostile`).
 
+## Campaña de la ciudad
+
+**Director.** `city/CityDirector.js` extiende `StoryDirector` (del prólogo
+reutiliza subtítulos, cinemáticas, esperas cancelables, sigilo, marcadores,
+elecciones y saltar escenas) y cambia lo que es propio de un mundo abierto:
+no hay puntos de control lineales ni se vuelve a montar el mapa. Es
+`game.city`; `game.director` devuelve el que está activo (el prólogo o la
+ciudad) para los bloqueos de controles, la pausa y el salto de escenas. Se
+activa al cargar Ibaia (`debug.cityCampaign`, que las pruebas de la ciudad
+apagan).
+
+**Misiones.** Cada misión es un objeto `{ id, kind: 'story'|'side'|'act'|'event',
+title, after, where | spots | place, run(S, { step, inst, at, retry }) }`.
+`after` lista misiones necesarias (o `torre:cero`). `run` es un guion
+asíncrono con `CityScript` (ayudas del prólogo más `objective` con
+temporizador, `countdown`, `enemy` —siempre hostil, `forceHostile`—,
+`defeated`, `prop`, `markers`, `phone`, `fail`, `reach(step)`). Sin misión,
+el director pone los marcadores de lo disponible (la historia siempre; el
+resto por distancia), las interacciones para empezar con E, a quien da cada
+secundaria en la calle y, de vez en cuando, un suceso cerca de Jon.
+**Fallo**: se cancela el guion (`StoryAbort`), se retira lo que creó la
+misión (enemigos con etiqueta `mision`, accesorios con `dispose`, NPC,
+interacciones) y se vuelve a ejecutar desde `step`. Las actividades y los
+sucesos se terminan sin más.
+
+**Estado.** `city/CityState.js` (sin Three.js, probado): `save.data.city` con
+misiones hechas, misión en curso y su paso, decisiones (`flags`), torres,
+medallas por sitio de actividad, hallazgos y sucesos. `districtControl`
+calcula el control de la PDC (torre 15, secundarias 35, actividades 40,
+sucesos 10); a 0 % el barrio se marca liberado y `CityPopulation.liberated`
+deja de crear sus grupos de la PDC.
+
+**Calles.** `tools/ciudad/export_streets.py` saca la red de calles de un
+barrio (tramos cortados en los cruces, simplificados, con su ancho) a
+`city/data/streets-<barrio>.js`. `city/streets.js` (probado): punto de la
+calle o de la acera más cercano, rutas A* por las calles, rutas por varias
+paradas y paseos al azar. Todo lo de las misiones se coloca con esto
+(`kit.streetSpot` comprueba además que no haya edificio): enemigos que
+llegan por la calle, el tranvía, las carreras, las persecuciones y los
+sitios de las actividades (`spreadSpots`, con semilla: siempre los mismos).
+
+**Piezas.** `city/kit.js`: oleadas por las calles con correa, mantener una
+zona, seguir sin ser visto, carreras por aros (con fantasma), redes de
+cámaras que son guardias del sigilo, interacciones sobre algo que se mueve,
+fotos del sitio (render a un `WebGLRenderTarget` y blanco y negro) y modo
+foto. `city/props.js`: cabina, caja de empalme y barricada de vía (actores
+neutrales del combate: se rompen a disparos), cámara de vigilancia, aro,
+paquete, bloques con colisión, hoguera y `Vehicle`: un tranvía, tren o
+furgón que recorre una polilínea; Jon se sube al techo porque una caja de
+colisión le sigue bajo los pies y el vehículo le arrastra al moverse.
+
+**Distrito Cero.** `city/cero/`: `world.js` (lugares, reparto, sitios),
+`story.js`, `side.js`, `activities.js`, `events.js` e `index.js` (registro,
+cabinas fijas, piso franco). `city/campaign.js` registra los barrios.
+
+**Pruebas.** `tests/unit/citycampaign.test.js` (calles, estado, control,
+medallas) y `tests/e2e/campaignSolver.js`, un jugador automático que hace
+lo que pide cada misión (ir al marcador, E, elegir, neutralizar, subir a los
+vehículos, pasar aros, cargar cajas en orden, seguir a alguien) sin tocar
+su resultado; la prueba de la campaña lo usa para jugar la historia, las
+secundarias y las actividades enteras.
+
 ## Balanceo con hilo (reescrito)
 
 Piezas, sin Three.js salvo el sistema del Hilo:

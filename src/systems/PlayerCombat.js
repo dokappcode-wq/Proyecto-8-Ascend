@@ -137,10 +137,11 @@ export class PlayerCombat {
       g.player.model.root.rotation.x = -Math.min(1, this._deadTime * 2.5) * (Math.PI / 2) * 0.95;
       if (this._deadTime >= PLAYER_COMBAT.respawnTime) {
         // En la historia se vuelve al último punto de control
-        if (g.story?.active) {
+        const dir = g.story?.active ? g.story : g.city?.active ? g.city : null;
+        if (dir) {
           if (!this._storyNotified) {
             this._storyNotified = true;
-            g.story.onPlayerDied();
+            dir.onPlayerDied();
           }
         } else this.respawn();
       }
