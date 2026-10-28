@@ -17,6 +17,8 @@
   --amber: #ffb547;        /* los velos de la Defensa */
   --gold: #f2c45a;         /* el Destino */
   --blood: #e0405a;        /* la Marca de Sangre y la PDC */
+  --ok: #8ad48a;
+  --paper: #d6cfe8;        /* fondo claro para la prueba de siluetas */
   --display: 'Pixelify Sans', 'Courier New', monospace;
   --body: 'Alegreya', Georgia, 'Times New Roman', serif;
   --measure: 66ch;
@@ -75,7 +77,7 @@ figcaption { font-size: 14px; color: var(--soft); }
 /* Personajes */
 .cast { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
 .person { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 12px; align-items: start; }
-.person canvas { width: 72px; height: 84px; background: var(--slab-2); }
+.person canvas { width: 72px; height: 96px; background: var(--slab-2); }
 .person h3 { font-size: 20px; }
 .person .role { font: 500 13px var(--display); letter-spacing: .08em; color: var(--soft); text-transform: uppercase; }
 .person p { font-size: 15px; margin-top: 4px; }
@@ -100,7 +102,7 @@ figcaption { font-size: 14px; color: var(--soft); }
 /* Movimientos */
 .moves { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .move { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
-.move canvas { width: 96px; height: 112px; align-self: center; }
+.move canvas { width: 112px; height: 136px; align-self: center; }
 .move b { font-family: var(--display); font-weight: 600; font-size: 17px; }
 .move span { font-size: 14px; color: var(--soft); line-height: 1.35; }
 /* Mundo */
@@ -116,7 +118,7 @@ figcaption { font-size: 14px; color: var(--soft); }
 /* Enemigos */
 .foes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
 .foe { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 10px; align-items: start; }
-.foe canvas { width: 64px; height: 75px; background: var(--slab-2); }
+.foe canvas { width: 64px; height: 85px; background: var(--slab-2); }
 .foe b { font-family: var(--display); font-weight: 600; font-size: 17px; }
 .foe p { font-size: 14px; color: var(--soft); line-height: 1.4; }
 /* Paleta */
@@ -131,6 +133,38 @@ figcaption { font-size: 14px; color: var(--soft); }
 .insp .meta { font: 500 13px var(--display); letter-spacing: .06em; color: var(--soft); }
 .insp p { font-size: 15.5px; margin: 0; }
 .insp p b { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); margin-right: 4px; }
+/* Dirección de arte */
+.pillars { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.pillar { background: var(--slab); border-top: 4px solid var(--gold); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pillar b { font: 600 18px var(--display); }
+.pillar p { font-size: 15px; margin: 0; color: var(--soft); }
+.lineup { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.who { background: var(--slab); padding: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.who canvas { width: 128px; height: 160px; align-self: center; background: var(--slab-2); }
+.lineup.sil .who canvas { background: var(--paper); }
+.who b { font: 600 17px var(--display); }
+.who .shape { font: 500 12px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--amber); }
+.who span { font-size: 14px; color: var(--soft); line-height: 1.35; }
+.toggle { align-self: flex-start; font: 600 14px var(--display); letter-spacing: .06em; color: var(--ink); background: var(--amber); border: 0; padding: 8px 14px; cursor: pointer; box-shadow: 3px 3px 0 #8a5a24; }
+.toggle:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+.strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; max-width: 640px; }
+.strip figure { margin: 0; display: flex; flex-direction: column; gap: 4px; align-items: center; font: 500 12px var(--display); color: var(--soft); text-align: center; }
+.strip canvas { width: 100%; height: auto; aspect-ratio: 24 / 32; background: var(--slab); }
+.stage canvas { width: 100%; height: auto; aspect-ratio: 192 / 64; background: #1a1838; }
+.dodont { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.pair { background: var(--slab); padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pair .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pair figure { margin: 0; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.pair canvas { width: 100%; height: auto; aspect-ratio: 1; }
+.pair figcaption { font: 600 13px var(--display); letter-spacing: .08em; }
+.pair .yes { color: var(--ok); }
+.pair .no { color: var(--blood); }
+.pair b { font: 600 16px var(--display); }
+.pair p { font-size: 14.5px; margin: 0; color: var(--soft); }
+.ramps { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ramp { display: flex; flex-direction: column; gap: 4px; font: 500 13px var(--display); color: var(--soft); }
+.ramp i { display: flex; height: 30px; }
+.ramp i s { flex: 1; text-decoration: none; }
 ol.plain, ul.plain { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; max-width: 80ch; font-size: 17px; }
 footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; color: var(--soft); display: flex; flex-direction: column; gap: 6px; }
 @media (max-width: 860px) {
@@ -152,7 +186,7 @@ footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; 
   <div class="px"><canvas id="hero" width="320" height="140" aria-label="Escena animada: Jon corre y salta por los tejados de Ibaia, con los velos ámbar de la Defensa y la Torre al fondo"></canvas></div>
   <div class="facts"><span><b>11</b>marcas</span><span><b>10</b>barrios</span><span><b>5</b>capítulos de prólogo</span><span><b>1</b>torre</span></div>
   <nav class="toc" aria-label="Secciones">
-    <a href="#mundo">El mundo</a><a href="#reglas">Las marcas</a><a href="#absorcion">Absorción</a><a href="#historia">Historia</a><a href="#personajes">Personajes</a><a href="#marcas">Las once marcas</a><a href="#parkour">Parkour</a><a href="#ibaia">Ibaia</a><a href="#enemigos">Enemigos</a><a href="#juego">Cómo se juega</a><a href="#pixel">Pixel art</a><a href="#pendiente">Pendiente</a><a href="#inspiracion">Inspiración</a>
+    <a href="#mundo">El mundo</a><a href="#reglas">Las marcas</a><a href="#absorcion">Absorción</a><a href="#historia">Historia</a><a href="#personajes">Personajes</a><a href="#marcas">Las once marcas</a><a href="#parkour">Parkour</a><a href="#ibaia">Ibaia</a><a href="#enemigos">Enemigos</a><a href="#juego">Cómo se juega</a><a href="#pixel">Pixel art</a><a href="#arte">Dirección de arte</a><a href="#pendiente">Pendiente</a><a href="#inspiracion">Inspiración</a>
   </nav>
 </header>
 
@@ -267,7 +301,7 @@ footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; 
   <div class="tablewrap px"><table>
     <thead><tr><th>Medida</th><th>Valor de partida</th><th>Por qué</th></tr></thead>
     <tbody>
-      <tr><td><b>Casilla</b></td><td>16 × 16 px; Jon mide 1 × 1,5 casillas</td><td>Resolución interna 384 × 216 (escala ×5 a 1080p)</td></tr>
+      <tr><td><b>Casilla</b></td><td>16 × 16 px; Jon mide 12 × 27 px (casi 1 × 2 casillas)</td><td>Resolución interna 384 × 216 (escala ×5 a 1080p)</td></tr>
       <tr><td><b>Carrera</b></td><td>8 casillas/s; sprint, 11</td><td>Cruzar una pantalla en dos segundos</td></tr>
       <tr><td><b>Salto</b></td><td>3,5 casillas de alto y 5 de largo (variable si se suelta)</td><td>Un piso de la ciudad por salto</td></tr>
       <tr><td><b>Tiempo de gracia</b></td><td>0,1 s tras salir del borde; salto guardado 0,12 s</td><td>Perdona los saltos tarde y las pulsaciones pronto</td></tr>
@@ -341,7 +375,7 @@ footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; 
     <h2>Reglas de dibujo</h2>
   </div>
   <ul class="plain">
-    <li><b>Resolución interna</b> 384 × 216, casillas de 16 px. Personajes de 16 × 24 px; Encarnaciones y jefes, hasta 32 × 40.</li>
+    <li><b>Resolución interna</b> 384 × 216, casillas de 16 px. Personajes en sprites de 24 × 32 px; Encarnaciones y jefes, hasta 48 × 48. Los detalles, en la sección 12.</li>
     <li><b>La marca siempre se ve.</b> Uno a tres píxeles de luz en el brazo del color de la marca; al usar un poder fuerte, la luz sube hasta el hombro y salen partículas de ese color.</li>
     <li><b>El Destino</b> es el único dorado del juego: muñeca izquierda de Jon, naipes, el título. Nada más usa ese color.</li>
     <li><b>Los velos</b> son el único ámbar: muros de hexágonos de 4 px que parpadean. Se ven desde cualquier barrio.</li>
@@ -351,9 +385,49 @@ footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; 
   <div class="swatches" id="swatches"></div>
 </section>
 
+<section id="arte">
+  <div class="intro">
+    <span class="eyebrow">12 · Dirección de arte</span>
+    <h2>Personajes con carácter</h2>
+  </div>
+  <p>Cada personaje se reconoce por su silueta, se mueve según quién es y cumple las mismas reglas de luz, color y contorno. Las cabezas y los torsos se dibujan a mano, píxel a píxel; brazos y piernas van sobre un esqueleto sencillo, así todos comparten los ciclos de carrera y salto sin perder su estilo. Los personajes de la portada, del reparto, del parkour y de los enemigos salen de este mismo sistema.</p>
+  <div class="pillars">
+    <div class="pillar"><b>Se reconoce por la silueta</b><p>Pelo revuelto y bufanda (Jon), gorro con borla (Iker), capa y hombros cuadrados (Narbaiza), moño y gafas (Edurne), capucha rota (El Desconocido), casco de cubo (Paladín), capucha en punta (Acólito). Si en negro no se distinguen, el diseño no está terminado.</p></div>
+    <div class="pillar"><b>Cada bando, una forma</b><p>La gente y la resistencia son redondas, con ropa gastada en tonos de tierra. La PDC es rectangular: metal y azul marino. Los Acólitos son triángulos y picos. Cada Encarnación toma la forma de su marca.</p></div>
+    <div class="pillar"><b>Solo las marcas brillan</b><p>La ropa siempre es apagada. Los únicos colores saturados son las marcas, los velos y las luces de la PDC; así se ve de un vistazo quién tiene poder y cuál.</p></div>
+    <div class="pillar"><b>Nadie está quieto</b><p>Todos respiran, parpadean y tienen un gesto propio. El reposo cuenta quién es cada uno antes que el diálogo.</p></div>
+  </div>
+  <h3>El reparto, en reposo</h3>
+  <p>Cada uno respira, parpadea y tiene un gesto que le define. El botón deja solo las siluetas: así se comprueba que se distinguen sin color.</p>
+  <button class="toggle" id="silBtn" type="button" aria-pressed="false">Ver siluetas</button>
+  <div class="lineup" id="lineup"></div>
+  <h3>Jon, fotograma a fotograma</h3>
+  <p>Carrera de seis fotogramas a 80 ms cada uno. Debajo, la secuencia completa: correr, agacharse, saltar el hueco, aterrizar, hacer el dash y pararse a respirar.</p>
+  <div class="strip" id="strip"></div>
+  <figure class="stage px"><canvas id="stage" width="192" height="64" aria-label="Jon corre por un tejado, se agacha, salta un hueco, aterriza, hace un dash con estela azul y se para a respirar"></canvas></figure>
+  <div class="tablewrap px"><table>
+    <thead><tr><th>Animación</th><th>Fotogramas</th><th>Ritmo</th><th>Qué enseña</th></tr></thead>
+    <tbody>
+      <tr><td><b>Reposo</b></td><td>2 + parpadeo</td><td>900 ms por respiración</td><td>Personalidad: cada uno tiene su gesto</td></tr>
+      <tr><td><b>Correr</b></td><td>6</td><td>80 ms</td><td>Arcos: los pies dibujan una elipse y el cuerpo sube 1 px en el paso</td></tr>
+      <tr><td><b>Anticipación</b></td><td>1</td><td>50–100 ms</td><td>Se agacha antes de saltar: el salto se lee como fuerza</td></tr>
+      <tr><td><b>Salto, cima y caída</b></td><td>3</td><td>Según la velocidad vertical</td><td>La bufanda va por detrás del cuerpo (acción secundaria)</td></tr>
+      <tr><td><b>Aterrizaje</b></td><td>1</td><td>100 ms</td><td>Aplastamiento: la cadera baja 2 px y se recupera</td></tr>
+      <tr><td><b>Dash</b></td><td>1 + 3 estelas</td><td>150 ms</td><td>Estela azul de la Energía en lugar de difuminado</td></tr>
+      <tr><td><b>Pared, cornisa, valla, deslizar, rodar</b></td><td>1–3 cada uno</td><td>Mientras dure</td><td>Nunca se corta el impulso</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Reglas de consistencia</h3>
+  <p>Lo que hace que todo parezca del mismo juego. A la izquierda, cómo se hace; a la derecha, el error que se evita.</p>
+  <div class="dodont" id="dodont"></div>
+  <h3>Rampas de material</h3>
+  <p>Tres tonos por material más el contorno. Las sombras se mezclan hacia el violeta de la tinta y las luces hacia un blanco cálido, nunca hacia el negro o el blanco puros. El contorno es el tono más oscuro del material que toca.</p>
+  <div class="ramps" id="ramps"></div>
+</section>
+
 <section id="pendiente">
   <div class="intro">
-    <span class="eyebrow">12 · Decidido y por decidir</span>
+    <span class="eyebrow">13 · Decidido y por decidir</span>
     <h2>Lo cerrado y lo que queda</h2>
   </div>
   <h3>Decidido</h3>
@@ -372,7 +446,7 @@ footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; 
 
 <section id="inspiracion">
   <div class="intro">
-    <span class="eyebrow">13 · Inspiración</span>
+    <span class="eyebrow">14 · Inspiración</span>
     <h2>Diez juegos de los que aprender</h2>
     <p>No para copiarlos, sino para tomar de cada uno una idea concreta: el tacto del salto, la estructura del mundo, la forma de copiar poderes, el tono.</p>
   </div>
@@ -624,7 +698,380 @@ function figure(c, fx, fy, spec, poseName = 'idle', face = 1) {
 }
 
 // Jon (protagonista)
-const JON = { skin: '#c99a7c', hair: '#2a1d14', hairStyle: 'messy', jacket: '#26304a', pants: '#2b2f3a', boots: '#e6e2da', marks: ['#f2c45a'] };
+const JON = { skin: '#e3ab84', hair: '#3b2a22', hairStyle: 'messy', jacket: '#7a4f36', pants: '#3c3e4e', boots: '#e6e0d2', marks: ['#f2c45a'] };
+
+// ------------------------------------------------------------------ Sprites: estilo definitivo
+// Cabeza y torso dibujados a mano (mapas de letras + paleta); brazos y piernas por
+// cinemática inversa; contorno automático del color del material, tirando a violeta.
+function hex2(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function rgb2hex(r, g, b) { return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join(''); }
+function mix(a, b, t) { const A = hex2(a), B = hex2(b); return rgb2hex(A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t); }
+const INK = '#140d1f';
+function outline(g, strength = 0.74, fixed = null) {
+  const h = g.length, w = g[0].length, o = g.map((r) => r.slice());
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (g[y][x]) continue;
+    const n = [[0, 1], [0, -1], [1, 0], [-1, 0]].map(([a, b]) => g[y + b]?.[x + a]).find(Boolean);
+    if (n) o[y][x] = fixed ?? mix(n, INK, strength);
+  }
+  return o;
+}
+function blit(c, g, x, y, flip = false, alpha = 1) {
+  const w = g[0].length;
+  c.globalAlpha = alpha;
+  for (let j = 0; j < g.length; j++) for (let i = 0; i < w; i++) {
+    const col = g[j][i];
+    if (!col) continue;
+    c.fillStyle = col;
+    c.fillRect(x + (flip ? w - 1 - i : i), y + j, 1, 1);
+  }
+  c.globalAlpha = 1;
+}
+const tint = (g, col, k = 0.75) => g.map((r) => r.map((c) => c && mix(c, col, k)));
+
+// Esqueleto: cabeza y torso a mano, extremidades por cinemática inversa
+function gset(g,x,y,col){x=Math.round(x);y=Math.round(y);if(g[y]&&x>=0&&x<g[0].length)g[y][x]=col;}
+function gline(g,x0,y0,x1,y1,col,w=1){
+  x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);
+  const dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let err=dx+dy;
+  const o=Math.floor((w-1)/2);
+  for(let i=0;i<200;i++){for(let a=0;a<w;a++)for(let b=0;b<w;b++)gset(g,x0-o+a,y0-o+b,col);
+    if(x0===x1&&y0===y1)break;const e2=2*err;if(e2>=dy){err+=dy;x0+=sx;}if(e2<=dx){err+=dx;y0+=sy;}}
+}
+function ik(hx,hy,fx,fy,L1,L2,bendSign){
+  let dx=fx-hx,dy=fy-hy,d=Math.hypot(dx,dy);const max=L1+L2-0.01;
+  if(d>max){fx=hx+dx/d*max;fy=hy+dy/d*max;dx=fx-hx;dy=fy-hy;d=max;}
+  if(d<0.01)return [hx,hy+L1,fx,fy];
+  const a=(L1*L1-L2*L2+d*d)/(2*d),h=Math.sqrt(Math.max(0,L1*L1-a*a));
+  const px=hx+a*dx/d,py=hy+a*dy/d;const nx=-dy/d,ny=dx/d;
+  let kx=px+nx*h,ky=py+ny*h,k2x=px-nx*h,k2y=py-ny*h;
+  if((k2x-kx)*bendSign>0){kx=k2x;ky=k2y;}
+  return [kx,ky,fx,fy];
+}
+function pad(rows,w=24){return rows.map(r=>r.padEnd(w,'.'));}
+// pose: { bob, lean, headDx, headDy, legF, legB (pies desde la cadera), armF, armB (manos desde el hombro), blink, air }
+function drawChar(ch,pose={},raw=false,w=24,h=32){
+  const P=ch.pal,g=Array.from({length:h},()=>Array(w).fill(null));
+  const bob=pose.bob||0,lean=pose.lean||0;
+  const put=(map,dx,dy,swap)=>map.forEach((row,y)=>{for(let x=0;x<row.length;x++){let c=row[x];if(c==='.')continue;if(swap&&swap[c])c=swap[c];const col=P[c];if(col)gset(g,dx+x,dy+y,col);}});
+  // Detrás: bufanda, capa
+  if(ch.scarf&&pose.scarf){const s=ch.scarf;let [x,y]=[s.at[0]+lean,s.at[1]+bob];
+    pose.scarf.forEach(([dx,dy],k)=>{const nx=x+dx,ny=y+dy;gline(g,x,y,nx,ny,P[k%2?s.c2:s.c],k<2?2:1);x=nx;y=ny;});}
+  if(ch.back)ch.back(g,P,pose,lean,bob);
+  const limb=(L,root,target,bend,cfg,front)=>{const [kx,ky,fx,fy]=ik(root[0],root[1],root[0]+target[0],root[1]+target[1],L[0],L[1],bend);
+    const col=P[front?cfg.c:cfg.cb];gline(g,root[0],root[1],kx,ky,col,cfg.w);gline(g,kx,ky,fx,fy,col,cfg.w);
+    if(front&&cfg.edge){gline(g,root[0]+1,root[1],kx+1,ky,P[cfg.edge],1);gline(g,kx+1,ky,fx+1,fy,P[cfg.edge],1);}return [kx,ky,fx,fy];};
+  const L=ch.leg,A=ch.arm,f=pose.face||1;
+  const hipB=[ch.hipB[0]+lean,ch.hipB[1]+bob],hipF=[ch.hipF[0]+lean,ch.hipF[1]+bob];
+  const shB=[ch.shB[0]+lean,ch.shB[1]+bob],shF=[ch.shF[0]+lean,ch.shF[1]+bob];
+  // brazo trasero
+  if(A&&!pose.noArmB){const r=limb(A.len,shB,pose.armB||[-1,6],-1,A,false);gline(g,r[2],r[3],r[2]+1,r[3],P[A.handB||A.hand],2);}
+  // pierna trasera
+  const ft=(v)=>pose.air?v:[v[0],v[1]-bob];
+  const legF=()=>{const r=limb(L.len,hipF,ft(pose.legF||[1,7]),1,L,true);shoe(g,P,L,r[2],r[3],true,pose.toeF);};
+  if(L){const r=limb(L.len,hipB,ft(pose.legB||[-1,7]),1,L,false);shoe(g,P,L,r[2],r[3],false,pose.toeB);}
+  if(L&&ch.legsUnder)legF();
+  put(pad(ch.torso),lean,ch.torsoY+bob,pose.torsoSwap);
+  if(L&&!ch.legsUnder)legF();
+  put(pad(ch.head),lean+(pose.headDx||0),ch.headY+bob+(pose.headDy||0),pose.blink?ch.blink:pose.headSwap);
+  if(ch.front)ch.front(g,P,pose,lean,bob);
+  if(A&&!pose.noArmF){const r=limb(A.len,shF,pose.armF||[1,6],-1,A,true);
+    gline(g,r[2],r[3],r[2]+1,r[3],P[A.hand],2);
+    if(A.mark){const t=0.7;gline(g,r[0]+(r[2]-r[0])*t,r[1]+(r[3]-r[1])*t,r[0]+(r[2]-r[0])*t+1,r[1]+(r[3]-r[1])*t,P[A.mark],1);}}
+  if(pose.fx)pose.fx(g,P,lean,bob);
+  return raw?g:outline(g);
+}
+function shoe(g,P,L,x,y,front,toe){if(!L.shoe)return;const s=front?L.shoe:L.shoeB||L.shoe;
+  if(toe){gline(g,x,y,x+1,y+1,P[s],2);return;}
+  gline(g,x-1,y,x+2,y,P[s],1);gline(g,x-1,y+1,x+3,y+1,P[L.sole||s],1);}
+
+const CH={};
+CH.jon={pal:{h:'#3b2a22',H:'#251a16',i:'#5e4436',s:'#e3ab84',S:'#b97c5e',e:'#1d1622',w:'#ece2cc',W:'#bfae94',j:'#7a4f36',J:'#553524',k:'#9c6c4a',c:'#b8573c',C:'#87392a',d:'#dc7b5c',p:'#3c3e4e',P:'#282a36',b:'#e6e0d2',B:'#a8a196',m:'#f2c45a',M:'#fff1b8'},
+ headY:4,head:[
+"...........h..h",
+".........hhhhhhh.h",
+"........hhhiihhhhh",
+".......hhhiihhhhhhh",
+"......hhhhhhhhhhhhsh",
+".......hhhSsssssHss",
+"........hSssssssess",
+"........hhSssssssss",
+".........hSSssssSs",
+"..........hSSSsss"],
+ torsoY:14,torso:[
+".........ccccdddc",
+"........CccccccdcJ",
+"..........JjjjjwwJ",
+"..........JjjjjwwJ",
+"..........JjjjjwwJ",
+"..........JjjjjwWJ",
+"..........JjjjJJJJ",
+"..........PppppppP"],
+ blink:{e:'S'},hipB:[12,22],hipF:[15,22],shB:[11,16],shF:[13,16],
+ leg:{len:[4,4],w:3,c:'p',cb:'P',edge:'P',shoe:'b',shoeB:'B',sole:'B'},
+ arm:{len:[3,3],w:2,c:'k',cb:'J',hand:'s',handB:'S',mark:'m'},
+ scarf:{at:[10,15],c:'c',c2:'C'}};
+CH.iker={pal:{g:'#3d6b66',G:'#284845',y:'#d8cdb0',h:'#2a1d16',s:'#c99172',S:'#9c6a50',e:'#1d1622',r:'#7a3f36',o:'#6b7a45',O:'#4a5530',q:'#8a9a5c',p:'#4a5a78',P:'#33405a',b:'#6f8090',B:'#3e4a58'},
+ headY:3,head:[
+"..........yy",
+".........gyyg",
+"........gggggggg",
+".......gGgggggggg",
+".......GGGGGGGGGG",
+".......hSssssssss",
+".......hSssssssess",
+"........Sssssssss",
+"........Sssssrrss",
+".........SSssss"],
+ torsoY:13,torso:[
+".......OOoSSsS",
+"......OOooooqyooO",
+".......OoooqoyooO",
+"........OoooqooooO",
+"........OooqqooooO",
+"........OoOOOOOOoO",
+"........OoooooooOO",
+"........PppppppppP"],
+ blink:{e:'S'},hipB:[11,21],hipF:[15,21],shB:[10,15],shF:[13,15],
+ leg:{len:[4,4],w:3,c:'p',cb:'P',edge:'P',shoe:'b',shoeB:'B',sole:'B'},
+ arm:{len:[3,3],w:2,c:'q',cb:'O',hand:'s',handB:'S'}};
+CH.narbaiza={pal:{h:'#16121a',i:'#34303c',s:'#c49a80',S:'#94705c',e:'#0c0a10',x:'#241c22',k:'#26262e',K:'#16161c',l:'#3a3a46',a:'#9a9aa8',c:'#1a1a22',C:'#6a0e20',m:'#d1162b',M:'#ff5a6a',p:'#1a1a20',P:'#101016',b:'#0e0e12',B:'#30303a'},
+ headY:1,head:[
+"........iiihhh",
+".......hiiihhhhh",
+"......hhhhhhhhhhh",
+"......hhhSsssssss",
+"......hhSsssssxxs",
+"......hhSssssssess",
+".......hSsssssssss",
+".......xxxxxxxxxs",
+"........xxxxxxxx",
+".........xxxxx"],
+ torsoY:11,torso:[
+".......KkkkkkkK",
+".....KkkkkkkkkkkkK",
+".....KkllkkkkakkkK",
+".....KkllkkkkkkkkK",
+".....KkllkkkkakkkK",
+".....KkllkkkkkkkkK",
+".....KkllkkkkakkkK",
+".....KKKKKKKKKKKKK",
+"......KkkkkkkkkkK",
+"......KkkkkkkkkkK",
+"......KkkkkKkkkkK"],
+ blink:{e:'S'},hipB:[10,21],hipF:[14,21],shB:[8,13],shF:[12,13],legsUnder:true,
+ leg:{len:[4,5],w:3,c:'p',cb:'P',shoe:'b',shoeB:'b',sole:'B'},
+ arm:{len:[4,3],w:2,c:'l',cb:'K',hand:'S',handB:'S'},
+ back(g,P,pose,lean,bob){const sw=pose.cape||0;for(let y=12;y<28;y++){const t=(y-12)/16;const x0=Math.round(5-t*2+lean-sw*t);gline(g,x0,y+bob,x0+3,y+bob,P[y>25?'C':'c'],1);gset(g,x0,y+bob,P.C);}}};
+CH.edurne={pal:{h:'#5a4a3a',H:'#3e3228',i:'#9a8a78',s:'#d9a98a',S:'#a97c62',e:'#1d1622',g:'#2a2230',w:'#dff0f6',a:'#b88a4a',A:'#7a5a2e',k:'#9a9482',K:'#6e6a5c',l:'#bab4a0',t:'#3f6464',p:'#3a3440',P:'#28242e',b:'#4a3428',B:'#2e2018'},
+ headY:4,head:[
+"......hih",
+"......hhhhhhhhh",
+".......hhhhhhhhhh",
+"........hhSsssssh",
+"........haSssawas",
+"........hASssaeas",
+"........hASsssssS",
+".........aSSsSSs",
+"..........aSSs"],
+ torsoY:13,torso:[
+"........aKkkttkK",
+".......KkkkkttkkK",
+".......KlkkkttkkK",
+".......KlkkkttkkK",
+".......KlkkkkkkkK",
+".......KlkkkkkkkK",
+".......KlkkkkkkkK",
+".......KlkkkkkkkkK",
+"......KlkkkkkKkkkK",
+"......KKkkkkkKkkkK",
+"......KKKKKKKKKKKK"],
+ blink:{e:'g'},hipB:[11,21],hipF:[14,21],shB:[9,15],shF:[12,15],legsUnder:true,
+ leg:{len:[4,4],w:3,c:'p',cb:'P',shoe:'b',shoeB:'b',sole:'B'},
+ arm:{len:[3,3],w:2,c:'l',cb:'K',hand:'s',handB:'S'}};
+CH.desconocido={pal:{o:'#3a4252',O:'#262c38',q:'#4e586a',x:'#17171c',h:'#2b201a',s:'#b07a5c',S:'#84583f',e:'#9fd0ff',m:'#2f8bff',M:'#9fd0ff',p:'#2a2a30',P:'#1c1c22',b:'#3a2c22',B:'#231a14'},
+ headY:4,head:[
+".........OOOO",
+"........OooooqO",
+".......OooqqqqoO",
+".......OoOhhhhhoO",
+".......OoOhSsssss",
+".......OoOSsssses",
+".......OoOSssssss",
+"........OoOSSsSS",
+"........OxoOSS"],
+ torsoY:13,torso:[
+".......OoooomooO",
+"......OoqooooooO",
+"......OoqoooxooO",
+"......OoqooooooOm",
+"......OoqooooooO",
+"......OoqooxoooO",
+".....OoqoooooooO",
+".....OoqoooooooO",
+".....OxOoOoxOoOO",
+"......O..x..O..O"],
+ blink:{e:'S'},hipB:[11,21],hipF:[14,21],shB:[9,15],shF:[12,15],legsUnder:true,
+ leg:{len:[4,4],w:3,c:'p',cb:'P',shoe:'b',shoeB:'b',sole:'B'},
+ arm:{len:[3,3],w:2,c:'q',cb:'O',hand:'s',handB:'S',mark:'M'}};
+CH.paladin={pal:{a:'#8c96a8',A:'#5c6578',l:'#c8d0e0',v:'#3ac8ff',V:'#bff0ff',n:'#1f2a44',N:'#141c30',u:'#2f8bff',p:'#1a1f2e',P:'#10141e',b:'#2a2e38',B:'#181a22',k:'#3a4256'},
+ headY:4,head:[
+".........AAAAA",
+"........AlaaaaA",
+"........Alaaaaa",
+"........AaaVvvv",
+"........Aaaaaaa",
+"........AAaaaaA",
+".........AAAAA"],
+ torsoY:11,torso:[
+"......AAlaAAAaAA",
+"......AlaaAnnAaaA",
+".......AAnnunnAA",
+"........NnnunnN",
+"........NnnunnN",
+"........NnnunnN",
+"........AAAAAAA",
+"........NnnunnN",
+"........NnnunnN",
+"........NnnunnN"],
+ blink:null,hipB:[10,21],hipF:[13,21],shB:[8,13],shF:[13,13],legsUnder:true,
+ leg:{len:[4,4],w:3,c:'p',cb:'P',shoe:'b',shoeB:'b',sole:'B'},
+ arm:{len:[3,3],w:2,c:'a',cb:'A',hand:'A',handB:'A'},
+ front(g,P,pose,lean,bob){const x=15+lean,y=12+bob+(pose.shieldDy||0);for(let j=0;j<11;j++)gline(g,x,y+j,x+3,y+j,P[j===0||j===10?'A':'a'],1);
+   gline(g,x,y,x,y+10,P.l,1);gline(g,x+2,y+3,x+2,y+6,P.u,1);gline(g,x+1,y+4,x+3,y+4,P.u,1);}};
+CH.acolito={pal:{r:'#3a2350',R:'#24153a',q:'#55357a',x:'#0e0816',e:'#e6b0ff',E:'#a24dff',m:'#a24dff',n:'#d1162b',c:'#c8b8d8'},
+ headY:2,head:[
+"........R",
+"........RR",
+"........Rrr",
+"........Rrrr",
+"........Rrrrrr",
+"........Rrrrrrr",
+"........RrrxxxxR",
+"........RrxxxeeR",
+"........RrxxxxxR",
+"........RrrxxxR"],
+ torsoY:12,torso:[
+".......RrrrrrrrR",
+".......RrqrrrrrrR",
+"......RrrqrrmrrrR",
+"......RrrqrrrrrrR",
+"......RrrqrrrrrrrR",
+".....RrrrqrrrrrrrR",
+".....RrrrqrrrrrrrR",
+".....RrrrqrrrrrrrrR",
+"....RrrrrqrrrrrrrrR",
+"....RrrrrqrrrrrrrrR",
+"....RrrrrqrrrrrrrrrR",
+"...RrrrrrqrrrrrrrrrR",
+"...RrrrrrrrrrrrrrrrR",
+"...RRrRRrRRrRRrRRrR",
+"....R..R..R..R..R"],
+ blink:{e:'x'},hipB:[11,22],hipF:[14,22],shB:[9,14],shF:[13,14],
+ leg:null,
+ arm:{len:[3,4],w:2,c:'q',cb:'R',hand:'c',handB:'c'}};
+const ORDER=['jon','iker','narbaiza','edurne','desconocido','paladin','acolito'];
+// Plantilla para el resto del reparto: misma cabeza, mismo torso, mismas reglas de luz
+const SHADOW='#2a1840',LIGHT='#fff1d0';
+const dk=(c)=>mix(c,SHADOW,0.38),lt=(c)=>mix(c,LIGHT,0.2);
+function hexify(c){if(c.startsWith('#'))return c;const m=c.match(/\d+/g);return rgb2hex(+m[0],+m[1],+m[2]);}
+const HAIR={
+ short:["","..........hhhhhh","........hhhhhhhhh",".......hhhhhhhhhhh","......hhhhhhhhhhhss"],
+ buzz:["","","..........hhhhhh","........hhhhhhhhhh",".......hhhhhhhhhss"],
+ slick:["","..........iihhhh","........hiiihhhhh",".......hhhhhhhhhhh","......hhhhhhhhhhhss"],
+ messy:["...........h..h",".........hhhhhhh.h","........hhhiihhhhh",".......hhhiihhhhhhh","......hhhhhhhhhhhhsh"],
+ bun:["......hh",".....hhhhhhhhhh","........hhhhhhhhh",".......hhhhhhhhhhh","......hhhhhhhhhhhss"],
+ long:["","..........hhhhhh","........hhhhhhhhh",".......hhhhhhhhhhh","......hhhhhhhhhhhss"],
+};
+function template(spec){
+  const hs=spec.hairStyle||'short';
+  const face=[
+   ".......hhhSssssssss",
+   "........hSssssssess",
+   "........hhSssssssss",
+   ".........hSSssssSs",
+   "..........hSSSsss"];
+  let head=[...HAIR[hs],...face];
+  if(hs==='buzz')head=head.map((r,i)=>i>=5?r.replace(/h/g,'.').replace(/^\.{8}\./,'.........'):r).map((r,i)=>i===5?'........SSssssssss':i===6?'........SSsssssess':r);
+  if(hs==='long')head=head.map((r,i)=>i>=5&&i<9?'......hh'+r.slice(8):r).concat(['......hh','.......h']);
+  if(spec.beard)head=head.map((r,i)=>i===8?'.........hhhhhhhs':i===9?'..........hhhhh':r);
+  const j=hexify(spec.jacket),pa=hexify(spec.pants),bo=hexify(spec.boots),sk=hexify(spec.skin),ha=hexify(spec.hair);
+  const pal={h:ha,i:lt(lt(ha)),s:sk,S:dk(sk),e:'#1d1622',j,J:dk(j),k:lt(j),p:pa,P:dk(pa),b:bo,B:dk(bo),m:spec.marks?.[0]||sk,c:dk(hexify(spec.cape||spec.jacket)),C:hexify(spec.cape||spec.jacket)};
+  const ch={pal,headY:4,head,torsoY:14,torso:[
+   ".........jjjjjj",
+   "........JjjjjjkjJ",
+   "........JjjjjjjjJ",
+   "........JjjjjjjjJ",
+   "........JjjjjjjjJ",
+   "........JjjjjjjjJ",
+   "........JJJJJJJJJ",
+   "........PppppppP"],
+   blink:{e:'S'},hipB:[10,22],hipF:[14,22],shB:[9,16],shF:[12,16],
+   leg:{len:[4,4],w:3,c:'p',cb:'P',edge:'P',shoe:'b',shoeB:'B',sole:'B'},
+   arm:{len:[3,3],w:2,c:'k',cb:'J',hand:'s',handB:'S',mark:spec.marks?'m':null}};
+  if(spec.gear==='cape')ch.back=CH.narbaiza.back;
+  return ch;
+}
+const BASE_IDLE=(t,seed=0)=>({bob:Math.floor((t+seed)/1.0)%2,blink:((t+seed*1.7)%3.4)<0.12,armF:[1,6],armB:[-1,6]});
+// Variantes de la PDC
+CH.paladin.front=function(g,P,pose,lean,bob){
+  if(pose.shield){const x=15+lean,y=12+bob;for(let j=0;j<11;j++)gline(g,x,y+j,x+3,y+j,P[j===0||j===10?'A':'a'],1);
+    gline(g,x,y,x,y+10,P.l,1);gline(g,x+2,y+3,x+2,y+6,P.u,1);gline(g,x+1,y+4,x+3,y+4,P.u,1);}
+  if(pose.visor!=null){const vx=11+lean+(pose.visor%4);gset(g,vx,7+bob,P.V);}
+};
+CH.paladin.armPose=null;
+const PDC={
+  paladin:{...CH.paladin},
+  reforzado:{...CH.paladin,pal:{...CH.paladin.pal,a:'#6a7a9a',A:'#424e68',l:'#9aa8c8',v:'#ff8a3a',V:'#ffd0a0',n:'#2a3a5c',N:'#1a2640',u:'#ff8a3a'}},
+  blindado:{...CH.paladin,pal:{...CH.paladin.pal,a:'#9aa0aa',A:'#5a6070',n:'#2a3448'}},
+  ballestero:{...CH.paladin,pal:{...CH.paladin.pal,a:'#5a6478',A:'#3a4256',l:'#8a96ac',n:'#18223a'}},
+};
+function crossbow(g,P,x,y){gline(g,x-2,y,x+5,y,'#6b4a2e',1);gline(g,x+5,y-3,x+5,y+3,'#8c96a8',1);gset(g,x+6,y,'#ff4a3a');}
+// Vigía de latón: búho mecánico, dos fotogramas de alas
+const OWL_PAL={a:'#b88a4a',A:'#7a5a2e',l:'#e0b878',k:'#2a2230',v:'#3ac8ff',V:'#bff0ff',w:'#9a7440',W:'#6a4c26'};
+const OWL=[
+ ["...A.......A...","...AaA...AaA....","....AaaaaaaA....","...AakkaakkaA...","...AkVvkkvVkA...","...AakkaakkaA...","WwwAaaalaaaaAwwW",".WwAaaaaaaaaAwW.","..WAaaalaaaaAW..","....AaaaaaaA....",".....AaaaaA.....","......A..A......"],
+ ["...A.......A...","...AaA...AaA....","....AaaaaaaA....","...AakkaakkaA...","...AkVvkkvVkA...","...AakkaakkaA...","...AaaalaaaaA...","..WAaaaaaaaaAW..",".WwAaaalaaaaAwW.","WwwwAaaaaaaAwwwW",".....AaaaaA.....","......A..A......"],
+];
+
+// Ciclos de movimiento (pies relativos a la cadera; brazos relativos al hombro)
+const TAU=Math.PI*2;
+const SCARF={
+  calm:(t)=>[[-1,1],[-1,2],[Math.round(Math.sin(t*2)),2],[-1,1]],
+  run:(t)=>[[-2,0],[-2,Math.round(Math.sin(t*20))-0],[-2,0],[-2,Math.round(Math.sin(t*20+1))]],
+  up:()=>[[-1,1],[-1,2],[0,2],[0,2]],
+  down:()=>[[-1,-1],[-1,-2],[0,-2],[1,-1]],
+};
+const MOVE={
+  run(i,n=6){const f=i/n*TAU;const lift=(a)=>Math.sin(a)>0?Math.round(3*Math.sin(a)):0;
+    return {lean:1,bob:Math.cos(2*f)>0?0:-1,air:false,
+      legF:[Math.round(4*Math.cos(f)),7-lift(f)],legB:[Math.round(4*Math.cos(f+Math.PI)),7-lift(f+Math.PI)],
+      armF:[Math.round(-3*Math.cos(f))+1,5],armB:[Math.round(3*Math.cos(f))-1,5],scarf:SCARF.run(i)};},
+  crouch(){return {bob:2,legF:[2,7],legB:[-2,7],armF:[3,4],armB:[-2,4],scarf:SCARF.calm(0)};},
+  jump(){return {air:true,legF:[3,3],legB:[-2,6],armF:[1,-5],armB:[-3,-4],scarf:SCARF.up(),toeB:true};},
+  apex(){return {air:true,legF:[3,4],legB:[0,3],armF:[4,-2],armB:[-3,-1],scarf:SCARF.calm(0)};},
+  fall(){return {air:true,legF:[1,7],legB:[-3,6],armF:[4,-4],armB:[-4,-4],scarf:SCARF.down(),toeB:true,toeF:true};},
+  wall(){return {air:true,legF:[3,4],legB:[2,7],armF:[2,-6],armB:[3,-1],scarf:SCARF.down(),toeF:true};},
+  hang(){return {air:true,legF:[1,7],legB:[-1,7],armF:[1,-7],armB:[-1,-7],scarf:SCARF.up(),toeF:true,toeB:true};},
+  vault(){return {air:true,lean:2,legF:[4,3],legB:[1,3],armF:[1,6],armB:[0,6],scarf:SCARF.run(0)};},
+  slide(){return {bob:5,lean:-1,legF:[6,7],legB:[3,7],armF:[-3,1],armB:[-4,2],scarf:SCARF.run(1)};},
+  roll(){return {air:true,bob:6,lean:1,headDy:1,legF:[2,3],legB:[0,3],armF:[3,1],armB:[1,2],scarf:SCARF.down(),toeF:true,toeB:true};},
+  dash(){return {air:true,lean:2,legF:[-1,6],legB:[-4,5],armF:[-4,2],armB:[-4,3],scarf:[[-3,0],[-3,0],[-3,0],[-2,0]],toeB:true,toeF:true};},
+  land(){return {bob:2,legF:[3,7],legB:[-2,7],armF:[4,2],armB:[-3,2],scarf:SCARF.down()};},
+};
+// Reposo con personalidad: t en segundos
+const IDLE={
+  jon(t){const breath=Math.floor(t/0.9)%2;const look=(t%6)>4.4;const p={bob:breath,blink:(t%3.2)<0.12,scarf:SCARF.calm(t)};
+    if(look){p.armF=[3,3];p.headDy=1;p.glow=true;}else p.armF=[0,6];p.armB=[-1,6];return p;},
+  iker(t){const hop=Math.floor(t/0.35)%2;const p={bob:-hop,blink:(t%2.6)<0.12,armF:[1,6-hop],armB:[-2,6]};p.headDx=(t%4)>2.5?-1:0;return p;},
+  narbaiza(t){return {bob:0,blink:(t%6.5)<0.12,armF:[-4,5],armB:[-3,5],cape:Math.round(Math.sin(t*1.3)),drops:(t%4)};},
+  edurne(t){const call=(t%5)>3.2;return {bob:Math.floor(t/1.1)%2,blink:(t%3.6)<0.12,armF:call?[-1,-5]:[1,6],armB:[-1,6]};},
+  desconocido(t){const k=Math.floor(t*14);const j=(n)=>((k*9301+n*49297)%233280)/233280;return {lean:j(1)>0.7?1:0,headDx:j(2)>0.8?-1:0,blink:false,armF:[3,1],armB:[2,1],sparks:k};},
+  paladin(t){const tick=Math.floor(t)%2;return {bob:tick,visor:Math.floor(t*6)%8,armB:[-1,6],noArmF:true};},
+  acolito(t){const fl=Math.round(Math.sin(t*2.2)*1.4)-1;const tw=(t%3.4)<0.25;return {bob:fl,headDx:tw?1:0,blink:(t%2.2)<0.1,armF:[3,3+Math.round(Math.sin(t*3))],armB:[1,4]};},
+};
+
+
 
 // ------------------------------------------------------------------ Fondo de escena
 function sky(c, w, h, top, bottom, bands = 6) {
@@ -739,9 +1186,10 @@ function drawHero(t, dt) {
   }
   // Jon
   stepHero(dt, heroScroll);
-  const pose = jon.dash > 0 ? 'dash' : jon.air ? (jon.vy < 0 ? 'jump' : 'fall') : (Math.floor(t * 10) % 2 ? 'run1' : 'run2');
-  if (jon.dash > 0) for (let i = 1; i <= 3; i++) figure(c, 90 - i * 6, Math.round(jon.y), { ...JON, jacket: '#2f8bff', pants: '#1f5fbf', skin: '#6fb0ff', hair: '#2f8bff', boots: '#2f8bff', marks: [] }, 'dash', 1);
-  figure(c, 90, Math.round(jon.y), { ...JON, marks: ['#f2c45a', '#2f8bff'] }, pose, 1);
+  const pose = jon.dash > 0 ? MOVE.dash() : jon.air ? (jon.vy < -30 ? MOVE.jump() : jon.vy < 30 ? MOVE.apex() : MOVE.fall()) : MOVE.run(Math.floor(t * 12.5) % 6);
+  const spr = drawChar(CH.jon, pose);
+  if (jon.dash > 0) for (let i = 1; i <= 3; i++) blit(c, tint(spr, '#2f8bff'), 78 - i * 7, Math.round(jon.y) - 30, false, 0.6 - i * 0.15);
+  blit(c, spr, 78, Math.round(jon.y) - 30);
   heroScroll += dt * (jon.dash > 0 ? SPEED * 2.6 : SPEED);
 }
 
@@ -1095,21 +1543,22 @@ const CAST = [
   ['Txema, Rosa y Pello', 'La resistencia del primer barrio', 'El dueño del bar, la conductora jubilada del carro de rayo y el recadero de 16 años que vende pisos para salvar a su hermana.', { skin: '#c28d6a', hair: '#241a12', hairStyle: 'messy', jacket: '#b3262b', pants: '#34404f', boots: '#e0e0e0' }, false],
 ];
 const castEl = document.getElementById('cast');
-for (const [name, role, txt, spec, prop] of CAST) {
+const CAST_KEY = { 'Jon': 'jon', 'Iker': 'iker', 'General Narbaiza': 'narbaiza', 'La Centralita': 'edurne', 'El Desconocido': 'desconocido' };
+const animated = [];
+CAST.forEach(([name, role, txt, spec, prop], k) => {
   const card = document.createElement('div');
   card.className = 'person px';
   const cv = document.createElement('canvas');
-  cv.width = 24; cv.height = 28;
+  cv.width = 24; cv.height = 32;
   cv.setAttribute('aria-hidden', 'true');
-  const c = cv.getContext('2d');
-  R(c, 0, 24, 24, 4, '#2e2a48');
-  figure(c, 12, 25, spec, 'idle', 1);
+  const key = CAST_KEY[name];
+  animated.push({ c: cv.getContext('2d'), ch: key ? CH[key] : template(spec), key, seed: k * 0.37, w: 24, h: 32, x: 0, y: 0, floor: 31 });
   card.append(cv);
   const d = document.createElement('div');
   d.innerHTML = `<h3>${name} ${prop ? '<span class="tag-prop">propuesta</span>' : ''}</h3><span class="role">${role}</span><p>${txt}</p>`;
   card.append(d);
   castEl.append(card);
-}
+});
 
 // ------------------------------------------------------------------ Parkour
 const MOVES = [
@@ -1127,17 +1576,20 @@ for (const [pose, name, txt] of MOVES) {
   const card = document.createElement('div');
   card.className = 'move px';
   const cv = document.createElement('canvas');
-  cv.width = 24; cv.height = 28;
+  cv.width = 28; cv.height = 34;
   cv.setAttribute('aria-hidden', 'true');
   const c = cv.getContext('2d');
-  R(c, 0, 24, 24, 4, '#2e2a48');
-  if (pose === 'wall') R(c, 17, 0, 7, 24, '#4a4058');
-  if (pose === 'hang') { R(c, 0, 3, 24, 2, '#7a5a5a'); R(c, 0, 5, 24, 19, '#3c2e3e'); }
-  if (pose === 'vault') R(c, 9, 18, 8, 6, '#6a5a6a');
-  if (pose === 'slide') R(c, 6, 0, 18, 15, '#4a4058');
-  if (pose === 'dash') for (let i = 1; i < 3; i++) figure(c, 12 - i * 4, 24, { ...JON, jacket: '#2f8bff', pants: '#2f8bff', skin: '#9fd0ff', hair: '#2f8bff', boots: '#2f8bff', marks: [] }, 'dash', 1);
-  const fy = pose === 'jump' ? 21 : pose === 'hang' ? 14 : pose === 'vault' ? 18 : pose === 'wall' ? 20 : 24;
-  figure(c, pose === 'wall' ? 13 : 12, fy, { ...JON, marks: pose === 'dash' ? ['#f2c45a', '#2f8bff'] : ['#f2c45a'] }, pose, 1);
+  R(c, 0, 31, 28, 3, '#2e2a48');
+  let dy = 0;
+  if (pose === 'wall') { R(c, 19, 0, 9, 31, '#4a4058'); R(c, 19, 0, 1, 31, '#5e5270'); }
+  if (pose === 'hang') { R(c, 17, 4, 11, 27, '#3c2e3e'); R(c, 17, 3, 11, 2, '#7a5a5a'); dy = -6; }
+  if (pose === 'vault') { R(c, 9, 25, 11, 6, '#6a5a6a'); R(c, 9, 25, 11, 1, '#8a7a8a'); dy = -5; }
+  if (pose === 'slide') { R(c, 15, 0, 13, 8, '#4a4058'); R(c, 15, 7, 13, 1, '#2e2840'); }
+  if (pose === 'jump') dy = -3;
+  const m = { run1: MOVE.run(1), jump: MOVE.jump(), wall: MOVE.wall(), hang: MOVE.hang(), vault: MOVE.vault(), slide: MOVE.slide(), roll: MOVE.roll(), dash: MOVE.dash() }[pose];
+  const spr = drawChar(CH.jon, m);
+  if (pose === 'dash') for (let i = 1; i <= 2; i++) blit(c, tint(spr, '#2f8bff'), 2 - i * 5, dy, false, 0.55 - i * 0.18);
+  blit(c, spr, pose === 'wall' ? 4 : 2, dy);
   card.append(cv);
   const d = document.createElement('div');
   d.innerHTML = `<b>${name}</b><br><span>${txt}</span>`;
@@ -1263,32 +1715,36 @@ const FOES = [
   ['Vigía de latón', 'Búho mecánico. Vuela, ve desde lejos y llama a los demás.', 'drone'],
   ['Acólito', 'Poder prestado violeta. Ataca siempre y se apaga al usarlo demasiado.', { skin: '#b07a5c', hair: '#1b1511', jacket: '#3b2448', pants: '#231c2a', boots: '#15120f', gear: 'hood', hood: '#4b2d5c', marks: ['#b45cff'] }],
 ];
+const FOE_CH = { 'Paladín': PDC.paladin, 'Reforzado': PDC.reforzado, 'Blindado': PDC.blindado, 'Ballestero': PDC.ballestero, 'Acólito': CH.acolito };
 const foeEl = document.getElementById('foes');
 const droneCanvases = [];
 for (const [name, txt, spec] of FOES) {
   const card = document.createElement('div');
   card.className = 'foe px';
   const cv = document.createElement('canvas');
-  cv.width = 24; cv.height = 28;
+  cv.width = 24; cv.height = 32;
   cv.setAttribute('aria-hidden', 'true');
   const c = cv.getContext('2d');
   if (spec === 'drone') droneCanvases.push(c);
-  else { R(c, 0, 24, 24, 4, '#2e2a48'); figure(c, 11, 25, spec, spec.gear === 'bow' ? 'cast' : 'idle', 1); }
+  else animated.push({ c, ch: FOE_CH[name], key: name === 'Acólito' ? 'acolito' : 'paladin', foe: name, seed: 0, w: 24, h: 32, x: 0, y: 0, floor: 31 });
   card.append(cv);
   const d = document.createElement('div');
   d.innerHTML = `<b>${name}</b><p>${txt}</p>`;
   card.append(d);
   foeEl.append(card);
 }
+function gridOf(map, pal, w, h) {
+  const g = Array.from({ length: h }, () => Array(w).fill(null));
+  map.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (pal[row[x]]) g[y][x] = pal[row[x]]; });
+  return g;
+}
+const OWL_G = OWL.map((m) => outline(gridOf(m, OWL_PAL, 16, 12)));
 function drawDrone(c, t) {
-  R(c, 0, 0, 24, 28, '#25223d');
-  const y = 10 + Math.round(Math.sin(t * 3) * 2);
-  const f = Math.sin(t * 20) > 0;
-  R(c, 8, y, 8, 7, '#b08a4a'); R(c, 9, y + 1, 6, 5, '#c9a46a');
-  R(c, 10, y + 2, 4, 3, '#1a1a24'); R(c, 11, y + 3, 2, 1, '#3ac8ff');
-  line(c, 7, y + 2, 2, y + (f ? -2 : 4), '#8a6a3a', 1); line(c, 16, y + 2, 21, y + (f ? -2 : 4), '#8a6a3a', 1);
-  R(c, 9, y - 1, 1, 1, '#c9a46a'); R(c, 14, y - 1, 1, 1, '#c9a46a');
-  for (let i = 0; i < 4; i++) R(c, 12 + i * 2, y + 9 + i * 3, 1, 1, 'rgba(58,200,255,0.5)');
+  R(c, 0, 0, 24, 32, '#25223d');
+  const y = 9 + Math.round(Math.sin(t * 3) * 2);
+  blit(c, OWL_G[Math.sin(t * 20) > 0 ? 0 : 1], 4, y);
+  R(c, 11 + (Math.floor(t * 4) % 2), y + 4, 1, 1, '#bff0ff');
+  for (let i = 0; i < 4; i++) R(c, 11 + i * 2, y + 15 + i * 3, 1, 1, 'rgba(58,200,255,0.5)');
 }
 
 // ------------------------------------------------------------------ Paleta
@@ -1298,6 +1754,170 @@ const SW = [
   ...Object.entries(MARKS).filter(([k]) => !['destino', 'sangre', 'defensa'].includes(k)).map(([k, m]) => [m.name, [shade(m.color, 0.45), m.color, m.glow]]),
 ];
 document.getElementById('swatches').innerHTML = SW.map(([n, cs]) => `<div class="sw"><i>${cs.map((c) => `<s style="background:${c}"></s>`).join('')}</i>${n}</div>`).join('');
+
+// ------------------------------------------------------------------ Dirección de arte
+const SHAPES = { jon: 'redondo con picos', iker: 'redondo', narbaiza: 'cuadrado', edurne: 'redondo', desconocido: 'roto', paladin: 'cuadrado', acolito: 'triángulo' };
+const WHO = [
+  ['jon', 'Jon', 'Nervio contenido', 'Respira rápido y cada pocos segundos se mira la muñeca de la marca. La bufanda nunca para.'],
+  ['iker', 'Iker', 'No sabe estarse quieto', 'Bota sobre los talones y mira a todas partes, siempre a punto de echar a correr.'],
+  ['narbaiza', 'General Narbaiza', 'No gasta un movimiento', 'Manos a la espalda. Solo se mueve la capa, y de su mano sube una gota de sangre.'],
+  ['edurne', 'Dra. Edurne Lasa', 'Siempre a la escucha', 'Respira despacio y se lleva la mano a la caracola de bronce de la oreja: escucha a la ciudad.'],
+  ['desconocido', 'El Desconocido', 'A punto de romperse', 'Tiembla, se abraza y suelta chispas azules. Los ojos le brillan bajo la capucha.'],
+  ['paladin', 'Paladín', 'Un reloj', 'Cambia el peso cada segundo exacto y el visor barre de lado a lado.'],
+  ['acolito', 'Acólito', 'Algo que no debería flotar', 'Flota, gira la cabeza a tirones y le parpadean los ojos.'],
+];
+const lineupEl = document.getElementById('lineup');
+for (const [key, name, trait, txt] of WHO) {
+  const card = document.createElement('div');
+  card.className = 'who';
+  const cv = document.createElement('canvas');
+  cv.width = 32; cv.height = 40;
+  cv.setAttribute('role', 'img');
+  cv.setAttribute('aria-label', `${name} en reposo. ${txt}`);
+  card.append(cv);
+  const d = document.createElement('div');
+  d.innerHTML = `<b>${name}</b><br><span class="shape">${trait} · ${SHAPES[key]}</span><br><span>${txt}</span>`;
+  card.append(d);
+  lineupEl.append(card);
+  animated.push({ c: cv.getContext('2d'), ch: key === 'paladin' ? PDC.paladin : CH[key], key, seed: 0, w: 32, h: 40, x: 4, y: 4, floor: 35, lineup: true });
+}
+let silhouettes = false;
+const silBtn = document.getElementById('silBtn');
+silBtn.addEventListener('click', () => {
+  silhouettes = !silhouettes;
+  silBtn.setAttribute('aria-pressed', String(silhouettes));
+  silBtn.textContent = silhouettes ? 'Ver en color' : 'Ver siluetas';
+  lineupEl.classList.toggle('sil', silhouettes);
+  if (reduce) for (const a of animated) drawIdle(a, time);
+});
+
+function idlePose(a, t) {
+  const t2 = t + a.seed;
+  if (a.key === 'paladin') {
+    const p = IDLE.paladin(t2);
+    if (a.lineup || a.foe === 'Blindado') return { ...p, shield: true };
+    if (a.foe === 'Ballestero') return { ...p, noArmF: false, armF: [5, -1], fx: (g, P, lean, bob) => crossbow(g, P, 18 + lean, 12 + bob) };
+    return { ...p, noArmF: false, armF: [4, 2], fx: (g, P, lean, bob) => crossbow(g, P, 17 + lean, 15 + bob) };
+  }
+  if (a.key) return IDLE[a.key](t2);
+  return BASE_IDLE(t, a.seed * 3);
+}
+// Partículas del gesto (fuera del contorno)
+function idleFx(c, key, x, y, t) {
+  if (key === 'jon' && (t % 6) > 4.4) { const k = Math.floor(t * 8) % 3; R(c, x + 17 + k, y + 17 - k, 1, 1, '#fff1b8'); R(c, x + 15, y + 18 + (k % 2), 1, 1, '#f2c45a'); }
+  if (key === 'narbaiza') { const u = (t % 4) / 4; if (u < 0.6) R(c, x + 7, y + 17 - Math.round(u * 14), 1, 1, '#d1162b'); }
+  if (key === 'desconocido') { const r = rng(Math.floor(t * 14)); for (let i = 0; i < 3; i++) R(c, x + 5 + Math.floor(r() * 15), y + 8 + Math.floor(r() * 20), 1, 1, r() < 0.5 ? '#9fd0ff' : '#2f8bff'); }
+  if (key === 'edurne' && (t % 5) > 3.2) { const k = Math.floor(t * 6) % 3; R(c, x + 7 - k, y + 8 - k, 1, 1, '#ffb547'); R(c, x + 7 - k, y + 10 + k, 1, 1, '#ffb547'); }
+  if (key === 'acolito') R(c, x + 7 + Math.floor((t * 5) % 10), y + 28, 1, 1, '#a24dff');
+}
+function drawIdle(a, t) {
+  const c = a.c;
+  c.clearRect(0, 0, a.w, a.h);
+  const pose = idlePose(a, t);
+  if (a.lineup && silhouettes) {
+    blit(c, drawChar(a.ch, pose, true).map((r) => r.map((v) => v && '#0a0812')), a.x, a.y);
+    return;
+  }
+  R(c, 0, a.floor, a.w, a.h - a.floor, '#2e2a48');
+  blit(c, drawChar(a.ch, pose), a.x, a.y);
+  idleFx(c, a.key, a.x, a.y, t + a.seed);
+}
+
+// Tira de la carrera
+const stripEl = document.getElementById('strip');
+for (let i = 0; i < 6; i++) {
+  const f = document.createElement('figure');
+  const cv = document.createElement('canvas');
+  cv.width = 24; cv.height = 32;
+  cv.setAttribute('role', 'img');
+  cv.setAttribute('aria-label', `Carrera, fotograma ${i + 1} de 6`);
+  const c = cv.getContext('2d');
+  R(c, 0, 31, 24, 1, '#2e2a48');
+  blit(c, drawChar(CH.jon, MOVE.run(i)), 0, 0);
+  const cap = document.createElement('figcaption');
+  cap.textContent = `${i + 1} · 80 ms`;
+  f.append(cv, cap);
+  stripEl.append(f);
+}
+
+// Escena: correr, anticipar, saltar, aterrizar, dash y respirar
+const stageC = document.getElementById('stage').getContext('2d');
+function drawStage(t) {
+  const c = stageC;
+  sky(c, 192, 64, '#1a1838', '#4a2a50', 5);
+  skyline(c, 192, 52, '#241f3e', 21, 8, 22, 6, 14, '#e8b860');
+  for (const [x0, x1] of [[0, 86], [110, 192]]) { R(c, x0, 52, x1 - x0, 12, '#3c2e3e'); R(c, x0, 52, x1 - x0, 2, '#7a5a5a'); }
+  const T = t % 3.8;
+  let x, y = 52, pose, ghosts = 0;
+  if (T < 1.2) { x = 6 + T * 50; pose = MOVE.run(Math.floor(T * 12.5) % 6); }
+  else if (T < 1.3) { x = 66; pose = MOVE.crouch(); }
+  else if (T < 2.0) { const u = (T - 1.3) / 0.7; x = 66 + u * 56; y = 52 - 72 * u * (1 - u); pose = u < 0.38 ? MOVE.jump() : u < 0.62 ? MOVE.apex() : MOVE.fall(); }
+  else if (T < 2.12) { x = 122; pose = MOVE.land(); }
+  else if (T < 2.6) { x = 122 + (T - 2.12) * 50; pose = MOVE.run(Math.floor(T * 12.5) % 6); }
+  else if (T < 2.78) { x = 146 + (T - 2.6) / 0.18 * 26; pose = MOVE.dash(); ghosts = 3; }
+  else { x = 172; pose = IDLE.jon(T); }
+  const spr = drawChar(CH.jon, pose);
+  for (let i = 1; i <= ghosts; i++) blit(c, tint(spr, '#2f8bff'), Math.round(x) - 12 - i * 7, Math.round(y) - 30, false, 0.6 - i * 0.15);
+  blit(c, spr, Math.round(x) - 12, Math.round(y) - 30);
+}
+
+// Sí y no
+const JON_LOUD = { ...CH.jon, pal: { ...CH.jon.pal, j: '#ff3030', J: '#c41a1a', k: '#ff7a60', p: '#2a5cff', P: '#1838c0', c: '#3aff6a', C: '#18c048', h: '#ff9a00', i: '#ffd040', b: '#ffe600', B: '#c0aa00' } };
+function scaled(c, g, x, y, k) {
+  for (let j = 0; j < g.length; j++) for (let i = 0; i < g[0].length; i++) if (g[j][i]) R(c, x + i * k, y + j * k, k, k, g[j][i]);
+}
+function crate(c, good) {
+  const x = 8, y = 8, n = 20, base = '#8a5a3a';
+  R(c, x - 1, y - 1, n + 2, n + 2, mix(base, INK, 0.74));
+  if (good) {
+    R(c, x, y, n, n, base);
+    R(c, x, y, n, 2, lt(base)); R(c, x, y, 2, n, lt(base));
+    R(c, x + n - 2, y, 2, n, dk(base)); R(c, x, y + n - 2, n, 2, dk(base));
+    for (const py of [y + 7, y + 13]) R(c, x + 2, py, n - 4, 1, dk(base));
+  } else {
+    ['#4a2a1e', '#6a4430', base, '#b88458', '#d8a878'].forEach((col, k) => R(c, x + k * 2, y + k * 2, n - k * 4, n - k * 4, col));
+  }
+}
+const PAIRS = [
+  ['Contorno de color', 'El contorno es el tono más oscuro del material que toca. El negro puro se come los detalles y aplana el dibujo.', 'outline'],
+  ['Un píxel, un tamaño', 'Todo se dibuja a la misma escala. Nada de detalles a media resolución, ni sprites girados o escalados.', 'scale'],
+  ['Luz arriba a la izquierda', 'Luz arriba a la izquierda y sombra abajo a la derecha. Sombrear del centro hacia fuera («de almohada») quita volumen.', 'light'],
+  ['La marca manda', 'Ropa apagada para que la marca destaque. Con ropa saturada, el dorado del Destino se pierde.', 'sat'],
+];
+function drawPair(kind, cv, good) {
+  const big = kind === 'scale';
+  cv.width = cv.height = big ? 72 : 36;
+  cv.setAttribute('role', 'img');
+  cv.setAttribute('aria-label', `${good ? 'Correcto' : 'Incorrecto'}: ${PAIRS.find((p) => p[2] === kind)[0]}`);
+  const c = cv.getContext('2d');
+  R(c, 0, 0, cv.width, cv.height, '#5a4a62');
+  const pose = IDLE.jon(0.5);
+  if (kind === 'outline') { const g = drawChar(CH.jon, pose, !good); blit(c, good ? g : outline(g, 0, '#000000'), 6, 2); }
+  if (kind === 'sat') blit(c, drawChar(good ? CH.jon : JON_LOUD, pose), 6, 2);
+  if (kind === 'light') crate(c, good);
+  if (kind === 'scale') {
+    scaled(c, drawChar(CH.jon, pose), 12, 4, 2);
+    if (!good) {
+      for (let j = 0; j < 12; j++) for (let i = 0; i < 12; i++) if ((i + j) % 3 === 0) R(c, 34 + i, 36 + j, 1, 1, '#c88a5a');
+      for (let i = 0; i < 16; i++) R(c, 30 + i, 32 + (i % 2), 1, 1, i % 2 ? '#ffd0a0' : '#5a1e14');
+      R(c, 47, 24, 1, 1, '#ffffff');
+    }
+  }
+}
+const ddEl = document.getElementById('dodont');
+for (const [title, txt, kind] of PAIRS) {
+  const card = document.createElement('div');
+  card.className = 'pair';
+  card.innerHTML = `<b>${title}</b><div class="two"><figure><canvas></canvas><figcaption class="yes">Sí</figcaption></figure><figure><canvas></canvas><figcaption class="no">No</figcaption></figure></div><p>${txt}</p>`;
+  ddEl.append(card);
+  const [a, b] = card.querySelectorAll('canvas');
+  drawPair(kind, a, true);
+  drawPair(kind, b, false);
+}
+
+// Rampas
+const RAMPS = [['Piel', '#e3ab84'], ['Cuero', '#7a4f36'], ['Lana', '#3d6b66'], ['Abrigo', '#9a9482'], ['Tela de la PDC', '#1f2a44'], ['Acero', '#8c96a8'], ['Latón', '#b88a4a'], ['Túnica', '#3a2350']];
+document.getElementById('ramps').innerHTML = RAMPS.map(([n, b]) => `<div class="ramp"><i>${[lt(b), b, dk(b), mix(b, INK, 0.74)].map((col) => `<s style="background:${col}"></s>`).join('')}</i>${n}</div>`).join('');
 
 // ------------------------------------------------------------------ Bucle
 const copyC = document.getElementById('copyScene').getContext('2d');
@@ -1316,6 +1936,8 @@ function frame(now) {
   drawMap(time);
   for (const { r, c } of regionCanvases) drawRegion(c, r, time);
   for (const c of droneCanvases) drawDrone(c, time);
+  for (const a of animated) drawIdle(a, time);
+  drawStage(time);
   if (!reduce) requestAnimationFrame(frame);
 }
 // Primer fotograma completo (y quieto si se piden menos animaciones)
