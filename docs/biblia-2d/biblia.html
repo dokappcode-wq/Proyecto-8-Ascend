@@ -124,6 +124,13 @@ figcaption { font-size: 14px; color: var(--soft); }
 .sw { display: flex; flex-direction: column; gap: 4px; font: 500 13px var(--display); color: var(--soft); }
 .sw i { height: 34px; display: flex; }
 .sw i s { flex: 1; text-decoration: none; }
+.insp { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.insp article { background: var(--slab); border: 2px solid var(--line); box-shadow: 4px 4px 0 var(--slab-2); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.insp .num { font: 600 13px var(--display); letter-spacing: .14em; color: var(--amber); }
+.insp h3 { font-size: 22px; }
+.insp .meta { font: 500 13px var(--display); letter-spacing: .06em; color: var(--soft); }
+.insp p { font-size: 15.5px; margin: 0; }
+.insp p b { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); margin-right: 4px; }
 ol.plain, ul.plain { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; max-width: 80ch; font-size: 17px; }
 footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; color: var(--soft); display: flex; flex-direction: column; gap: 6px; }
 @media (max-width: 860px) {
@@ -141,11 +148,11 @@ footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; 
 <header class="hero">
   <span class="eyebrow">Biblia del mundo · plataformas 2D en pixel art</span>
   <h1>ASCEND</h1>
-  <p class="lede">Un chico de pueblo con una marca dorada que puede copiar las marcas de los demás, y una ciudad encerrada en diez velos de luz. Es el mismo mundo que el proyecto en 3D, pasado por un filtro de cuento: piedra, faroles de tormenta, vigías de latón y mucho tejado por el que correr.</p>
+  <p class="lede">Un chico de Eibar con una marca dorada que puede copiar las marcas de los demás, y una ciudad encerrada en diez velos de luz. Es el mismo mundo que el proyecto en 3D, pasado por un filtro de cuento: piedra, faroles de tormenta, vigías de latón y mucho tejado por el que correr.</p>
   <div class="px"><canvas id="hero" width="320" height="140" aria-label="Escena animada: Jon corre y salta por los tejados de Ibaia, con los velos ámbar de la Defensa y la Torre al fondo"></canvas></div>
   <div class="facts"><span><b>11</b>marcas</span><span><b>10</b>barrios</span><span><b>5</b>capítulos de prólogo</span><span><b>1</b>torre</span></div>
   <nav class="toc" aria-label="Secciones">
-    <a href="#mundo">El mundo</a><a href="#reglas">Las marcas</a><a href="#absorcion">Absorción</a><a href="#historia">Historia</a><a href="#personajes">Personajes</a><a href="#marcas">Las once marcas</a><a href="#parkour">Parkour</a><a href="#ibaia">Ibaia</a><a href="#enemigos">Enemigos</a><a href="#juego">Cómo se juega</a><a href="#pixel">Pixel art</a><a href="#pendiente">Pendiente</a>
+    <a href="#mundo">El mundo</a><a href="#reglas">Las marcas</a><a href="#absorcion">Absorción</a><a href="#historia">Historia</a><a href="#personajes">Personajes</a><a href="#marcas">Las once marcas</a><a href="#parkour">Parkour</a><a href="#ibaia">Ibaia</a><a href="#enemigos">Enemigos</a><a href="#juego">Cómo se juega</a><a href="#pixel">Pixel art</a><a href="#pendiente">Pendiente</a><a href="#inspiracion">Inspiración</a>
   </nav>
 </header>
 
@@ -160,7 +167,7 @@ footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; 
     <thead><tr><th>En el proyecto 3D</th><th>En el plataformas 2D</th><th>Qué conserva</th></tr></thead>
     <tbody>
       <tr><td>PDC, la policía que caza marcados</td><td><b>Paladines de la Contención</b> (la PDC), con armadura azul y atalayas</td><td>Las siglas, el azul y su doctrina del «Escudo Ciudadano»</td></tr>
-      <tr><td>Proyecto Ascend, base militar</td><td><b>La Ascensión</b>, la forja secreta donde se encierran marcas en naipes</td><td>Las cinco cartas: el Destino y cuatro sin identificar</td></tr>
+      <tr><td>Proyecto Ascend, base militar</td><td><b>La Ascensión</b>, la forja secreta donde se encierran marcas en naipes</td><td>Cinco naipes: el Destino, el que hizo de Iker la Defensa y tres que siguen siendo un misterio</td></tr>
       <tr><td>Drones de vigilancia</td><td><b>Vigías de latón</b>, búhos mecánicos con un ojo de cristal</td><td>Vuelan, avisan y disparan desde arriba</td></tr>
       <tr><td>La Centralita, red de cabinas</td><td><b>La Centralita</b>, una voz que habla por las caracolas de bronce de las esquinas</td><td>Guía a Jon; las caracolas son los puntos de guardado</td></tr>
       <tr><td>Tranvía de la línea 0</td><td><b>Carro de rayo</b>, que corre por raíles con chispas</td><td>Batería móvil para sobrecargar el Ancla</td></tr>
@@ -346,16 +353,101 @@ footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; 
 
 <section id="pendiente">
   <div class="intro">
-    <span class="eyebrow">12 · Por decidir</span>
-    <h2>Lo que aún no está cerrado</h2>
+    <span class="eyebrow">12 · Decidido y por decidir</span>
+    <h2>Lo cerrado y lo que queda</h2>
   </div>
+  <h3>Decidido</h3>
   <ul class="plain">
-    <li><b>Quién es la Defensa.</b> La propuesta es Iker: las barreras que separan a Jon de su amigo son su amigo. La alternativa era «la Guardiana», una desconocida.</li>
-    <li><b>Quién es la Centralita.</b> La propuesta es la Dra. Edurne Lasa, la ingeniera de la Ascensión que diseñó la cadena de la Defensa.</li>
-    <li><b>Los cuatro naipes sin identificar.</b> Uno sirvió para crear a la Defensa; los otros tres siguen abiertos.</li>
-    <li><b>Qué cambia la elección del prólogo</b> (matar o perdonar a la Encarnación de la Energía) y por qué Narbaiza quiere a Jon vivo.</li>
-    <li><b>El nombre del mundo fuera de Ibaia</b> y si el pueblo de Jon tiene nombre.</li>
+    <li><b>La Defensa es Iker.</b> La PDC usó con él uno de los naipes de la Ascensión. Las barreras que separan a Jon de su amigo son su amigo.</li>
+    <li><b>La Centralita es la Dra. Edurne Lasa</b>, la ingeniera de la Ascensión que diseñó la cadena de la Defensa.</li>
+    <li><b>Los otros tres naipes son un misterio.</b> No se explican en el Acto I: aparecen en las páginas de la Ascensión como huecos, nombres tachados y fichas sin foto.</li>
+    <li><b>El pueblo de Jon se llama Eibar.</b></li>
   </ul>
+  <h3>Por decidir</h3>
+  <ul class="plain">
+    <li><b>Qué cambia la elección del prólogo</b> (matar o perdonar a la Encarnación de la Energía) y por qué Narbaiza quiere a Jon vivo.</li>
+    <li><b>El nombre del mundo fuera de Ibaia.</b></li>
+  </ul>
+</section>
+
+<section id="inspiracion">
+  <div class="intro">
+    <span class="eyebrow">13 · Inspiración</span>
+    <h2>Diez juegos de los que aprender</h2>
+    <p>No para copiarlos, sino para tomar de cada uno una idea concreta: el tacto del salto, la estructura del mundo, la forma de copiar poderes, el tono.</p>
+  </div>
+  <div class="insp">
+    <article>
+      <span class="num">01</span>
+      <h3>Celeste</h3>
+      <span class="meta">2018 · Maddy Makes Games</span>
+      <p><b>Qué tomar</b>El tacto del salto: tiempo de gracia al salir del borde, salto guardado si pulsas antes de tocar el suelo, dash en ocho direcciones y pared con resistencia. Pantallas cortas que se reintentan al instante y un modo de ayuda que no juzga.</p>
+      <p><b>En Ascend</b>El parkour base de Jon y los números de la sección 07. Cada pantalla de tejado como un reto corto, con la caracola de bronce cerca.</p>
+    </article>
+    <article>
+      <span class="num">02</span>
+      <h3>Mega Man X</h3>
+      <span class="meta">1993 · Capcom</span>
+      <p><b>Qué tomar</b>Vencer a un jefe da su arma, y cada arma es la debilidad de otro jefe. Elegir el orden importa, y algunos niveles cambian al vencer a otro jefe. El dash y el salto en pared se ganan y cambian cómo se juega todo.</p>
+      <p><b>En Ascend</b>El Destino copiando la marca de cada Encarnación, el orden de los barrios y que una marca nueva cambie barrios ya visitados (Marea inunda la dársena, Raíz rompe muros).</p>
+    </article>
+    <article>
+      <span class="num">03</span>
+      <h3>Kirby Super Star y Kirby 64</h3>
+      <span class="meta">1996 y 2000 · HAL Laboratory</span>
+      <p><b>Qué tomar</b>Poderes copiados con una lista de movimientos completa cada uno, en vez de un solo ataque. En Kirby 64, mezclar dos poderes crea uno nuevo.</p>
+      <p><b>En Ascend</b>Que cada marca tenga movimiento, combate y pasiva propios, y la tabla de combos entre marcas. La diferencia: Kirby se traga al enemigo; Jon necesita permiso.</p>
+    </article>
+    <article>
+      <span class="num">04</span>
+      <h3>Ender Lilies</h3>
+      <span class="meta">2021 · Live Wire y Adglobe</span>
+      <p><b>Qué tomar</b>La protagonista no lucha sola: purifica a los espíritus de los jefes y estos luchan a su lado. Cada espíritu trae su historia, y el poder se siente como algo que te han confiado.</p>
+      <p><b>En Ascend</b>La regla III del Destino (solo con permiso). Convencer a la Encarnación es la misión, no solo vencerla; su retrato y su voz aparecen al usar su marca.</p>
+    </article>
+    <article>
+      <span class="num">05</span>
+      <h3>Hollow Knight</h3>
+      <span class="meta">2017 · Team Cherry</span>
+      <p><b>Qué tomar</b>Un mundo conectado que se abre con habilidades, mapas que se compran a un cartógrafo, bancos donde descansar y una historia contada por el escenario sin explicarla.</p>
+      <p><b>En Ascend</b>Las puertas de marca de la sección 10, la Centralita como quien te da el mapa del barrio y las caracolas como bancos. Los tres naipes misteriosos encajan con este tipo de lore a pedazos.</p>
+    </article>
+    <article>
+      <span class="num">06</span>
+      <h3>Ori and the Will of the Wisps</h3>
+      <span class="meta">2020 · Moon Studios</span>
+      <p><b>Qué tomar</b>El Bash: impulsarse usando enemigos y proyectiles como apoyo. Habilidades que se encadenan en el aire sin tocar el suelo, y huidas a contrarreloj muy guionizadas.</p>
+      <p><b>En Ascend</b>El Hilo y la Gravedad para lanzarse desde vigías de latón. Las huidas cuando cae un velo o al final del prólogo, en el puente.</p>
+    </article>
+    <article>
+      <span class="num">07</span>
+      <h3>Dead Cells</h3>
+      <span class="meta">2018 · Motion Twin</span>
+      <p><b>Qué tomar</b>Movimiento rapidísimo sin frenar: agarre automático de cornisas, combate que no corta la carrera. Sus sprites se hacían con modelos 3D pasados a pixel art.</p>
+      <p><b>En Ascend</b>La regla de oro de no cortar el impulso. Y una vía para aprovechar los modelos del proyecto 3D como base de animación.</p>
+    </article>
+    <article>
+      <span class="num">08</span>
+      <h3>Blasphemous</h3>
+      <span class="meta">2019 · The Game Kitchen</span>
+      <p><b>Qué tomar</b>Folclore y arte sacro andaluz convertidos en fantasía oscura, con una orden opresiva en el centro del mundo. Pixel art muy detallado y jefes enormes.</p>
+      <p><b>En Ascend</b>Llevar lo vasco a la fantasía: Eibar, los nombres, los caseríos, las romerías y el euskera en los carteles. La PDC como orden que se cree salvadora.</p>
+    </article>
+    <article>
+      <span class="num">09</span>
+      <h3>Katana ZERO</h3>
+      <span class="meta">2019 · Askiisoft</span>
+      <p><b>Qué tomar</b>Historia fuerte dentro de niveles de acción cortos. Se puede interrumpir a quien habla y eso cambia la conversación. Ambiente noir, con lluvia y neón.</p>
+      <p><b>En Ascend</b>El thriller noir del barrio de los faroles, el comisario Salaberri y decisiones de diálogo como matar o perdonar a El Desconocido.</p>
+    </article>
+    <article>
+      <span class="num">10</span>
+      <h3>Prince of Persia: The Lost Crown</h3>
+      <span class="meta">2024 · Ubisoft Montpellier</span>
+      <p><b>Qué tomar</b>Acrobacias de metroidvania con poderes que mezclan movimiento y combate. Fragmentos de memoria: capturas que el jugador clava en el mapa para recordar sitios a los que volver.</p>
+      <p><b>En Ascend</b>Clavar en el mapa los sitios que aún no se pueden abrir («aquí falta Alas»). Las peleas contra Encarnaciones como coreografías de parkour.</p>
+    </article>
+  </div>
 </section>
 
 <footer>
@@ -901,7 +993,7 @@ const DEMO = {
 
 const MARKINFO = [
   { key: 'destino', who: 'Jon (innata)', where: 'Desde el principio', move: 'Copiar: mantener el contacto con una Encarnación hasta llenar la barra.', fight: 'Ninguno propio. Cambiar de marca con la rueda.', passive: '—', absorb: 'No se gasta.', opens: 'A las Encarnaciones y, con ellas, todo lo demás.', cap: 'Jon toca a la Encarnación de la Energía y copia su marca. Los dos la conservan.' },
-  { key: 'energia', who: 'El Desconocido (prólogo)', where: 'El pueblo, en la tormenta', move: 'Dash corto en el aire, uno por salto. En el aire, la onda se convierte en un rayo hacia abajo.', fight: 'Proyectil, descarga cargada, onda expansiva y sobrecarga.', passive: 'Cortocircuito: a veces aturde al golpear.', absorb: 'Faroles de tormenta, cristales de rayo, máquinas.', opens: 'Huecos de 4 casillas, rocas con vetas azules, mecanismos apagados.', cap: 'Salto, dash sobre el hueco y un disparo que rompe la roca de vetas azules.' },
+  { key: 'energia', who: 'El Desconocido (prólogo)', where: 'Eibar, en la tormenta', move: 'Dash corto en el aire, uno por salto. En el aire, la onda se convierte en un rayo hacia abajo.', fight: 'Proyectil, descarga cargada, onda expansiva y sobrecarga.', passive: 'Cortocircuito: a veces aturde al golpear.', absorb: 'Faroles de tormenta, cristales de rayo, máquinas.', opens: 'Huecos de 4 casillas, rocas con vetas azules, mecanismos apagados.', cap: 'Salto, dash sobre el hueco y un disparo que rompe la roca de vetas azules.' },
   { key: 'temperatura', who: 'Unai, fundidor', where: 'La Fundición', move: 'Patinar: deja una estela de hielo, corre más y sube por paredes heladas. Plataforma de hielo en el aire.', fight: 'Fuego y hielo alternos, muro, estela y tormenta.', passive: 'Quemadura: los golpes queman.', absorb: 'Braseros y arcones de escarcha.', opens: 'Muros de fuego (se congelan), cascadas (se hielan y se trepan), hielo (se derrite).', cap: 'Patina, congela el muro de fuego y sube por la pared helada.' },
   { key: 'hilo', who: 'Amaia, costurera', where: 'Las Agujas (Midtown)', move: 'Balanceo: el hilo se engancha a los puntos de anclaje; soltar en la subida da impulso.', fight: 'Hilos, atar, lanzar y cadena entre enemigos.', passive: 'Impulso: manteniendo el salto, saltas más alto.', absorb: 'Telares, tendederos, rollos de tela.', opens: 'Abismos anchos y techos altos.', cap: 'Dos balanceos seguidos sobre el abismo entre torres.' },
   { key: 'raiz', who: 'Lur, 15 años', where: 'El Bosque Hundido (Parque Central)', move: 'Enredadera: una liana sube por paredes lisas y crea asideros.', fight: 'Espinas, atrapar, quiebra (levanta el suelo) y esporas.', passive: 'Savia: sobre tierra o hierba recuperas vida.', absorb: 'Árboles, macetas, invernaderos.', opens: 'Paredes lisas y suelos agrietados.', cap: 'La liana crece por la pared lisa y Jon trepa por sus asideros.' },
@@ -970,14 +1062,14 @@ document.getElementById('gates').innerHTML = GATES.map(([o, k]) => `<tr><td>${o}
 
 // ------------------------------------------------------------------ Historia
 const TL = [
-  ['Antes', 'La Ascensión', '#f2c45a', 'En una forja secreta de la Academia, la PDC aprende a encerrar marcas en naipes. Cinco naipes acaban en la fortaleza junto al pueblo de Jon: el Destino, dorado, y cuatro que nadie ha identificado.'],
-  ['Prólogo · I', 'La última noche', '#2f8bff', 'Jon e Iker corren por los tejados del pueblo, bajan el acantilado y se cuelan en la fortaleza. En la cámara de los naipes, el dorado elige a Jon: la marca del Destino le quema la muñeca. Huida por balcones, andamios y una tirolina hasta la playa.'],
-  ['Prólogo · II', 'La plaza', '#d1162b', 'El general Narbaiza llega al pueblo y tortura a Martín, un vecino, con la Marca de Sangre. Jon se mete en medio y acaba a un golpe de morir. Después, en un callejón, discute con Iker: Iker quiere ir a la ciudad a cambiar las cosas.'],
+  ['Antes', 'La Ascensión', '#f2c45a', 'En una forja secreta de la Academia, la PDC aprende a encerrar marcas en naipes. Cinco naipes acaban en la fortaleza junto a Eibar, el pueblo de Jon: el Destino, dorado, y cuatro que nadie ha identificado.'],
+  ['Prólogo · I', 'La última noche', '#2f8bff', 'Jon e Iker corren por los tejados de Eibar, bajan el acantilado y se cuelan en la fortaleza. En la cámara de los naipes, el dorado elige a Jon: la marca del Destino le quema la muñeca. Huida por balcones, andamios y una tirolina hasta la playa.'],
+  ['Prólogo · II', 'La plaza', '#d1162b', 'El general Narbaiza llega a Eibar y tortura a Martín, un vecino, con la Marca de Sangre. Jon se mete en medio y acaba a un golpe de morir. Después, en un callejón, discute con Iker: Iker quiere ir a la ciudad a cambiar las cosas.'],
   ['Prólogo · III', 'Cinco días', '#b5aed0', 'Cinco días de vida normal: el puerto, los rumores, la foto familiar, las patrullas vistas desde el mirador. La abuela de Jon le manda al mercado.'],
-  ['Prólogo · IV', 'La tormenta', '#2f8bff', 'Una tormenta de rayos cae sobre el pueblo y destruye la casa: la abuela muere. Un desconocido, Encarnación de la Energía, pide ayuda. Jon le copia la marca por contacto, sin quitársela, y tiene que decidir: matarle o perdonarle. La PDC se los lleva a los dos en un carro de presos.'],
+  ['Prólogo · IV', 'La tormenta', '#2f8bff', 'Una tormenta de rayos cae sobre Eibar y destruye la casa: la abuela muere. Un desconocido, Encarnación de la Energía, pide ayuda. Jon le copia la marca por contacto, sin quitársela, y tiene que decidir: matarle o perdonarle. La PDC se los lleva a los dos en un carro de presos.'],
   ['Prólogo · V', 'El despertar', '#2f8bff', 'Atacan el convoy en el viaducto y el carro cae al bosque. Jon despierta solo: aprende a disparar, a cargar la descarga y a usar la onda contra los vigías, cruza con el dash un puente roto y, al salir de la niebla, ve por primera vez Ibaia, encerrada en velos de luz.'],
   ['Acto I · 1–4', 'La Orilla Este y la Isla norte', '#ffb547', 'La Centralita guía a Jon por el barrio de los faroles (un chivato vende a la resistencia), la forja en huelga, las torres de los tapices y el bosque que crece con el miedo de una niña. Cada barrio, una Encarnación y un velo que cae.'],
-  ['Acto I · 5', 'La revelación', '#a59fd0', 'Al romper el Ancla de la Colmena, el Destino reacciona: el Ancla no es una máquina sino una marca viva. Jon ve a alguien encadenado en lo alto de la Torre. Los velos son una persona. Propuesta: es Iker.'],
+  ['Acto I · 5', 'La revelación', '#a59fd0', 'Al romper el Ancla de la Colmena, el Destino reacciona: el Ancla no es una máquina sino una marca viva. Jon ve a alguien encadenado en lo alto de la Torre. Los velos son una persona: es Iker.'],
   ['Acto I · 6–9', 'La Península y el sur', '#a24dff', 'Un asesinato en el teatro de los Miradores, un atraco en la dársena que revela quién es la Centralita, una galerna provocada en la costa y un festival prohibido en el barrio de los farolillos, donde se descubre que el maestro de los Acólitos es Narbaiza.'],
   ['Acto I · 10', 'La Torre', '#ffb547', 'Todos los aliados contra la cúpula. Jon sube 520 metros por fuera de la Torre con todas sus marcas, vence a Narbaiza y convence a la Defensa de que le deje copiarla. Caen todos los velos a la vez.'],
 ];
@@ -985,11 +1077,11 @@ document.getElementById('timeline').innerHTML = TL.map(([w, h, col, txt]) => `<d
 
 // ------------------------------------------------------------------ Personajes
 const CAST = [
-  ['Jon', '17 años · protagonista', 'Chico de un pueblo de pescadores. Corre por los tejados desde niño. Humor seco cuando tiene miedo; carga con la muerte de su abuela y con no haber protegido a Iker. Lleva el Destino en la muñeca izquierda.', JON, false],
-  ['Iker', 'Su mejor amigo', 'Quiere ir a la ciudad a cambiar las cosas. Desaparece la noche del convoy.', { skin: '#c28d6a', hair: '#1b1511', hairStyle: 'short', jacket: '#3f4a37', pants: '#2b3038', boots: '#3a2c22', marks: ['#ffb547'] }, true],
+  ['Jon', '17 años · protagonista', 'Chico de Eibar, un pueblo de pescadores. Corre por los tejados desde niño. Humor seco cuando tiene miedo; carga con la muerte de su abuela y con no haber protegido a Iker. Lleva el Destino en la muñeca izquierda.', JON, false],
+  ['Iker', 'Su mejor amigo', 'Quiere ir a la ciudad a cambiar las cosas. Desaparece la noche del convoy: la PDC usa con él uno de los naipes y le convierte en la Encarnación de la Defensa. Los velos que separan a Jon de Iker son Iker.', { skin: '#c28d6a', hair: '#1b1511', hairStyle: 'short', jacket: '#3f4a37', pants: '#2b3038', boots: '#3a2c22', marks: ['#ffb547'] }, false],
   ['La abuela', 'Familia de Jon', 'Le crio. Muere en la tormenta de rayos. Su radio, años después, todavía capta a la Centralita.', { skin: '#d8b09a', hair: '#d9d5cf', hairStyle: 'bun', jacket: '#4c3a46', pants: '#3a3438', boots: '#2a2224' }, false],
   ['General Narbaiza', 'Jefe de la PDC · Marca de Sangre', 'Cree que las marcas son una enfermedad y él la cura. Presta su sangre a los Acólitos para que la ciudad tenga miedo.', { skin: '#c49a80', hair: '#221c18', hairStyle: 'slick', beard: true, jacket: '#141519', pants: '#1a1b1f', boots: '#0f0f11', marks: ['#d1162b'], gear: 'cape', cape: '#3a0a12' }, false],
-  ['La Centralita', 'Voz de la resistencia', 'Habla por las caracolas de bronce y nunca da explicaciones. Es la Dra. Edurne Lasa, la ingeniera que diseñó la cadena de la Defensa.', { skin: '#d2a07e', hair: '#5a4a3a', hairStyle: 'bun', jacket: '#5a4632', pants: '#2a2a30', boots: '#231a1a' }, true],
+  ['La Centralita', 'Voz de la resistencia', 'Habla por las caracolas de bronce y nunca da explicaciones. Es la Dra. Edurne Lasa, la ingeniera que diseñó la cadena de la Defensa.', { skin: '#d2a07e', hair: '#5a4a3a', hairStyle: 'bun', jacket: '#5a4632', pants: '#2a2a30', boots: '#231a1a' }, false],
   ['Comisario Salaberri', 'PDC del barrio de los faroles', 'Educado, paciente, colecciona voces. Al final del primer barrio ya tiene la de Jon.', { skin: '#c49a80', hair: '#3a3430', hairStyle: 'slick', jacket: '#1f2a44', pants: '#1a1f2e', boots: '#0f0f11', gear: 'cape', cape: '#1f2a44' }, false],
   ['El Desconocido', 'Encarnación de la Energía', 'Ropa quemada y prisa. Jon le copia la marca en la tormenta y decide qué hacer con él.', { skin: '#b07a5c', hair: '#2b201a', hairStyle: 'messy', jacket: '#2b3b52', pants: '#2a2a30', boots: '#231d1a', marks: ['#2f8bff'] }, false],
   ['Unai', 'Fundidor · Temperatura', 'Mitad caliente, mitad fría. La PDC le obliga a templar el acero de sus escudos.', { skin: '#c99a7c', hair: '#3a2a1a', hairStyle: 'buzz', jacket: '#2a6a6a', pants: '#3a3430', boots: '#231d1a', marks: ['#2ee6d6', '#ff8a2a'] }, false],

@@ -27,8 +27,9 @@ los planos de cada barrio y la maqueta 3D está publicada como artefacto: https:
 - Cada barrera se sostiene en un Ancla: un pilar de luz dentro del barrio. El Ancla está en un sitio al que solo se llega con la marca de ese barrio. Al romperla, cae la barrera que lleva al barrio siguiente; las barreras se rompen siempre desde dentro.
 - A mitad de juego, al romper el Ancla de Los Bloques (barrio 5), el Destino reacciona: dentro no hay una máquina sino una marca viva. Jon ve a una persona encadenada en lo alto de la Torre del Centro y entiende que las barreras son la Encarnación de la Defensa, obligada por la PDC.
 - Desde la revelación, las barreras parpadean cuando Jon se acerca, la PDC refuerza la Cúpula del Centro y la resistencia deja de creer en el Escudo Ciudadano. Cada Ancla rota debilita el control de la PDC sobre la Defensa.
-- **Propuesta A (recomendada): Iker**: La PDC usó con él uno de los «cuatro objetos sin identificar» del Proyecto Ascend (las cartas de la base del prólogo) y lo convirtió en la Encarnación de la Defensa. Las barreras que separan a Jon de Iker son Iker. Liberarlo es el final del acto.
-- **Propuesta B: la Guardiana**: Una mujer mayor que se ofreció a la PDC convencida de que protegía a la ciudad. Descubre a la vez que Jon para qué la usan.
+- **Decidido: Iker**: La PDC usó con él uno de los «cuatro objetos sin identificar» del Proyecto Ascend (las cartas de la base del prólogo) y lo convirtió en la Encarnación de la Defensa. Las barreras que separan a Jon de Iker son Iker. Liberarlo es el final del acto.
+- Descartado: la Guardiana (una mujer mayor que se ofrecía a la PDC). Los otros tres objetos sin identificar siguen siendo un misterio.
+- La Centralita es la Dra. Edurne Lasa, la ingeniera del Proyecto Ascend que diseñó la cadena de la Defensa. El pueblo de Jon se llama Eibar.
 
 ## Barrios (en el orden de la ruta)
 
@@ -174,10 +175,9 @@ Combos nuevos: **Electrocución** (Marea + Energía): Salta por el agua a todos 
 
 ## Decisiones abiertas
 
-1. Quién es la Encarnación de la Defensa (propuesta: Iker).
-2. Las marcas nuevas: Raíz, Sombra, Eco, Marea y Defensa (la Sangre queda para Narbaiza).
-3. El nombre de la ciudad (Ibaia es provisional).
-4. Orden fijo o con elección (Midtown y el Parque Central intercambiables).
+1. Las marcas nuevas: Raíz, Sombra, Eco, Marea y Defensa (la Sangre queda para Narbaiza).
+2. El nombre de la ciudad (Ibaia es provisional).
+3. Orden fijo o con elección (Midtown y el Parque Central intercambiables).
 
 ## Regenerar
 
