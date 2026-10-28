@@ -1,0 +1,1237 @@
+<title>Biblia de Ascend</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* Códice nocturno de un juego de píxeles: columna de lectura con láminas pixeladas a todo el ancho.
+   Un solo tema oscuro a propósito: el mundo de Ascend es de noche y de luz de marcas. */
+:root {
+  color-scheme: dark;
+  --ink: #12111f;          /* fondo: noche de la ciudad */
+  --slab: #1c1a30;         /* láminas y fichas */
+  --slab-2: #25223d;
+  --line: #3a3558;
+  --text: #ece6f5;
+  --soft: #b5aed0;
+  --amber: #ffb547;        /* los velos de la Defensa */
+  --gold: #f2c45a;         /* el Destino */
+  --blood: #e0405a;        /* la Marca de Sangre y la PDC */
+  --display: 'Pixelify Sans', 'Courier New', monospace;
+  --body: 'Alegreya', Georgia, 'Times New Roman', serif;
+  --measure: 66ch;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ink); color: var(--text); font: 400 18px/1.6 var(--body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 72px; }
+h1, h2, h3, h4 { font-family: var(--display); font-weight: 600; line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(56px, 12vw, 128px); letter-spacing: .06em; color: var(--gold); text-shadow: 4px 4px 0 #6a4a10; }
+h2 { font-size: clamp(30px, 4.6vw, 44px); color: var(--amber); }
+h3 { font-size: 24px; }
+h4 { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--soft); font-weight: 600; }
+p { margin: 0; max-width: var(--measure); }
+a { color: var(--amber); }
+canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+.eyebrow { font: 600 14px var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--soft); }
+.lede { font-size: 21px; max-width: 62ch; }
+.muted { color: var(--soft); }
+section { display: flex; flex-direction: column; gap: 22px; scroll-margin-top: 12px; }
+.intro { display: flex; flex-direction: column; gap: 10px; }
+/* Marco pixelado: esquinas en escalón */
+.px { background: var(--slab); box-shadow: 0 -4px 0 0 var(--line), 0 4px 0 0 var(--line), -4px 0 0 0 var(--line), 4px 0 0 0 var(--line); margin: 4px; }
+.hero { display: flex; flex-direction: column; gap: 20px; }
+.hero canvas { width: 100%; height: auto; aspect-ratio: 320 / 140; background: #0b0a17; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 22px; font: 500 15px var(--display); color: var(--soft); letter-spacing: .06em; }
+.facts b { color: var(--text); font-size: 20px; margin-right: 6px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; }
+nav.toc a { font: 600 14px var(--display); letter-spacing: .08em; text-decoration: none; color: var(--text); padding: 6px 10px; background: var(--slab-2); border-bottom: 3px solid var(--line); }
+nav.toc a:hover, nav.toc a:focus-visible { border-bottom-color: var(--amber); outline: none; }
+.note { border-left: 4px solid var(--amber); background: var(--slab); padding: 12px 16px; font-size: 16px; max-width: 80ch; }
+.note b { font-family: var(--display); font-weight: 600; color: var(--amber); letter-spacing: .04em; }
+/* Tablas */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 16px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 2px solid var(--line); }
+th { font: 600 13px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--soft); }
+td b { font-family: var(--display); font-weight: 600; letter-spacing: .02em; }
+.chip { display: inline-block; font: 600 12px var(--display); letter-spacing: .1em; text-transform: uppercase; padding: 1px 7px; border: 2px solid currentColor; }
+/* Reglas */
+.rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.rule { padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rule .n { font: 700 34px var(--display); color: var(--gold); line-height: 1; }
+.rule p { font-size: 16px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.split > div { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.scene { width: 100%; height: auto; aspect-ratio: 160 / 90; background: #0b0a17; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+figcaption { font-size: 14px; color: var(--soft); }
+/* Línea temporal */
+.timeline { display: flex; flex-direction: column; gap: 0; border-left: 4px solid var(--line); margin-left: 8px; }
+.tl { position: relative; padding: 0 0 22px 24px; display: flex; flex-direction: column; gap: 4px; }
+.tl::before { content: ""; position: absolute; left: -10px; top: 6px; width: 16px; height: 16px; background: var(--ev, var(--soft)); box-shadow: 0 0 0 4px var(--ink); }
+.tl .when { font: 600 13px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--ev, var(--soft)); }
+.tl h3 { font-size: 22px; }
+.tl p { font-size: 16.5px; }
+/* Personajes */
+.cast { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.person { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 12px; align-items: start; }
+.person canvas { width: 72px; height: 84px; background: var(--slab-2); }
+.person h3 { font-size: 20px; }
+.person .role { font: 500 13px var(--display); letter-spacing: .08em; color: var(--soft); text-transform: uppercase; }
+.person p { font-size: 15px; margin-top: 4px; }
+.tag-prop { font: 600 11px var(--display); color: var(--ink); background: var(--amber); padding: 0 5px; letter-spacing: .06em; vertical-align: middle; }
+/* Marcas */
+.markpick { display: flex; flex-wrap: wrap; gap: 6px; }
+.markpick button { font: 600 14px var(--display); letter-spacing: .04em; color: var(--text); background: var(--slab-2); border: 0; border-bottom: 4px solid var(--mc); padding: 6px 10px 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.markpick button canvas { width: 18px; height: 18px; }
+.markpick button[aria-pressed="true"] { background: var(--mc); color: #0d0c18; }
+.markpick button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.markview { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; padding: 18px; }
+.markview .info { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.markview h3 { font-size: 34px; color: var(--mc); }
+.markview dl { margin: 0; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 7px 12px; font-size: 16px; }
+.markview dt { font: 600 13px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--soft); padding-top: 3px; }
+.markview dd { margin: 0; }
+.markgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.mk { padding: 10px; display: flex; flex-direction: column; gap: 4px; border-top: 4px solid var(--mc); background: var(--slab); }
+.mk canvas { width: 27px; height: 27px; }
+.mk b { font-family: var(--display); font-weight: 600; color: var(--mc); }
+.mk span { font-size: 13px; color: var(--soft); line-height: 1.35; }
+/* Movimientos */
+.moves { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.move { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.move canvas { width: 96px; height: 112px; align-self: center; }
+.move b { font-family: var(--display); font-weight: 600; font-size: 17px; }
+.move span { font-size: 14px; color: var(--soft); line-height: 1.35; }
+/* Mundo */
+.map canvas { width: 100%; height: auto; aspect-ratio: 200 / 130; background: #0d1830; }
+.regions { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.region { display: flex; flex-direction: column; gap: 0; background: var(--slab); border-top: 4px solid var(--mc); min-width: 0; }
+.region canvas { width: 100%; height: auto; aspect-ratio: 96 / 54; }
+.region .txt { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.region h3 { font-size: 21px; }
+.region .was { font: 500 13px var(--display); color: var(--soft); letter-spacing: .06em; }
+.region p { font-size: 15px; }
+.region .gate { font: 600 13px var(--display); color: var(--mc); letter-spacing: .04em; }
+/* Enemigos */
+.foes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.foe { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 10px; align-items: start; }
+.foe canvas { width: 64px; height: 75px; background: var(--slab-2); }
+.foe b { font-family: var(--display); font-weight: 600; font-size: 17px; }
+.foe p { font-size: 14px; color: var(--soft); line-height: 1.4; }
+/* Paleta */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.sw { display: flex; flex-direction: column; gap: 4px; font: 500 13px var(--display); color: var(--soft); }
+.sw i { height: 34px; display: flex; }
+.sw i s { flex: 1; text-decoration: none; }
+ol.plain, ul.plain { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; max-width: 80ch; font-size: 17px; }
+footer { border-top: 2px solid var(--line); padding-top: 16px; font-size: 14px; color: var(--soft); display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 860px) {
+  .rules, .split, .markview { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  body { font-size: 17px; }
+  .markview dl { grid-template-columns: minmax(0, 1fr); }
+  .markview dt { padding-top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <span class="eyebrow">Biblia del mundo · plataformas 2D en pixel art</span>
+  <h1>ASCEND</h1>
+  <p class="lede">Un chico de pueblo con una marca dorada que puede copiar las marcas de los demás, y una ciudad encerrada en diez velos de luz. Es el mismo mundo que el proyecto en 3D, pasado por un filtro de cuento: piedra, faroles de tormenta, vigías de latón y mucho tejado por el que correr.</p>
+  <div class="px"><canvas id="hero" width="320" height="140" aria-label="Escena animada: Jon corre y salta por los tejados de Ibaia, con los velos ámbar de la Defensa y la Torre al fondo"></canvas></div>
+  <div class="facts"><span><b>11</b>marcas</span><span><b>10</b>barrios</span><span><b>5</b>capítulos de prólogo</span><span><b>1</b>torre</span></div>
+  <nav class="toc" aria-label="Secciones">
+    <a href="#mundo">El mundo</a><a href="#reglas">Las marcas</a><a href="#absorcion">Absorción</a><a href="#historia">Historia</a><a href="#personajes">Personajes</a><a href="#marcas">Las once marcas</a><a href="#parkour">Parkour</a><a href="#ibaia">Ibaia</a><a href="#enemigos">Enemigos</a><a href="#juego">Cómo se juega</a><a href="#pixel">Pixel art</a><a href="#pendiente">Pendiente</a>
+  </nav>
+</header>
+
+<section id="mundo">
+  <div class="intro">
+    <span class="eyebrow">01 · El tono</span>
+    <h2>Un mundo de marcas</h2>
+  </div>
+  <p>Algunas personas nacen con una <b>marca</b>: dibujos de luz bajo la piel que les dan un poder, siempre ligado a una idea (la Energía, la Gravedad, el Hilo…). A esas personas se las llama <b>Encarnaciones</b>. La <b>PDC</b> las caza «por el bien de todos». Los <b>Acólitos</b>, un culto, usan un poder que no es suyo. Y en medio está Jon, que nació con la única marca capaz de copiar a las demás: el <b>Destino</b>.</p>
+  <p>La versión 2D cambia la piel del mundo, no su historia. Donde el 3D tenía policía, drones, teléfonos públicos y tranvías, el 2D tiene paladines, búhos mecánicos, caracolas de bronce que hablan y carros de rayo. Los temas siguen igual: copiar no es robar, el poder prestado pudre a quien lo usa, y moverse sin que nadie te pare es una forma de libertad.</p>
+  <div class="tablewrap px"><table>
+    <thead><tr><th>En el proyecto 3D</th><th>En el plataformas 2D</th><th>Qué conserva</th></tr></thead>
+    <tbody>
+      <tr><td>PDC, la policía que caza marcados</td><td><b>Paladines de la Contención</b> (la PDC), con armadura azul y atalayas</td><td>Las siglas, el azul y su doctrina del «Escudo Ciudadano»</td></tr>
+      <tr><td>Proyecto Ascend, base militar</td><td><b>La Ascensión</b>, la forja secreta donde se encierran marcas en naipes</td><td>Las cinco cartas: el Destino y cuatro sin identificar</td></tr>
+      <tr><td>Drones de vigilancia</td><td><b>Vigías de latón</b>, búhos mecánicos con un ojo de cristal</td><td>Vuelan, avisan y disparan desde arriba</td></tr>
+      <tr><td>La Centralita, red de cabinas</td><td><b>La Centralita</b>, una voz que habla por las caracolas de bronce de las esquinas</td><td>Guía a Jon; las caracolas son los puntos de guardado</td></tr>
+      <tr><td>Tranvía de la línea 0</td><td><b>Carro de rayo</b>, que corre por raíles con chispas</td><td>Batería móvil para sobrecargar el Ancla</td></tr>
+      <tr><td>Farolas y armarios eléctricos</td><td><b>Faroles de tormenta</b> y cristales de rayo</td><td>Fuentes de las que se absorbe la Energía</td></tr>
+      <tr><td>Barreras de la Defensa</td><td><b>Velos de la Defensa</b>: muros de hexágonos ámbar que llegan al cielo</td><td>Cada barrio cerrado; cada velo, sostenido por su Ancla</td></tr>
+      <tr><td>Armas de fuego</td><td>Ballestas de rayo y lanzas</td><td>Los mismos roles: agente, reforzado, blindado, francotirador</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="reglas">
+  <div class="intro">
+    <span class="eyebrow">02 · Las reglas</span>
+    <h2>Cómo funcionan las marcas</h2>
+  </div>
+  <div class="split">
+    <div>
+      <p>Una marca se ve como un dibujo de luz en el brazo que se enciende al usarla: poco con un golpe, todo el brazo hasta el pecho con un poder fuerte. Cada marca tiene su color y su símbolo. Se gasta al usarla y se recarga <b>absorbiendo su elemento del entorno</b>.</p>
+      <p>Jon lleva el <b>Destino</b> en la muñeca izquierda. Puede tener varias marcas copiadas a la vez y cambiar de una a otra (la rueda de marcas). Las marcas copiadas se dibujan en sus brazos, unas encima de otras, cada una con su color.</p>
+      <p>Dos marcas juntas hacen <b>combos</b>: fuego sobre alguien que flota explota, rayo sobre alguien mojado salta a todos los mojados, hielo sobre mojado congela al instante.</p>
+    </div>
+    <figure>
+      <div class="px"><canvas class="scene" id="copyScene" width="160" height="90" aria-label="Animación: Jon toca la mano de una Encarnación y copia su marca; la Encarnación conserva la suya"></canvas></div>
+      <figcaption>Copiar: contacto, voluntad y tiempo. Al terminar, los dos tienen la marca.</figcaption>
+    </figure>
+  </div>
+  <h3>Las tres reglas del Destino</h3>
+  <div class="rules">
+    <div class="rule px"><span class="n">I</span><b>Contacto y voluntad</b><p>Para copiar hay que tocar a la Encarnación y querer hacerlo durante unos segundos. Si se suelta, se corta.</p></div>
+    <div class="rule px"><span class="n">II</span><b>Copiar no es quitar</b><p>La Encarnación conserva su marca entera. El Destino hace una copia; no roba nada.</p></div>
+    <div class="rule px"><span class="n">III</span><b>Con permiso</b><p>Se copia a quien lo permite. Saltarse esta regla es posible, y tiene un precio: con Lur, en el Bosque Hundido, el jugador elige.</p></div>
+  </div>
+  <p class="muted">Las reglas I y II salen del prólogo jugable; la III, del plan de los barrios.</p>
+  <div class="note"><b>La Marca de Sangre.</b> Es la del general Narbaiza y no se puede copiar. Su secreto: puede <b>prestarse</b>. Narbaiza da un poco de su sangre a los Acólitos y les presta poderes que acaban pudriéndolos. Así hay «terror marcado» por las calles y la ciudad pide más PDC.</div>
+</section>
+
+<section id="absorcion">
+  <div class="intro">
+    <span class="eyebrow">03 · La absorción</span>
+    <h2>El poder sale del mundo</h2>
+  </div>
+  <div class="split">
+    <figure>
+      <div class="px"><canvas class="scene" id="absorbScene" width="160" height="90" aria-label="Animación: Jon mantiene la mano junto a un farol de tormenta y la luz azul fluye hacia su brazo"></canvas></div>
+      <figcaption>Mantener el botón junto a una fuente: la luz viaja hasta el brazo y la reserva de la fuente baja.</figcaption>
+    </figure>
+    <div>
+      <p>Ninguna marca da poder infinito. Cada una tiene una barra que se vacía al usarla y solo se llena <b>absorbiendo de su fuente</b>: la Energía de los faroles de tormenta, la Temperatura de braseros y arcones de escarcha, el Hilo de telares y tendederos.</p>
+      <p>Las fuentes también se gastan y tardan en recuperarse, así que el nivel decide dónde se puede recargar. Es la columna del diseño: obliga a moverse por el escenario, a buscar fuentes y a elegir qué marca usar en cada sala.</p>
+      <p>La Sombra va al revés: se carga <b>apagando</b> luces. La Defensa no absorbe nada: se carga con el daño que bloquea.</p>
+    </div>
+  </div>
+</section>
+
+<section id="historia">
+  <div class="intro">
+    <span class="eyebrow">04 · La historia</span>
+    <h2>Del pueblo a la Torre</h2>
+  </div>
+  <div class="timeline" id="timeline"></div>
+  <div class="note"><b>Los hilos que cruzan el juego.</b> Iker y las barreras: el amigo que desaparece en el prólogo es lo que encierra la ciudad. La Centralita: la voz que guía a Jon es la ingeniera que diseñó la cadena de Iker. El maestro de los Acólitos: quien les presta el poder es Narbaiza. Las decisiones vuelven: Pello, la Directora de la forja, el destino de Lur.</div>
+</section>
+
+<section id="personajes">
+  <div class="intro">
+    <span class="eyebrow">05 · Personajes</span>
+    <h2>Quién es quién</h2>
+  </div>
+  <div class="cast" id="cast"></div>
+</section>
+
+<section id="marcas">
+  <div class="intro">
+    <span class="eyebrow">06 · Las once marcas</span>
+    <h2>Cada marca, una forma de moverse</h2>
+  </div>
+  <p>En el plataformas cada marca hace dos cosas: <b>abre el mapa</b> (un movimiento nuevo que deja pasar por donde antes no se podía) y <b>cambia el combate</b>. Elige una marca para verla en acción.</p>
+  <div class="markpick" id="markpick" role="group" aria-label="Elegir marca"></div>
+  <div class="markview px" id="markview">
+    <figure><canvas class="scene" id="markScene" width="160" height="90" aria-label="Demostración animada de la marca elegida"></canvas><figcaption id="markCap"></figcaption></figure>
+    <div class="info" id="markInfo"></div>
+  </div>
+  <h3>Combos entre marcas</h3>
+  <div class="tablewrap px"><table>
+    <thead><tr><th>Combo</th><th>Marcas</th><th>Cómo</th><th>Efecto</th></tr></thead>
+    <tbody id="combos"></tbody>
+  </table></div>
+</section>
+
+<section id="parkour">
+  <div class="intro">
+    <span class="eyebrow">07 · Parkour</span>
+    <h2>Moverse sin parar</h2>
+  </div>
+  <p>Jon no tiene marca de movimiento al empezar: el parkour es suyo, de crecer saltando tejados con Iker. Es la base de todo y nunca se pierde. La regla de oro del diseño: <b>ningún movimiento corta el impulso</b>. Subir a una cornisa, saltar una valla o deslizarse por debajo de una puerta conservan la velocidad.</p>
+  <div class="moves" id="moves"></div>
+  <div class="tablewrap px"><table>
+    <thead><tr><th>Medida</th><th>Valor de partida</th><th>Por qué</th></tr></thead>
+    <tbody>
+      <tr><td><b>Casilla</b></td><td>16 × 16 px; Jon mide 1 × 1,5 casillas</td><td>Resolución interna 384 × 216 (escala ×5 a 1080p)</td></tr>
+      <tr><td><b>Carrera</b></td><td>8 casillas/s; sprint, 11</td><td>Cruzar una pantalla en dos segundos</td></tr>
+      <tr><td><b>Salto</b></td><td>3,5 casillas de alto y 5 de largo (variable si se suelta)</td><td>Un piso de la ciudad por salto</td></tr>
+      <tr><td><b>Tiempo de gracia</b></td><td>0,1 s tras salir del borde; salto guardado 0,12 s</td><td>Perdona los saltos tarde y las pulsaciones pronto</td></tr>
+      <tr><td><b>Dash de Energía</b></td><td>4,5 casillas en 0,15 s, uno por salto</td><td>Primer poder de movimiento (prólogo)</td></tr>
+      <tr><td><b>Caída sin rodar</b></td><td>Daño a partir de 6 casillas; rodando, ninguno</td><td>Premia aterrizar bien</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="ibaia">
+  <div class="intro">
+    <span class="eyebrow">08 · El mapa</span>
+    <h2>Ibaia, la ciudad de los diez velos</h2>
+  </div>
+  <p>Una ciudad en el delta de un río: la Isla en medio, la Península al oeste y la Orilla Este, unidas por puentes de piedra. Cada barrio está cerrado por un velo ámbar. Sobre el Centro, los velos se cierran en una cúpula alrededor de la Torre. Jon llega por la sierra del este y la recorre en orden, rompiendo un Ancla tras otra.</p>
+  <figure class="map px"><canvas id="worldmap" width="200" height="130" aria-label="Plano en pixel art de Ibaia con los diez barrios numerados en orden, los velos ámbar y la Torre en el sur de la Isla"></canvas>
+    <figcaption>Números: el orden de la ruta. Bordes ámbar: los velos. Estrella dorada: la Torre de la Defensa bajo su cúpula.</figcaption>
+  </figure>
+  <div class="regions" id="regions"></div>
+</section>
+
+<section id="enemigos">
+  <div class="intro">
+    <span class="eyebrow">09 · Enemigos</span>
+    <h2>La PDC y los Acólitos</h2>
+  </div>
+  <div class="foes" id="foes"></div>
+  <p class="muted">La PDC empieza tranquila: te mira, te sigue, te avisa. Si usas poderes a su vista se pone vigilante; si atacas a un paladín, todo el barrio se vuelve hostil y llegan refuerzos. Los Acólitos atacan siempre.</p>
+</section>
+
+<section id="juego">
+  <div class="intro">
+    <span class="eyebrow">10 · Estructura</span>
+    <h2>Cómo se juega en 2D</h2>
+  </div>
+  <div class="split">
+    <div>
+      <h3>Un metroidvania por barrios</h3>
+      <ol class="plain">
+        <li><b>Entrar</b> por el velo que acaba de caer, con las marcas que ya tienes.</li>
+        <li><b>Encontrar a la Encarnación</b> del barrio y ganarse su permiso. Cada barrio tiene su género: noir, huelga, sátira, cuento oscuro, fuga, asesinato, atraco, catástrofe, saga familiar y asedio.</li>
+        <li><b>Copiar su marca</b>: el movimiento nuevo abre las salas que antes estaban cerradas.</li>
+        <li><b>Romper el Ancla</b>, que siempre está donde solo llega esa marca. Cae el velo siguiente.</li>
+        <li><b>Volver</b> con marcas nuevas a barrios ya recorridos: hay salas que pedían una marca de más adelante.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Puertas de marca</h3>
+      <p>Cada obstáculo del mapa tiene un aspecto que dice qué marca lo abre, siempre con su color.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Obstáculo</th><th>Se abre con</th></tr></thead>
+        <tbody id="gates"></tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="tablewrap px"><table>
+    <thead><tr><th>Del 3D</th><th>Al 2D</th></tr></thead>
+    <tbody>
+      <tr><td>Torre de la PDC de cada barrio</td><td>Atalaya: subirla descubre en el mapa las salas y secretos del barrio</td></tr>
+      <tr><td>Control de la PDC (%)</td><td>Sello del barrio: se borra con secundarias y retos; liberado, los paladines se van y abren los atajos</td></tr>
+      <tr><td>Cabinas de la Centralita</td><td>Caracolas de bronce: guardar partida y recibir encargos</td></tr>
+      <tr><td>Bases acólitas, carreras, puzles de cables, cámaras, buzones muertos</td><td>Retos por sala: oleadas en una arena, contrarreloj por tejados, circuitos de faroles, sigilo bajo ojos de cristal, buscar el sitio de un grabado</td></tr>
+      <tr><td>Expedientes del Proyecto Ascend</td><td>Páginas de la Ascensión: coleccionables que cuentan la historia de los naipes</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="pixel">
+  <div class="intro">
+    <span class="eyebrow">11 · Pixel art</span>
+    <h2>Reglas de dibujo</h2>
+  </div>
+  <ul class="plain">
+    <li><b>Resolución interna</b> 384 × 216, casillas de 16 px. Personajes de 16 × 24 px; Encarnaciones y jefes, hasta 32 × 40.</li>
+    <li><b>La marca siempre se ve.</b> Uno a tres píxeles de luz en el brazo del color de la marca; al usar un poder fuerte, la luz sube hasta el hombro y salen partículas de ese color.</li>
+    <li><b>El Destino</b> es el único dorado del juego: muñeca izquierda de Jon, naipes, el título. Nada más usa ese color.</li>
+    <li><b>Los velos</b> son el único ámbar: muros de hexágonos de 4 px que parpadean. Se ven desde cualquier barrio.</li>
+    <li><b>La PDC</b> es azul marino con un acento azul eléctrico; los Acólitos, morado con brillo violeta; la Sangre, rojo oscuro.</li>
+    <li><b>Cada barrio tiene su luz</b>: anochecer de lluvia, noche naranja de forja, neones, tarde dorada, apagón, atardecer, mediodía gris, mañana de viento, noche de farolillos, tormenta.</li>
+  </ul>
+  <div class="swatches" id="swatches"></div>
+</section>
+
+<section id="pendiente">
+  <div class="intro">
+    <span class="eyebrow">12 · Por decidir</span>
+    <h2>Lo que aún no está cerrado</h2>
+  </div>
+  <ul class="plain">
+    <li><b>Quién es la Defensa.</b> La propuesta es Iker: las barreras que separan a Jon de su amigo son su amigo. La alternativa era «la Guardiana», una desconocida.</li>
+    <li><b>Quién es la Centralita.</b> La propuesta es la Dra. Edurne Lasa, la ingeniera de la Ascensión que diseñó la cadena de la Defensa.</li>
+    <li><b>Los cuatro naipes sin identificar.</b> Uno sirvió para crear a la Defensa; los otros tres siguen abiertos.</li>
+    <li><b>Qué cambia la elección del prólogo</b> (matar o perdonar a la Encarnación de la Energía) y por qué Narbaiza quiere a Jon vivo.</li>
+    <li><b>El nombre del mundo fuera de Ibaia</b> y si el pueblo de Jon tiene nombre.</li>
+  </ul>
+</section>
+
+<footer>
+  <span>Basado en el proyecto en 3D: prólogo jugable (M01–M05), diseño de la ciudad, plan de los diez barrios y campaña del Distrito Cero. El proyecto 3D sigue intacto.</span>
+  <span>Todas las ilustraciones de esta página están dibujadas píxel a píxel por el propio navegador.</span>
+</footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+// ------------------------------------------------------------------ Paletas y datos
+const MARKS = {
+  destino: { name: 'Destino', color: '#f2c45a', glow: '#ffe7a3' },
+  energia: { name: 'Energía', color: '#2f8bff', glow: '#9fd0ff' },
+  temperatura: { name: 'Temperatura', color: '#2ee6d6', color2: '#ff8a2a', glow: '#b8fff7' },
+  hilo: { name: 'Hilo', color: '#e9edf5', glow: '#ffffff' },
+  raiz: { name: 'Raíz', color: '#5fbf3f', glow: '#b8f09a' },
+  sombra: { name: 'Sombra', color: '#a59fd0', glow: '#d8d2ff' },
+  eco: { name: 'Eco', color: '#d8e83a', glow: '#f2ff9a' },
+  gravedad: { name: 'Gravedad', color: '#a24dff', glow: '#d9b3ff' },
+  marea: { name: 'Marea', color: '#4f6dff', glow: '#a9b8ff' },
+  alas: { name: 'Alas', color: '#ff6fa8', glow: '#ffc4dc' },
+  defensa: { name: 'Defensa', color: '#ffb547', glow: '#ffe0a8' },
+  sangre: { name: 'Sangre', color: '#d1162b', glow: '#ff5a6a' },
+};
+
+const GLYPH = {
+  destino: ['....#....', '.#..#..#.', '..#.#.#..', '...###...', '#########', '...###...', '..#.#.#..', '.#..#..#.', '....#....'],
+  energia: ['.....##..', '....##...', '...##....', '..#####..', '....##...', '...##....', '..##.....', '.##......', '.#.......'],
+  temperatura: ['..#...+..', '#.#.#.+..', '.###.+++.', '#####++++', '.###.+++.', '#.#.#+++.', '..#...+..', '.........', '.........'],
+  hilo: ['##.......', '#.#......', '...#.....', '....#....', '.....#...', '......#..', '.......#.', '......###', '.......#.'],
+  raiz: ['....#....', '...###...', '..#.#.#..', '....#....', '....#....', '...###...', '..#.#.#..', '.#..#..#.', '#...#...#'],
+  sombra: ['.........', '..#####..', '.#.....#.', '#..###..#', '#.#####.#', '#..###..#', '.#.....#.', '..#####..', '.........'],
+  eco: ['#...#..#.', '#..#..#..', '#.#..#...', '##..#....', '#...#....', '##..#....', '#.#..#...', '#..#..#..', '#...#..#.'],
+  gravedad: ['...###...', '.##...##.', '#..###..#', '#.#####.#', '#.#####.#', '#.#####.#', '#..###..#', '.##...##.', '...###...'],
+  marea: ['.........', '...###...', '..#...#..', '.#.....#.', '#..##...#', '..#..#...', '##....###', '.........', '#########'],
+  alas: ['.......##', '.....####', '...######', '.#######.', '######...', '####.....', '##.......', '#........', '.........'],
+  defensa: ['..#####..', '.#.....#.', '#..###..#', '#.#...#.#', '#.#...#.#', '#..###..#', '.#.....#.', '..#####..', '.........'],
+  sangre: ['....#....', '....#....', '...###...', '..#####..', '.#######.', '.#######.', '.####.##.', '..#####..', '...###...'],
+};
+
+// ------------------------------------------------------------------ Dibujo de píxeles
+const R = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), w, h); };
+function line(c, x0, y0, x1, y1, col, w = 1) {
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  c.fillStyle = col;
+  for (let i = 0; i < 400; i++) {
+    c.fillRect(x0, y0, w, w);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (v) => Math.max(0, Math.min(255, Math.round(v * k)));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
+function glyph(c, key, x, y, s = 1, col, col2) {
+  const g = GLYPH[key];
+  const m = MARKS[key];
+  for (let j = 0; j < g.length; j++) for (let i = 0; i < g[j].length; i++) {
+    const ch = g[j][i];
+    if (ch === '#') R(c, x + i * s, y + j * s, s, s, col ?? m.color);
+    else if (ch === '+') R(c, x + i * s, y + j * s, s, s, col2 ?? m.color2 ?? m.color);
+  }
+}
+// Mini fuente de dígitos 3×5
+const DIG = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001', '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111'];
+function digits(c, str, x, y, col) {
+  [...String(str)].forEach((d, k) => {
+    const b = DIG[+d];
+    for (let i = 0; i < 15; i++) if (b[i] === '1') R(c, x + k * 4 + (i % 3), y + Math.floor(i / 3), 1, 1, col);
+  });
+}
+// Generador con semilla (las escenas son siempre iguales)
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+// ------------------------------------------------------------------ Personajes
+// Postura: pies (F delantero, B trasero) respecto a los pies; brazos respecto al hombro
+const POSES = {
+  idle: { legF: [1, 0], legB: [-1, 0], armF: [1, 7], armB: [-1, 7] },
+  run1: { lean: 1, legF: [4, -1], legB: [-3, 0], armF: [-2, 6], armB: [3, 5] },
+  run2: { lean: 1, legF: [-2, 0], legB: [3, -2], armF: [3, 5], armB: [-2, 6] },
+  jump: { legF: [2, -3], legB: [-1, -1], armF: [3, -6], armB: [-2, -5] },
+  fall: { legF: [2, -1], legB: [-2, 0], armF: [4, -3], armB: [-3, -2] },
+  wall: { legF: [2, -3], legB: [1, 0], armF: [3, -6], armB: [3, -2] },
+  hang: { up: 3, legF: [1, 2], legB: [-1, 2], armF: [1, -8], armB: [-1, -8] },
+  crouch: { crouch: 4, legF: [3, 0], legB: [-2, 0], armF: [3, 3], armB: [-1, 4] },
+  slide: { crouch: 6, lean: 2, legF: [6, 0], legB: [3, 0], armF: [2, 2], armB: [-4, -1] },
+  roll: { crouch: 7, lean: 3, legF: [2, -2], legB: [-1, -1], armF: [3, 0], armB: [1, 1] },
+  dash: { lean: 3, legF: [3, -1], legB: [-4, -1], armF: [6, 0], armB: [-4, 1] },
+  swing: { legF: [-1, 1], legB: [-3, 0], armF: [1, -9], armB: [2, -9] },
+  reach: { legF: [2, 0], legB: [-1, 0], armF: [6, -1], armB: [-1, 6] },
+  glide: { legF: [1, -1], legB: [-2, 0], armF: [6, -2], armB: [-5, -2] },
+  vault: { lean: 2, legF: [5, -4], legB: [-3, -2], armF: [3, 4], armB: [1, 4] },
+  cast: { legF: [3, 0], legB: [-2, 0], armF: [6, -4], armB: [-2, 5] },
+};
+
+/**
+ * Figura de 16×24 px: pies en (fx, fy). spec = { skin, hair, hairStyle, jacket,
+ * pants, boots, marks: [color...], gear: 'helmet'|'hood'|'robe'|'shield'|'bow'|'cape' }
+ */
+function figure(c, fx, fy, spec, poseName = 'idle', face = 1) {
+  const p = POSES[poseName];
+  const s = face;
+  const cr = p.crouch ?? 0;
+  const up = p.up ?? 0;
+  const hipY = fy - 8 + cr - up;
+  const lean = p.lean ?? 0;
+  const shX = fx + s * lean;
+  const shY = hipY - 7;
+  const back = (col) => shade(col, 0.72);
+  const pants = spec.pants, jacket = spec.jacket, skin = spec.skin;
+  // Pierna trasera, brazo trasero
+  line(c, fx - s, hipY, fx + s * p.legB[0], fy + p.legB[1] - up, back(pants), 2);
+  R(c, fx + s * p.legB[0] - (s < 0 ? 1 : 0), fy + p.legB[1] - up, 2, 1, back(spec.boots));
+  line(c, shX - s, shY + 1, shX + s * p.armB[0], shY + p.armB[1], back(jacket), 2);
+  // Capa o túnica (detrás)
+  if (spec.gear === 'cape' || spec.gear === 'robe') {
+    for (let r = 0; r < (spec.gear === 'robe' ? 14 : 12); r++) R(c, shX - s * (3 + Math.floor(r / 5)) - (s < 0 ? 2 : 0), shY + r, 3, 1, back(spec.cape ?? jacket));
+  }
+  // Pierna delantera
+  line(c, fx + s, hipY, fx + s * p.legF[0], fy + p.legF[1] - up, pants, 2);
+  R(c, fx + s * p.legF[0] - (s < 0 ? 1 : 0), fy + p.legF[1] - up, 2, 1, spec.boots);
+  // Tronco (inclinado)
+  for (let r = 0; r < 8; r++) {
+    const x = Math.round(fx + s * lean * (1 - r / 8)) - 3;
+    R(c, x, shY + r, 6, 1, r === 7 ? shade(jacket, 0.8) : jacket);
+  }
+  if (spec.gear === 'robe') for (let r = 0; r < 6; r++) R(c, fx - 3 - Math.floor(r / 3), hipY + r, 6 + 2 * Math.floor(r / 3), 1, jacket);
+  // Cabeza
+  const hx = shX - 2 + (s > 0 ? 0 : -1);
+  const hy = shY - 6;
+  R(c, hx, hy, 5, 5, skin);
+  R(c, s > 0 ? hx + 3 : hx + 1, hy + 2, 1, 1, '#141018');
+  const hair = spec.hair;
+  const hs = spec.hairStyle ?? 'short';
+  if (spec.gear === 'helmet') {
+    R(c, hx - 1, hy - 1, 7, 3, spec.helmet ?? '#2a3a5c');
+    R(c, s > 0 ? hx + 2 : hx, hy + 2, 3, 1, spec.visor ?? '#3ac8ff');
+  } else if (spec.gear === 'hood') {
+    R(c, hx - 1, hy - 1, 7, 2, spec.hood ?? jacket);
+    R(c, s > 0 ? hx - 1 : hx + 4, hy + 1, 2, 5, spec.hood ?? jacket);
+  } else {
+    R(c, hx, hy - 1, 5, 2, hair);
+    if (hs === 'long') R(c, s > 0 ? hx - 1 : hx + 4, hy, 2, 7, hair);
+    if (hs === 'bun') R(c, s > 0 ? hx - 1 : hx + 4, hy - 2, 2, 2, hair);
+    if (hs === 'messy') { R(c, hx - 1, hy - 2, 2, 1, hair); R(c, hx + 3, hy - 2, 2, 1, hair); R(c, s > 0 ? hx - 1 : hx + 4, hy, 2, 2, hair); }
+    if (hs === 'slick') R(c, s > 0 ? hx - 1 : hx + 5, hy, 1, 2, hair);
+    if (hs === 'short') R(c, s > 0 ? hx - 1 : hx + 4, hy, 1, 2, hair);
+    if (spec.beard) R(c, hx + (s > 0 ? 1 : 0), hy + 4, 4, 1, hair);
+  }
+  // Brazo delantero (y la marca)
+  const ax = shX + s * p.armF[0], ay = shY + p.armF[1];
+  line(c, shX + s, shY + 1, ax, ay, jacket, 2);
+  R(c, ax, ay, 2, 2, skin);
+  if (spec.marks?.length) {
+    spec.marks.forEach((col, k) => {
+      const t = 0.75 - k * 0.2;
+      R(c, shX + s + (ax - shX - s) * t, shY + 1 + (ay - shY - 1) * t, 2, 1, col);
+    });
+  }
+  // Escudo o ballesta delante
+  if (spec.gear === 'shield') { R(c, fx + s * 4 - (s < 0 ? 4 : 0), hipY - 9, 4, 11, spec.shield ?? '#5a7aa0'); R(c, fx + s * 5 - (s < 0 ? 2 : 0), hipY - 6, 2, 4, '#3ac8ff'); }
+  if (spec.gear === 'bow') { line(c, ax - s * 2, ay - 2, ax + s * 7, ay - 2, '#6b4a2e', 1); line(c, ax + s * 7, ay - 5, ax + s * 7, ay + 1, '#8c949e', 1); R(c, ax + s * 9, ay - 2, 1, 1, '#ff4a3a'); }
+}
+
+// Jon (protagonista)
+const JON = { skin: '#c99a7c', hair: '#2a1d14', hairStyle: 'messy', jacket: '#26304a', pants: '#2b2f3a', boots: '#e6e2da', marks: ['#f2c45a'] };
+
+// ------------------------------------------------------------------ Fondo de escena
+function sky(c, w, h, top, bottom, bands = 6) {
+  for (let i = 0; i < bands; i++) {
+    const t = i / (bands - 1);
+    const a = parseInt(top.slice(1), 16), b = parseInt(bottom.slice(1), 16);
+    const mix = (sh) => Math.round(((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t);
+    R(c, 0, Math.floor((h * i) / bands), w, Math.ceil(h / bands) + 1, `rgb(${mix(16)},${mix(8)},${mix(0)})`);
+  }
+}
+function skyline(c, w, base, col, seed, hmin = 10, hmax = 34, wmin = 6, wmax = 16, windows = null) {
+  const r = rng(seed);
+  for (let x = -4; x < w;) {
+    const bw = wmin + Math.floor(r() * (wmax - wmin));
+    const bh = hmin + Math.floor(r() * (hmax - hmin));
+    R(c, x, base - bh, bw, bh, col);
+    if (r() < 0.3) R(c, x + Math.floor(bw / 2) - 1, base - bh - 4, 2, 4, col);
+    if (windows) for (let wy = base - bh + 3; wy < base - 2; wy += 4) for (let wx = x + 2; wx < x + bw - 1; wx += 3) if (r() < 0.35) R(c, wx, wy, 1, 2, windows);
+    x += bw + (r() < 0.3 ? 2 : 0);
+  }
+}
+function ground(c, w, y, top, body, h = 90) {
+  R(c, 0, y, w, h - y, body);
+  R(c, 0, y, w, 1, top);
+  for (let x = 0; x < w; x += 8) R(c, x, y + 4 + ((x / 8) % 2) * 3, 4, 1, shade(body, 0.8));
+}
+function veil(c, x, w, y0, y1, t) {
+  // Velo de la Defensa: hexágonos ámbar parpadeantes
+  for (let y = y0; y < y1; y += 4) for (let i = 0; i < w; i += 4) {
+    const on = Math.sin(t * 3 + y * 0.3 + i * 0.7 + x) > 0.2;
+    R(c, x + i + ((y / 4) % 2) * 2, y, 2, 1, on ? '#ffb547' : 'rgba(255,181,71,0.35)');
+  }
+}
+
+// ------------------------------------------------------------------ Héroe: tejados
+const hero = document.getElementById('hero');
+const H = hero.getContext('2d');
+const roofs = [];
+{
+  const r = rng(7);
+  let x = 0;
+  for (let i = 0; i < 40; i++) {
+    const w = 28 + Math.floor(r() * 40);
+    const top = 92 + Math.floor(r() * 22);
+    roofs.push({ x, w, top, chim: r() < 0.5 });
+    x += w + 10 + Math.floor(r() * 14);
+  }
+}
+const LOOP = roofs[roofs.length - 1].x;
+let jon = { x: 20, y: 0, vy: 0, air: false, dash: 0, trail: [] };
+const SPEED = 46;
+function roofAt(wx) {
+  const m = ((wx % LOOP) + LOOP) % LOOP;
+  return roofs.find((r) => m >= r.x && m < r.x + r.w) ?? null;
+}
+function stepHero(dt, scroll) {
+  const wx = scroll + 90;
+  const under = roofAt(wx);
+  if (!jon.air) {
+    if (!under) { jon.air = true; jon.vy = 0; }
+    else {
+      jon.y = under.top;
+      // Saltar antes del borde
+      const ahead = roofAt(wx + 12);
+      if (!ahead || ahead !== under) { jon.air = true; jon.vy = -95; }
+    }
+  } else {
+    jon.vy += 260 * dt;
+    jon.y += jon.vy * dt;
+    // Dash en el aire si el hueco es largo
+    if (jon.vy > -10 && jon.dash <= 0 && !roofAt(wx + 30) && !roofAt(wx + 8)) jon.dash = 0.22;
+    if (under && jon.vy > 0 && jon.y >= under.top) { jon.y = under.top; jon.air = false; }
+    if (jon.y > 150) { jon.y = 60; jon.vy = 0; }
+  }
+  if (jon.dash > 0) { jon.dash -= dt; jon.vy = Math.min(jon.vy, 5); }
+}
+let heroScroll = 0;
+function drawHero(t, dt) {
+  const c = H;
+  sky(c, 320, 140, '#1a1838', '#6a3a58', 7);
+  // Luna y estrellas
+  R(c, 262, 16, 8, 8, '#f3e7c9'); R(c, 260, 18, 2, 4, '#f3e7c9');
+  const r = rng(3);
+  for (let i = 0; i < 40; i++) R(c, Math.floor(r() * 320), Math.floor(r() * 60), 1, 1, r() < 0.5 ? '#c9c2e6' : '#7a74a0');
+  // La Torre y la cúpula al fondo
+  const tx = 230 - ((heroScroll * 0.05) % 400);
+  for (let k = 0; k < 2; k++) {
+    const x = tx + k * 400;
+    R(c, x, 14, 6, 80, '#3a3060');
+    R(c, x - 3, 30, 12, 64, '#2e2650');
+    R(c, x + 2, 10, 2, 4, '#ffb547');
+    for (let a = 0; a <= 32; a++) { const ang = Math.PI * a / 32; R(c, x + 3 + Math.cos(ang) * 46, 92 - Math.sin(ang) * 50, 1, 1, Math.sin(t * 3 + a) > 0 ? '#ffb547' : '#8a5a24'); }
+  }
+  // Velos lejanos
+  const vx = 40 - ((heroScroll * 0.12) % 220);
+  for (let k = 0; k < 3; k++) veil(c, vx + k * 220, 6, 20, 104, t);
+  // Ciudad lejana y media
+  c.save(); c.translate(-((heroScroll * 0.2) % 320), 0); skyline(c, 660, 104, '#2a2448', 11, 16, 40, 8, 18, '#e8b860'); c.restore();
+  c.save(); c.translate(-((heroScroll * 0.45) % 320), 0); skyline(c, 660, 112, '#221d3a', 5, 10, 30, 10, 20, '#ffd48a'); c.restore();
+  // Tejados
+  for (const rf of roofs) {
+    for (const off of [0, LOOP]) {
+      const x = rf.x + off - heroScroll;
+      if (x > 330 || x + rf.w < -10) continue;
+      R(c, x, rf.top, rf.w, 140 - rf.top, '#3c2e3e');
+      R(c, x, rf.top, rf.w, 2, '#7a5a5a');
+      for (let wy = rf.top + 8; wy < 140; wy += 8) for (let wx = x + 4; wx < x + rf.w - 3; wx += 7) R(c, wx, wy, 2, 3, (wx * 7 + wy) % 5 ? '#241a2a' : '#ffcf7a');
+      if (rf.chim) { R(c, x + 6, rf.top - 8, 5, 8, '#4a3644'); R(c, x + 5, rf.top - 9, 7, 1, '#5a4252'); }
+      // Farol de tormenta en algunos tejados
+      if ((rf.x / 10 | 0) % 3 === 0) { R(c, x + rf.w - 8, rf.top - 10, 1, 10, '#1b1b26'); R(c, x + rf.w - 9, rf.top - 12, 3, 2, Math.sin(t * 9) > 0 ? '#9fd0ff' : '#2f8bff'); }
+    }
+  }
+  // Jon
+  stepHero(dt, heroScroll);
+  const pose = jon.dash > 0 ? 'dash' : jon.air ? (jon.vy < 0 ? 'jump' : 'fall') : (Math.floor(t * 10) % 2 ? 'run1' : 'run2');
+  if (jon.dash > 0) for (let i = 1; i <= 3; i++) figure(c, 90 - i * 6, Math.round(jon.y), { ...JON, jacket: '#2f8bff', pants: '#1f5fbf', skin: '#6fb0ff', hair: '#2f8bff', boots: '#2f8bff', marks: [] }, 'dash', 1);
+  figure(c, 90, Math.round(jon.y), { ...JON, marks: ['#f2c45a', '#2f8bff'] }, pose, 1);
+  heroScroll += dt * (jon.dash > 0 ? SPEED * 2.6 : SPEED);
+}
+
+// ------------------------------------------------------------------ Copiar y absorber
+function drawCopy(c, t) {
+  const T = t % 6;
+  sky(c, 160, 90, '#202040', '#4a3050', 5);
+  skyline(c, 160, 70, '#2a2448', 21, 8, 26, 8, 16, '#e8b860');
+  ground(c, 160, 72, '#6a5a6a', '#3a2e3e');
+  const npcX = 104;
+  const jx = T < 1.5 ? 30 + T * 40 : 90;
+  const touching = T >= 1.6 && T < 4.6;
+  const prog = Math.max(0, Math.min(1, (T - 1.6) / 2.6));
+  figure(c, npcX, 72, { skin: '#b07a5c', hair: '#2b201a', hairStyle: 'messy', jacket: '#2b3b52', pants: '#2a2a30', boots: '#231d1a', marks: ['#2f8bff', '#9fd0ff'] }, touching ? 'reach' : 'idle', -1);
+  const jonMarks = prog >= 1 || T >= 4.6 ? ['#f2c45a', '#2f8bff'] : ['#f2c45a'];
+  figure(c, Math.round(jx), 72, { ...JON, marks: jonMarks }, T < 1.5 ? (Math.floor(T * 10) % 2 ? 'run1' : 'run2') : touching ? 'reach' : 'idle', 1);
+  if (touching) {
+    // Hilo de luz dorada y partículas azules hacia Jon
+    for (let i = 0; i < 10; i++) {
+      const k = (t * 1.4 + i / 10) % 1;
+      const px = 100 - k * 8;
+      const py = 63 + Math.sin(k * 6 + i) * 2;
+      R(c, px, py, 1, 1, i % 2 ? '#9fd0ff' : '#f2c45a');
+    }
+    // Barra de copia
+    R(c, 66, 30, 40, 4, '#1a1830'); R(c, 66, 30, Math.round(40 * prog), 4, '#f2c45a');
+    glyph(c, 'destino', 56, 28, 1); glyph(c, 'energia', 108, 28, 1);
+  }
+  if (T >= 4.6) {
+    // Los dos con la marca encendida
+    const a = Math.sin(t * 8) > 0;
+    R(c, 104 - 5, 60, 1, 1, a ? '#9fd0ff' : '#2f8bff');
+    R(c, 90 + 5, 60, 1, 1, a ? '#9fd0ff' : '#2f8bff');
+  }
+}
+function drawAbsorb(c, t) {
+  const T = t % 5;
+  sky(c, 160, 90, '#1c2040', '#3a3050', 5);
+  skyline(c, 160, 70, '#262246', 31, 10, 30, 8, 18, '#a8c8ff');
+  ground(c, 160, 72, '#6a6a7a', '#33303e');
+  // Farol de tormenta
+  const res = T < 1 ? 1 : Math.max(0.15, 1 - (T - 1) / 3);
+  R(c, 100, 38, 2, 34, '#1b1b26');
+  R(c, 96, 34, 10, 6, '#2a2a3a');
+  const lamp = res > 0.3 ? (Math.sin(t * 20) > 0 ? '#9fd0ff' : '#2f8bff') : '#24406a';
+  R(c, 97, 35, 8, 4, lamp);
+  // Reserva del farol
+  R(c, 110, 40, 3, 20, '#1a1830'); R(c, 110, 40 + Math.round(20 * (1 - res)), 3, Math.round(20 * res), '#2f8bff');
+  const absorbing = T >= 1 && T < 4;
+  figure(c, 86, 72, { ...JON, marks: ['#f2c45a', absorbing ? '#9fd0ff' : '#2f8bff'] }, absorbing ? 'reach' : 'idle', 1);
+  if (absorbing) {
+    for (let i = 0; i < 14; i++) {
+      const k = (t * 1.8 + i / 14) % 1;
+      const px = 99 - k * 7;
+      const py = 38 + k * 25 + Math.sin(i * 3 + t * 6) * 1.5;
+      R(c, px, py, 1, 1, i % 3 ? '#9fd0ff' : '#ffffff');
+    }
+  }
+  // Barra de energía de Jon
+  const e = T < 1 ? 0.2 : Math.min(1, 0.2 + (T - 1) / 3 * 0.8);
+  R(c, 8, 8, 44, 5, '#1a1830'); R(c, 9, 9, Math.round(42 * e), 3, '#2f8bff'); glyph(c, 'energia', 54, 6, 1);
+}
+
+// ------------------------------------------------------------------ Demostraciones de cada marca
+const SCN = {
+  base(c, top = '#1c1a38', bottom = '#3e3050', seed = 9, g = 74) {
+    sky(c, 160, 90, top, bottom, 5);
+    skyline(c, 160, g - 2, shade(bottom, 0.55), seed, 8, 28, 8, 16, '#e8b86055');
+    ground(c, 160, g, '#6a5a6a', '#2e2636');
+  },
+  runPose: (t) => (Math.floor(t * 10) % 2 ? 'run1' : 'run2'),
+};
+const DEMO = {
+  destino: (c, t) => drawCopy(c, t),
+  energia(c, t) {
+    const T = t % 4;
+    SCN.base(c, '#1a1c40', '#30305a', 4);
+    R(c, 70, 74, 34, 16, '#0b0a17');
+    // Roca con vetas azules
+    const broke = T > 3.2;
+    if (!broke) { R(c, 130, 58, 14, 16, '#4a4656'); line(c, 132, 60, 140, 70, '#2f8bff'); line(c, 138, 59, 134, 72, '#2f8bff'); }
+    else for (let i = 0; i < 8; i++) R(c, 130 + i * 2, 72 - ((T - 3.2) * 30 * (i % 3)) % 10, 2, 2, '#4a4656');
+    let x, y, pose = SCN.runPose(t);
+    if (T < 1.1) { x = 20 + T * 44; y = 74; }
+    else if (T < 1.4) { x = 68 + (T - 1.1) * 40; y = 74 - (T - 1.1) * 40; pose = 'jump'; }
+    else if (T < 1.75) { x = 80 + (T - 1.4) * 100; y = 62; pose = 'dash'; for (let i = 1; i < 4; i++) figure(c, x - i * 6, y, { ...JON, jacket: '#2f8bff', pants: '#2f8bff', skin: '#9fd0ff', hair: '#2f8bff', boots: '#2f8bff', marks: [] }, 'dash', 1); }
+    else if (T < 2) { x = 115; y = 62 + (T - 1.75) * 48; pose = 'fall'; }
+    else { x = 115; y = 74; pose = 'cast'; }
+    figure(c, Math.round(x), Math.round(y), { ...JON, marks: ['#f2c45a', '#2f8bff'] }, pose, 1);
+    if (T > 2.2 && T < 3.2) { const px = 122 + (T - 2.2) * 8; R(c, px, 66, 3, 2, '#9fd0ff'); R(c, px - 2, 66, 2, 2, '#2f8bff'); }
+  },
+  temperatura(c, t) {
+    const T = t % 4.5;
+    SCN.base(c, '#2a1a20', '#6a3a28', 13);
+    // Muro de fuego que se congela
+    const frozen = T > 2.2;
+    for (let y = 46; y < 74; y += 2) for (let x = 120; x < 128; x += 2) R(c, x, y, 2, 2, frozen ? (((x + y) / 2) % 2 ? '#b8fff7' : '#2ee6d6') : (Math.sin(t * 20 + y + x) > 0 ? '#ff8a2a' : '#ffd23a'));
+    // Estela de hielo
+    const x = T < 2 ? 14 + T * 52 : T < 2.4 ? 118 : Math.min(150, 118 + (T - 2.4) * 30);
+    R(c, 10, 73, Math.min(x, 118) - 10, 1, '#b8fff7');
+    let y = 74, pose = 'slide';
+    if (T >= 2 && T < 2.4) pose = 'cast';
+    if (T >= 2.4) { y = 74 - Math.min(28, (T - 2.4) * 40); pose = 'wall'; }
+    figure(c, Math.round(x), Math.round(y), { ...JON, marks: ['#f2c45a', '#2ee6d6'] }, pose, 1);
+    if (pose === 'cast') for (let i = 0; i < 6; i++) R(c, x + 4 + i * 2, 66 - (i % 2), 1, 1, '#b8fff7');
+  },
+  hilo(c, t) {
+    const T = t % 4;
+    sky(c, 160, 90, '#141030', '#2a2050', 5);
+    skyline(c, 160, 90, '#1e1a3a', 5, 30, 70, 14, 22, '#ffd48a');
+    // Puntos de anclaje
+    const anchors = [[50, 14], [110, 12]];
+    for (const [ax, ay] of anchors) { R(c, ax - 1, ay - 1, 3, 3, '#e9edf5'); R(c, ax, ay - 6, 1, 5, '#8c949e'); }
+    R(c, 0, 66, 18, 24, '#2a2238'); R(c, 142, 60, 18, 30, '#2a2238');
+    // Péndulo en dos tramos
+    const seg = T < 2 ? 0 : 1;
+    const k = (T % 2) / 2;
+    const [ax, ay] = anchors[seg];
+    const ang = -1.0 + k * 2.0;
+    const L = 46;
+    const x = ax + Math.sin(ang) * L;
+    const y = ay + Math.cos(ang) * L + 10;
+    line(c, ax, ay, x + 1, y - 18, '#ffffff');
+    figure(c, Math.round(x), Math.round(y), { ...JON, marks: ['#f2c45a', '#e9edf5'] }, 'swing', 1);
+  },
+  raiz(c, t) {
+    const T = t % 4.5;
+    SCN.base(c, '#1e2a20', '#4a6a40', 17);
+    R(c, 96, 18, 30, 56, '#5a5a62');
+    for (let y = 22; y < 74; y += 6) R(c, 96, y, 30, 1, '#4a4a52');
+    const grown = Math.min(1, T / 1.2);
+    for (let i = 0; i < 5; i++) {
+      if (grown * 5 < i) break;
+      const y = 68 - i * 10;
+      R(c, 93, y, 4, 2, '#5fbf3f'); R(c, 95, y - 2, 1, 2, '#3a8a2a');
+    }
+    line(c, 96, 74, 96, 74 - grown * 50, '#3a8a2a');
+    let x = 84, y = 74, pose = 'cast';
+    if (T > 1.3 && T < 3.6) { pose = 'hang'; y = 74 - (T - 1.3) * 22; x = 90; }
+    else if (T >= 3.6) { pose = 'idle'; y = 18; x = 104; }
+    figure(c, Math.round(x), Math.round(y), { ...JON, marks: ['#f2c45a', '#5fbf3f'] }, pose, 1);
+  },
+  sombra(c, t) {
+    const T = t % 4;
+    sky(c, 160, 90, '#0e0c1c', '#1c1830', 4);
+    ground(c, 160, 74, '#3a3448', '#18141f');
+    // Reja
+    for (let x = 80; x < 92; x += 3) R(c, x, 40, 1, 34, '#6a6a7a');
+    R(c, 78, 40, 16, 2, '#6a6a7a');
+    // Ojo de cristal que vigila
+    R(c, 120, 30, 6, 4, '#2a3a5c'); R(c, 122, 31, 2, 2, Math.sin(t * 2) > 0 ? '#3ac8ff' : '#1a6a9a');
+    const x = 30 + T * 26;
+    if (T < 1.4 || T > 2.8) figure(c, Math.round(x), 74, { ...JON, marks: ['#f2c45a', '#a59fd0'] }, T < 1.4 ? SCN.runPose(t) : 'idle', 1);
+    else {
+      // Fundido en el suelo: una sombra plana que pasa bajo la reja
+      R(c, Math.round(x) - 6, 73, 12, 1, '#000000');
+      R(c, Math.round(x) - 4, 72, 8, 1, '#2a2440');
+      R(c, Math.round(x) + 2, 72, 1, 1, '#a59fd0');
+    }
+  },
+  eco(c, t) {
+    const T = t % 4;
+    SCN.base(c, '#3a2a18', '#8a6a30', 23);
+    // Pared con parte falsa y cristal
+    R(c, 110, 30, 14, 44, '#5a4a3a');
+    const reveal = T > 1.6;
+    if (reveal) for (let y = 50; y < 74; y += 3) R(c, 110, y, 14, 1, '#d8e83a');
+    R(c, 56, 40, 10, 34, T > 3 ? '#00000000' : '#9fd8ff55');
+    if (T > 3) for (let i = 0; i < 6; i++) R(c, 56 + i * 2, 70 - (i % 3), 1, 1, '#9fd8ff');
+    figure(c, 40, 74, { ...JON, marks: ['#f2c45a', '#d8e83a'] }, 'cast', 1);
+    // Ondas
+    const r1 = (T % 1.2) * 70;
+    for (let a = -8; a <= 8; a++) { const ang = a * 0.08; R(c, 44 + Math.cos(ang) * r1, 62 + Math.sin(ang) * r1, 1, 1, '#d8e83a'); }
+  },
+  gravedad(c, t) {
+    const T = t % 4.5;
+    SCN.base(c, '#1e1a30', '#4a4a5a', 29);
+    R(c, 110, 44, 50, 46, '#3a3444');
+    R(c, 110, 44, 50, 2, '#6a5a6a');
+    // Bloque que flota hasta el pie del muro
+    let bx = 50, by = 62;
+    if (T > 0.6 && T < 2.2) { const k = (T - 0.6) / 1.6; bx = 50 + k * 46; by = 62 - Math.sin(k * Math.PI) * 18; }
+    else if (T >= 2.2) { bx = 96; by = 62; }
+    R(c, bx, by, 14, 12, '#6a5a7a'); R(c, bx, by, 14, 1, '#8a7a9a');
+    if (T > 0.6 && T < 2.2) for (let i = 0; i < 8; i++) R(c, bx + (i * 5) % 14, by + 13 + (i % 3), 1, 1, '#d9b3ff');
+    let x = 30, y = 74, pose = T < 2.2 ? 'cast' : 'idle';
+    if (T > 2.6 && T < 3.1) { x = 30 + (T - 2.6) * 140; y = 74 - (T - 2.6) * 40; pose = 'jump'; }
+    else if (T >= 3.1 && T < 3.6) { x = 100 + (T - 3.1) * 30; y = 62 - (T - 3.1) * 50; pose = 'jump'; }
+    else if (T >= 3.6) { x = 120; y = 44; pose = 'idle'; }
+    figure(c, Math.round(x), Math.round(y), { ...JON, marks: ['#f2c45a', '#a24dff'] }, pose, 1);
+  },
+  marea(c, t) {
+    const T = t % 5;
+    sky(c, 160, 90, '#3a6a9a', '#a8c8e0', 5);
+    R(c, 120, 30, 40, 60, '#4a4a5a'); R(c, 120, 30, 40, 2, '#8a8a9a');
+    const level = 84 - Math.min(1, T / 2) * 30;
+    for (let x = 0; x < 120; x += 2) R(c, x, level + Math.round(Math.sin(x * 0.3 + t * 5)), 2, 90, (x / 2) % 2 ? '#4f6dff' : '#3a5adf');
+    for (let x = 0; x < 120; x += 6) R(c, x + ((t * 20) % 6), level - 1, 3, 1, '#ffffff');
+    // Plataforma flotante
+    R(c, 70, level - 3, 18, 3, '#8a6a4a');
+    const x = T < 2.2 ? 40 : Math.min(124, 40 + (T - 2.2) * 40);
+    const y = T < 3.4 ? level - 1 : Math.max(30, level - 1 - (T - 3.4) * 60);
+    figure(c, Math.round(x), Math.round(y), { ...JON, marks: ['#f2c45a', '#4f6dff'] }, T < 3.4 ? 'slide' : 'jump', 1);
+  },
+  alas(c, t) {
+    const T = t % 4;
+    sky(c, 160, 90, '#2a1830', '#8a3a5a', 5);
+    skyline(c, 160, 90, '#1e1428', 37, 20, 60, 10, 18, '#ff6fa8');
+    R(c, 124, 18, 36, 72, '#2a1e30'); R(c, 124, 18, 36, 2, '#6a4a5a');
+    const x = 20 + T * 28;
+    const y = 80 - T * 15 + Math.sin(T * 8) * 2;
+    const flap = Math.sin(t * 16) > 0;
+    figure(c, Math.round(Math.min(x, 130)), Math.round(Math.max(18, y)), { ...JON, marks: ['#f2c45a', '#ff6fa8'] }, x > 128 ? 'idle' : 'glide', 1);
+    if (x <= 128) {
+      const wx = Math.round(x) - 2, wy = Math.round(y) - 15;
+      line(c, wx, wy, wx - 9, wy + (flap ? -6 : 3), '#ff6fa8', 2);
+      line(c, wx - 9, wy + (flap ? -6 : 3), wx - 14, wy + (flap ? -2 : 6), '#ffc4dc');
+    }
+    for (let i = 0; i < 6; i++) R(c, (i * 37 + t * 20) % 160, (i * 23 + t * 30) % 90, 2, 1, '#ffc4dc');
+  },
+  defensa(c, t) {
+    const T = t % 4.5;
+    sky(c, 160, 90, '#1a1020', '#5a3a20', 5);
+    ground(c, 160, 82, '#6a5a6a', '#2e2636');
+    R(c, 128, 14, 32, 76, '#3a2e3e'); R(c, 128, 14, 32, 2, '#7a5a5a');
+    const steps = [[40, 72], [62, 58], [84, 44], [106, 30]];
+    const n = Math.min(4, Math.floor(T / 0.7));
+    for (let i = 0; i < n; i++) {
+      const [sx, sy] = steps[i];
+      R(c, sx - 6, sy, 12, 3, '#ffb547'); R(c, sx - 4, sy - 1, 8, 1, '#ffe0a8'); R(c, sx - 4, sy + 3, 8, 1, '#8a5a24');
+    }
+    let x = 24, y = 82, pose = 'idle';
+    if (n > 0) { const i = Math.min(n, 4) - 1; x = steps[i][0]; y = steps[i][1]; pose = T % 0.7 < 0.35 ? 'jump' : 'idle'; }
+    if (T > 3.4) { x = 140; y = 14; pose = 'idle'; }
+    figure(c, Math.round(x), Math.round(y), { ...JON, marks: ['#f2c45a', '#ffb547'] }, pose, 1);
+  },
+  sangre(c, t) {
+    const T = t % 4;
+    sky(c, 160, 90, '#200a12', '#5a1a20', 5);
+    ground(c, 160, 74, '#5a3a3a', '#2a1418');
+    const nar = { skin: '#c49a80', hair: '#221c18', hairStyle: 'slick', beard: true, jacket: '#141519', pants: '#1a1b1f', boots: '#0f0f11', marks: ['#d1162b'], gear: 'cape', cape: '#3a0a12' };
+    figure(c, 60, 74, nar, 'cast', 1);
+    const aco = { skin: '#b07a5c', hair: '#1b1511', jacket: '#3b2448', pants: '#231c2a', boots: '#15120f', gear: 'hood', hood: '#4b2d5c', marks: [T > 2 ? '#b45cff' : '#5a3a6a'] };
+    figure(c, 112, 74, aco, T > 2.4 ? 'cast' : 'idle', -1);
+    if (T > 0.6 && T < 2.4) for (let i = 0; i < 10; i++) { const k = ((T - 0.6) * 0.8 + i / 10) % 1; R(c, 66 + k * 44, 60 - Math.sin(k * Math.PI) * 14, 1, 1, '#d1162b'); }
+    if (T > 2.4) for (let i = 0; i < 5; i++) R(c, 104 - i * 3 - ((T - 2.4) * 30) % 20, 62, 2, 1, '#b45cff');
+  },
+};
+
+const MARKINFO = [
+  { key: 'destino', who: 'Jon (innata)', where: 'Desde el principio', move: 'Copiar: mantener el contacto con una Encarnación hasta llenar la barra.', fight: 'Ninguno propio. Cambiar de marca con la rueda.', passive: '—', absorb: 'No se gasta.', opens: 'A las Encarnaciones y, con ellas, todo lo demás.', cap: 'Jon toca a la Encarnación de la Energía y copia su marca. Los dos la conservan.' },
+  { key: 'energia', who: 'El Desconocido (prólogo)', where: 'El pueblo, en la tormenta', move: 'Dash corto en el aire, uno por salto. En el aire, la onda se convierte en un rayo hacia abajo.', fight: 'Proyectil, descarga cargada, onda expansiva y sobrecarga.', passive: 'Cortocircuito: a veces aturde al golpear.', absorb: 'Faroles de tormenta, cristales de rayo, máquinas.', opens: 'Huecos de 4 casillas, rocas con vetas azules, mecanismos apagados.', cap: 'Salto, dash sobre el hueco y un disparo que rompe la roca de vetas azules.' },
+  { key: 'temperatura', who: 'Unai, fundidor', where: 'La Fundición', move: 'Patinar: deja una estela de hielo, corre más y sube por paredes heladas. Plataforma de hielo en el aire.', fight: 'Fuego y hielo alternos, muro, estela y tormenta.', passive: 'Quemadura: los golpes queman.', absorb: 'Braseros y arcones de escarcha.', opens: 'Muros de fuego (se congelan), cascadas (se hielan y se trepan), hielo (se derrite).', cap: 'Patina, congela el muro de fuego y sube por la pared helada.' },
+  { key: 'hilo', who: 'Amaia, costurera', where: 'Las Agujas (Midtown)', move: 'Balanceo: el hilo se engancha a los puntos de anclaje; soltar en la subida da impulso.', fight: 'Hilos, atar, lanzar y cadena entre enemigos.', passive: 'Impulso: manteniendo el salto, saltas más alto.', absorb: 'Telares, tendederos, rollos de tela.', opens: 'Abismos anchos y techos altos.', cap: 'Dos balanceos seguidos sobre el abismo entre torres.' },
+  { key: 'raiz', who: 'Lur, 15 años', where: 'El Bosque Hundido (Parque Central)', move: 'Enredadera: una liana sube por paredes lisas y crea asideros.', fight: 'Espinas, atrapar, quiebra (levanta el suelo) y esporas.', passive: 'Savia: sobre tierra o hierba recuperas vida.', absorb: 'Árboles, macetas, invernaderos.', opens: 'Paredes lisas y suelos agrietados.', cap: 'La liana crece por la pared lisa y Jon trepa por sus asideros.' },
+  { key: 'sombra', who: 'Gorka, contrabandista', where: 'La Colmena (Los Bloques)', move: 'Fundirse: Jon se vuelve una sombra plana en el suelo y pasa bajo rejas y rendijas sin que le vean.', fight: 'Dardos silenciosos, arrastrar a la sombra, apagón y un doble señuelo.', passive: 'Penumbra: a oscuras tardan el doble en verte.', absorb: 'La oscuridad: se carga apagando luces.', opens: 'Rejas, rendijas y salas vigiladas por ojos de cristal.', cap: 'Se funde en el suelo y pasa bajo la reja delante del ojo de cristal.' },
+  { key: 'eco', who: 'Lucía, soprano', where: 'Los Miradores (Las Colinas)', move: 'Estampido: carrera supersónica que revienta cristales a su paso.', fight: 'Pulso que rebota, ecolocalización, grito y silencio.', passive: 'Oído fino: se ve de dónde vienen pasos y golpes.', absorb: 'Campanas, órganos, cuernos.', opens: 'Cristal, paredes falsas (la ecolocalización las marca) y secretos.', cap: 'El pulso revela la pared falsa; el grito rompe el cristal.' },
+  { key: 'gravedad', who: 'Nerea, gruista', where: 'La Dársena (El Puerto)', move: 'Levantar bloques y usarlos de escalón; saltos de gravedad que flotan.', fight: 'Disparo, rocas, atraer, empujar y granada.', passive: 'Estasis: al borde de la muerte, las flechas se quedan flotando.', absorb: 'Escombros, piedras rúnicas, cadenas.', opens: 'Bloques pesados y salientes demasiado altos.', cap: 'Levanta un bloque, lo deja al pie del muro y sube por él.' },
+  { key: 'marea', who: 'Itziar, socorrista', where: 'La Orilla de la Feria (La Costa)', move: 'Surf sobre el agua y salto de ola. Marea alta: sube el agua de una sala y hace flotar plataformas.', fight: 'Chorro, burbuja, ola que apaga fuegos.', passive: 'Corriente: en el agua recuperas vida y carga.', absorb: 'Fuentes, charcos, el mar.', opens: 'Salas inundables y fuegos.', cap: 'Sube la marea, surfea la ola y salta al muelle.' },
+  { key: 'alas', who: 'Maite, mensajera', where: 'El Barrio de los Farolillos (Barrio Chino)', move: 'Vuelo limitado por plumas: aleteos y planeo; con menos plumas se vuela más despacio.', fight: 'Plumas, espada de plumas, lluvia y escudo.', passive: 'Plumaje: las plumas absorben parte del daño.', absorb: 'Nidos, palomares, cojines.', opens: 'Alturas grandes y corrientes de aire.', cap: 'Alas de luz rosa: Jon sube aleteando hasta la azotea.' },
+  { key: 'defensa', who: 'La Defensa, en lo alto de la Torre', where: 'La Torre (El Centro)', move: 'Peldaño: hexágonos de luz en el aire; encadenándolos se sube por el cielo.', fight: 'Placas, cúpula, reflejo y celda.', passive: 'Bastión: quieto, recibes menos daño.', absorb: 'El daño que bloquea.', opens: 'El cielo: el final y lo que hay después.', cap: 'Cuatro peldaños hexagonales hasta la azotea más alta.' },
+  { key: 'sangre', who: 'General Narbaiza (no se copia)', where: 'Enemigo', move: '—', fight: 'Presta poder a los Acólitos con su sangre. En el combate final roba las marcas activas de Jon.', passive: '—', absorb: 'La sangre de otros.', opens: 'Nada: es la marca del enemigo.', cap: 'Narbaiza presta su sangre a un Acólito: el poder violeta que no es suyo.' },
+];
+
+const pick = document.getElementById('markpick');
+const mScene = document.getElementById('markScene');
+const MC = mScene.getContext('2d');
+let current = 'energia';
+function iconCanvas(key, size = 9) {
+  const cv = document.createElement('canvas');
+  cv.width = size; cv.height = size;
+  glyph(cv.getContext('2d'), key, 0, 0, 1);
+  return cv;
+}
+function showMark(key) {
+  current = key;
+  const m = MARKS[key];
+  const info = MARKINFO.find((x) => x.key === key);
+  const view = document.getElementById('markview');
+  view.style.setProperty('--mc', m.color);
+  document.getElementById('markCap').textContent = info.cap;
+  document.getElementById('markInfo').innerHTML = `<h3>${m.name}</h3>
+    <dl><dt>Encarnación</dt><dd>${info.who}</dd><dt>Dónde</dt><dd>${info.where}</dd>
+    <dt>Movimiento</dt><dd>${info.move}</dd><dt>Combate</dt><dd>${info.fight}</dd>
+    <dt>Pasiva</dt><dd>${info.passive}</dd><dt>Absorbe de</dt><dd>${info.absorb}</dd><dt>Abre</dt><dd>${info.opens}</dd></dl>`;
+  for (const b of pick.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.key === key));
+}
+for (const info of MARKINFO) {
+  const m = MARKS[info.key];
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.key = info.key;
+  b.style.setProperty('--mc', m.color);
+  b.append(iconCanvas(info.key), document.createTextNode(m.name));
+  b.addEventListener('click', () => showMark(info.key));
+  pick.append(b);
+}
+showMark('energia');
+
+// Combos
+const COMBOS = [
+  ['Combustión', 'Temperatura + Gravedad', 'Fuego sobre un enemigo que flota', 'Explota en el aire'],
+  ['Electrocución', 'Marea + Energía', 'Descarga sobre un enemigo mojado', 'Salta a todos los mojados cercanos'],
+  ['Ultracongelación', 'Marea + Temperatura', 'Hielo sobre un enemigo mojado', 'Congelado al instante'],
+  ['Hoguera', 'Raíz + Temperatura', 'Fuego sobre enemigos atrapados por raíces', 'Las raíces arden en toda la zona'],
+  ['Resonancia', 'Eco + Hilo', 'Grito sobre enemigos atados', 'El hilo vibra y aturde a todos'],
+  ['Espejo', 'Defensa + Energía', 'Disparo a través de una cúpula', 'Sale multiplicado en cinco rayos'],
+];
+document.getElementById('combos').innerHTML = COMBOS.map(([a, b, c2, d]) => `<tr><td><b>${a}</b></td><td>${b}</td><td>${c2}</td><td>${d}</td></tr>`).join('');
+
+// Puertas de marca
+const GATES = [
+  ['Roca con vetas azules', 'energia'], ['Muro de fuego · cascada', 'temperatura'], ['Abismo con anclajes', 'hilo'],
+  ['Pared lisa · suelo agrietado', 'raiz'], ['Reja · rendija', 'sombra'], ['Cristal · pared falsa', 'eco'],
+  ['Bloque pesado · saliente alto', 'gravedad'], ['Sala inundable', 'marea'], ['Corriente de aire', 'alas'], ['El cielo', 'defensa'],
+];
+document.getElementById('gates').innerHTML = GATES.map(([o, k]) => `<tr><td>${o}</td><td><span class="chip" style="color:${MARKS[k].color}">${MARKS[k].name}</span></td></tr>`).join('');
+
+// ------------------------------------------------------------------ Historia
+const TL = [
+  ['Antes', 'La Ascensión', '#f2c45a', 'En una forja secreta de la Academia, la PDC aprende a encerrar marcas en naipes. Cinco naipes acaban en la fortaleza junto al pueblo de Jon: el Destino, dorado, y cuatro que nadie ha identificado.'],
+  ['Prólogo · I', 'La última noche', '#2f8bff', 'Jon e Iker corren por los tejados del pueblo, bajan el acantilado y se cuelan en la fortaleza. En la cámara de los naipes, el dorado elige a Jon: la marca del Destino le quema la muñeca. Huida por balcones, andamios y una tirolina hasta la playa.'],
+  ['Prólogo · II', 'La plaza', '#d1162b', 'El general Narbaiza llega al pueblo y tortura a Martín, un vecino, con la Marca de Sangre. Jon se mete en medio y acaba a un golpe de morir. Después, en un callejón, discute con Iker: Iker quiere ir a la ciudad a cambiar las cosas.'],
+  ['Prólogo · III', 'Cinco días', '#b5aed0', 'Cinco días de vida normal: el puerto, los rumores, la foto familiar, las patrullas vistas desde el mirador. La abuela de Jon le manda al mercado.'],
+  ['Prólogo · IV', 'La tormenta', '#2f8bff', 'Una tormenta de rayos cae sobre el pueblo y destruye la casa: la abuela muere. Un desconocido, Encarnación de la Energía, pide ayuda. Jon le copia la marca por contacto, sin quitársela, y tiene que decidir: matarle o perdonarle. La PDC se los lleva a los dos en un carro de presos.'],
+  ['Prólogo · V', 'El despertar', '#2f8bff', 'Atacan el convoy en el viaducto y el carro cae al bosque. Jon despierta solo: aprende a disparar, a cargar la descarga y a usar la onda contra los vigías, cruza con el dash un puente roto y, al salir de la niebla, ve por primera vez Ibaia, encerrada en velos de luz.'],
+  ['Acto I · 1–4', 'La Orilla Este y la Isla norte', '#ffb547', 'La Centralita guía a Jon por el barrio de los faroles (un chivato vende a la resistencia), la forja en huelga, las torres de los tapices y el bosque que crece con el miedo de una niña. Cada barrio, una Encarnación y un velo que cae.'],
+  ['Acto I · 5', 'La revelación', '#a59fd0', 'Al romper el Ancla de la Colmena, el Destino reacciona: el Ancla no es una máquina sino una marca viva. Jon ve a alguien encadenado en lo alto de la Torre. Los velos son una persona. Propuesta: es Iker.'],
+  ['Acto I · 6–9', 'La Península y el sur', '#a24dff', 'Un asesinato en el teatro de los Miradores, un atraco en la dársena que revela quién es la Centralita, una galerna provocada en la costa y un festival prohibido en el barrio de los farolillos, donde se descubre que el maestro de los Acólitos es Narbaiza.'],
+  ['Acto I · 10', 'La Torre', '#ffb547', 'Todos los aliados contra la cúpula. Jon sube 520 metros por fuera de la Torre con todas sus marcas, vence a Narbaiza y convence a la Defensa de que le deje copiarla. Caen todos los velos a la vez.'],
+];
+document.getElementById('timeline').innerHTML = TL.map(([w, h, col, txt]) => `<div class="tl" style="--ev:${col}"><span class="when">${w}</span><h3>${h}</h3><p>${txt}</p></div>`).join('');
+
+// ------------------------------------------------------------------ Personajes
+const CAST = [
+  ['Jon', '17 años · protagonista', 'Chico de un pueblo de pescadores. Corre por los tejados desde niño. Humor seco cuando tiene miedo; carga con la muerte de su abuela y con no haber protegido a Iker. Lleva el Destino en la muñeca izquierda.', JON, false],
+  ['Iker', 'Su mejor amigo', 'Quiere ir a la ciudad a cambiar las cosas. Desaparece la noche del convoy.', { skin: '#c28d6a', hair: '#1b1511', hairStyle: 'short', jacket: '#3f4a37', pants: '#2b3038', boots: '#3a2c22', marks: ['#ffb547'] }, true],
+  ['La abuela', 'Familia de Jon', 'Le crio. Muere en la tormenta de rayos. Su radio, años después, todavía capta a la Centralita.', { skin: '#d8b09a', hair: '#d9d5cf', hairStyle: 'bun', jacket: '#4c3a46', pants: '#3a3438', boots: '#2a2224' }, false],
+  ['General Narbaiza', 'Jefe de la PDC · Marca de Sangre', 'Cree que las marcas son una enfermedad y él la cura. Presta su sangre a los Acólitos para que la ciudad tenga miedo.', { skin: '#c49a80', hair: '#221c18', hairStyle: 'slick', beard: true, jacket: '#141519', pants: '#1a1b1f', boots: '#0f0f11', marks: ['#d1162b'], gear: 'cape', cape: '#3a0a12' }, false],
+  ['La Centralita', 'Voz de la resistencia', 'Habla por las caracolas de bronce y nunca da explicaciones. Es la Dra. Edurne Lasa, la ingeniera que diseñó la cadena de la Defensa.', { skin: '#d2a07e', hair: '#5a4a3a', hairStyle: 'bun', jacket: '#5a4632', pants: '#2a2a30', boots: '#231a1a' }, true],
+  ['Comisario Salaberri', 'PDC del barrio de los faroles', 'Educado, paciente, colecciona voces. Al final del primer barrio ya tiene la de Jon.', { skin: '#c49a80', hair: '#3a3430', hairStyle: 'slick', jacket: '#1f2a44', pants: '#1a1f2e', boots: '#0f0f11', gear: 'cape', cape: '#1f2a44' }, false],
+  ['El Desconocido', 'Encarnación de la Energía', 'Ropa quemada y prisa. Jon le copia la marca en la tormenta y decide qué hacer con él.', { skin: '#b07a5c', hair: '#2b201a', hairStyle: 'messy', jacket: '#2b3b52', pants: '#2a2a30', boots: '#231d1a', marks: ['#2f8bff'] }, false],
+  ['Unai', 'Fundidor · Temperatura', 'Mitad caliente, mitad fría. La PDC le obliga a templar el acero de sus escudos.', { skin: '#c99a7c', hair: '#3a2a1a', hairStyle: 'buzz', jacket: '#2a6a6a', pants: '#3a3430', boots: '#231d1a', marks: ['#2ee6d6', '#ff8a2a'] }, false],
+  ['Amaia', 'Costurera · Hilo', 'Cose uniformes de día y estandartes de la resistencia de noche. Mandona e irónica.', { skin: '#d8b09a', hair: '#1a1410', hairStyle: 'long', jacket: '#7a3b5b', pants: '#2a2a30', boots: '#231a1a', marks: ['#e9edf5'] }, false],
+  ['Lur', '15 años · Raíz', 'Su marca despertó cuando se llevaron a sus padres. El bosque crece con su miedo, y esconde a cientos.', { skin: '#c28d6a', hair: '#6a3a1a', hairStyle: 'long', jacket: '#3a5a2a', pants: '#2a3a2a', boots: '#3a2a1a', marks: ['#5fbf3f'] }, false],
+  ['Gorka', 'Contrabandista · Sombra', 'Saca a gente de la ciudad por túneles y tejados. Cínico y leal.', { skin: '#a77e66', hair: '#141010', hairStyle: 'short', beard: true, jacket: '#1c1a24', pants: '#1a1a20', boots: '#0f0f11', marks: ['#a59fd0'] }, false],
+  ['Lucía', 'Soprano · Eco', 'Su voz rompe copas. La PDC la graba para hacer vibrar los velos.', { skin: '#d8b09a', hair: '#8a2a1a', hairStyle: 'long', jacket: '#5a1a3a', pants: '#2a1a2a', boots: '#1a1010', marks: ['#d8e83a'] }, false],
+  ['Nerea', 'Gruista · Gravedad', 'Mueve piedras enteras con la mano. Seria y perfeccionista.', { skin: '#c99a7c', hair: '#2a1a12', hairStyle: 'bun', jacket: '#c96a3a', pants: '#2b2f36', boots: '#231a1a', marks: ['#a24dff'] }, false],
+  ['Itziar', 'Socorrista · Marea', 'Hundió una barca de la PDC que se llevaba a un vecino. Solo sale con marea alta.', { skin: '#b98266', hair: '#1a1410', hairStyle: 'long', jacket: '#b3262b', pants: '#2a2a40', boots: '#e0e0e0', marks: ['#4f6dff'] }, false],
+  ['Maite', 'Mensajera · Alas', 'Rápida e irreverente. Sus alas no se esconden: la buscan por todo el barrio.', { skin: '#d2a07e', hair: '#141010', hairStyle: 'messy', jacket: '#ff6fa8', pants: '#2a2a30', boots: '#1a1010', marks: ['#ff6fa8'] }, false],
+  ['Txema, Rosa y Pello', 'La resistencia del primer barrio', 'El dueño del bar, la conductora jubilada del carro de rayo y el recadero de 16 años que vende pisos para salvar a su hermana.', { skin: '#c28d6a', hair: '#241a12', hairStyle: 'messy', jacket: '#b3262b', pants: '#34404f', boots: '#e0e0e0' }, false],
+];
+const castEl = document.getElementById('cast');
+for (const [name, role, txt, spec, prop] of CAST) {
+  const card = document.createElement('div');
+  card.className = 'person px';
+  const cv = document.createElement('canvas');
+  cv.width = 24; cv.height = 28;
+  cv.setAttribute('aria-hidden', 'true');
+  const c = cv.getContext('2d');
+  R(c, 0, 24, 24, 4, '#2e2a48');
+  figure(c, 12, 25, spec, 'idle', 1);
+  card.append(cv);
+  const d = document.createElement('div');
+  d.innerHTML = `<h3>${name} ${prop ? '<span class="tag-prop">propuesta</span>' : ''}</h3><span class="role">${role}</span><p>${txt}</p>`;
+  card.append(d);
+  castEl.append(card);
+}
+
+// ------------------------------------------------------------------ Parkour
+const MOVES = [
+  ['run1', 'Correr', 'Acelera rápido y frena poco: el control es inmediato.'],
+  ['jump', 'Salto variable', 'Soltar antes salta menos. Tiempo de gracia al salir del borde.'],
+  ['wall', 'Pared', 'Deslizarse por la pared y saltar hacia el otro lado.'],
+  ['hang', 'Cornisa', 'Agarrarse al borde y subir sin perder el ritmo.'],
+  ['vault', 'Valla', 'Pasar por encima de lo que llega a la cintura, sin frenar.'],
+  ['slide', 'Deslizamiento', 'Agachado a la carrera: pasa bajo huecos de una casilla.'],
+  ['roll', 'Rodar', 'Rodar al aterrizar anula el daño de la caída.'],
+  ['dash', 'Dash (Energía)', 'Primer poder de movimiento: cruza huecos en el aire.'],
+];
+const movesEl = document.getElementById('moves');
+for (const [pose, name, txt] of MOVES) {
+  const card = document.createElement('div');
+  card.className = 'move px';
+  const cv = document.createElement('canvas');
+  cv.width = 24; cv.height = 28;
+  cv.setAttribute('aria-hidden', 'true');
+  const c = cv.getContext('2d');
+  R(c, 0, 24, 24, 4, '#2e2a48');
+  if (pose === 'wall') R(c, 17, 0, 7, 24, '#4a4058');
+  if (pose === 'hang') { R(c, 0, 3, 24, 2, '#7a5a5a'); R(c, 0, 5, 24, 19, '#3c2e3e'); }
+  if (pose === 'vault') R(c, 9, 18, 8, 6, '#6a5a6a');
+  if (pose === 'slide') R(c, 6, 0, 18, 15, '#4a4058');
+  if (pose === 'dash') for (let i = 1; i < 3; i++) figure(c, 12 - i * 4, 24, { ...JON, jacket: '#2f8bff', pants: '#2f8bff', skin: '#9fd0ff', hair: '#2f8bff', boots: '#2f8bff', marks: [] }, 'dash', 1);
+  const fy = pose === 'jump' ? 21 : pose === 'hang' ? 14 : pose === 'vault' ? 18 : pose === 'wall' ? 20 : 24;
+  figure(c, pose === 'wall' ? 13 : 12, fy, { ...JON, marks: pose === 'dash' ? ['#f2c45a', '#2f8bff'] : ['#f2c45a'] }, pose, 1);
+  card.append(cv);
+  const d = document.createElement('div');
+  d.innerHTML = `<b>${name}</b><br><span>${txt}</span>`;
+  card.append(d);
+  movesEl.append(card);
+}
+
+// ------------------------------------------------------------------ Mapa del mundo
+const REG = [
+  { key: 'cero', n: 1, mark: 'energia', poly: [[150, 6], [195, 6], [195, 40], [150, 42]], label: [170, 22] },
+  { key: 'industrial', n: 2, mark: 'temperatura', poly: [[150, 44], [195, 42], [192, 112], [154, 116]], label: [170, 78] },
+  { key: 'midtown', n: 3, mark: 'hilo', poly: [[88, 60], [134, 58], [134, 80], [88, 82]], label: [110, 70] },
+  { key: 'parque', n: 4, mark: 'raiz', poly: [[86, 36], [134, 34], [134, 57], [88, 59]], label: [110, 46] },
+  { key: 'bloques', n: 5, mark: 'sombra', poly: [[92, 10], [128, 8], [134, 33], [86, 35]], label: [110, 21] },
+  { key: 'colinas', n: 6, mark: 'eco', poly: [[14, 10], [64, 8], [66, 48], [12, 50]], label: [38, 28] },
+  { key: 'puerto', n: 7, mark: 'gravedad', poly: [[40, 52], [68, 50], [70, 100], [42, 102]], label: [55, 76] },
+  { key: 'costa', n: 8, mark: 'marea', poly: [[10, 52], [38, 52], [40, 104], [16, 106]], label: [25, 78] },
+  { key: 'chino', n: 9, mark: 'alas', poly: [[88, 84], [134, 82], [132, 100], [90, 102]], label: [110, 91] },
+  { key: 'centro', n: 10, mark: 'defensa', poly: [[90, 104], [132, 102], [124, 122], [98, 124]], label: [111, 113] },
+];
+function drawMap(t) {
+  const cv = document.getElementById('worldmap');
+  const c = cv.getContext('2d');
+  R(c, 0, 0, 200, 130, '#0d1830');
+  for (let y = 0; y < 130; y += 4) for (let x = (y / 4) % 2 ? 2 : 0; x < 200; x += 8) R(c, x, y, 1, 1, '#16264a');
+  // Sierra
+  for (let x = 0; x < 200; x += 6) { const h = 3 + ((x * 13) % 5); R(c, x, 0, 6, h, '#3a4a38'); }
+  R(c, 196, 0, 4, 130, '#3a4a38');
+  c.imageSmoothingEnabled = false;
+  for (const r of REG) {
+    c.beginPath();
+    r.poly.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
+    c.closePath();
+    c.fillStyle = shade(MARKS[r.mark].color, 0.42);
+    c.fill();
+    // Manzanas
+    const rr = rng(r.n * 7);
+    const [lx, ly] = r.label;
+    for (let i = 0; i < 26; i++) {
+      const x = lx - 16 + Math.floor(rr() * 32), y = ly - 10 + Math.floor(rr() * 20);
+      if (c.isPointInPath(x, y)) R(c, x, y, 2, 2, shade(MARKS[r.mark].color, 0.62));
+    }
+    c.strokeStyle = Math.sin(t * 3 + r.n) > -0.3 ? '#ffb547' : '#a8742a';
+    c.lineWidth = 1;
+    c.stroke();
+  }
+  // Puentes
+  R(c, 134, 20, 16, 2, '#c9a46a'); R(c, 134, 66, 20, 2, '#c9a46a'); R(c, 66, 30, 20, 2, '#c9a46a'); R(c, 70, 96, 20, 2, '#c9a46a');
+  // La Roca
+  R(c, 108, 126, 6, 3, '#4a4656');
+  // Torre y cúpula
+  for (let a = 0; a <= 20; a++) { const ang = Math.PI * a / 20; R(c, 111 + Math.cos(ang) * 12, 113 - Math.sin(ang) * 9, 1, 1, '#ffb547'); }
+  glyph(c, 'destino', 107, 105, 1, '#f2c45a');
+  for (const r of REG) {
+    const [x, y] = r.label;
+    const s = String(r.n);
+    R(c, x - 2, y - 1, s.length * 4 + 3, 7, '#0b0a17');
+    digits(c, s, x, y, '#ffffff');
+  }
+  // Llegada de Jon
+  R(c, 190, 8, 6, 2, '#f2c45a'); R(c, 188, 7, 2, 4, '#f2c45a');
+}
+
+// ------------------------------------------------------------------ Barrios
+const REGIONS = [
+  { key: 'cero', n: 1, mark: 'energia', name: 'El barrio de los faroles', was: 'Distrito Cero', genre: 'Thriller noir', txt: 'Ladrillo, lluvia y faroles de tormenta en cada esquina. La Centralita habla por las caracolas; un chivato vende los pisos de la resistencia. El Ancla se sobrecarga con un carro de rayo.', top: '#202848', bottom: '#5a4a6a', g: '#3a2e3e' },
+  { key: 'industrial', n: 2, mark: 'temperatura', name: 'La Forja', was: 'La Fundición', genre: 'Huelga y sabotaje', txt: 'Hornos, chimeneas y cámaras de escarcha pared con pared. La Antorcha arde dentro de un muro de fuego que solo el hielo abre.', top: '#2a1418', bottom: '#a8542a', g: '#2a1a1a' },
+  { key: 'midtown', n: 3, mark: 'hilo', name: 'Las Agujas', was: 'Midtown', genre: 'Sátira de pregoneros', txt: 'Torres altísimas unidas por tapices y estandartes de propaganda. El mejor sitio para balancearse; el Ancla corona la aguja más alta.', top: '#141030', bottom: '#5a2a6a', g: '#1e1a30' },
+  { key: 'parque', n: 4, mark: 'raiz', name: 'El Bosque Hundido', was: 'Parque Central', genre: 'Cuento oscuro', txt: 'Un parque que se ha vuelto bosque con el miedo de una niña. Bajo el castillo, cuevas de raíces llenas de gente escondida.', top: '#3a5a4a', bottom: '#d8b070', g: '#2a3a20' },
+  { key: 'bloques', n: 5, mark: 'sombra', name: 'La Colmena', was: 'Los Bloques', genre: 'Fuga de prisión', txt: 'Bloques apilados, apagones y un estadio convertido en prisión. Aquí se descubre que los velos son una persona.', top: '#0e0c1c', bottom: '#2a2440', g: '#18141f' },
+  { key: 'colinas', n: 6, mark: 'eco', name: 'Los Miradores', was: 'Las Colinas', genre: 'Asesinato de salón', txt: 'Villas, pinares, campanas y un observatorio de cristal. Un coronel muere en el teatro durante el aria de Lucía.', top: '#5a3a5a', bottom: '#f2b46a', g: '#3a3020' },
+  { key: 'puerto', n: 7, mark: 'gravedad', name: 'La Dársena', was: 'El Puerto', genre: 'Atraco', txt: 'Grúas de madera, bloques de piedra apilados y un barco varado. Se roba el Segundo Amplificador; la Centralita deja de ser anónima.', top: '#6a7080', bottom: '#b8b8b0', g: '#3a3a40' },
+  { key: 'costa', n: 8, mark: 'marea', name: 'La Orilla de la Feria', was: 'La Costa', genre: 'Catástrofe', txt: 'Una noria, un muelle de feria y una galerna provocada por la PDC. El Ancla está bajo el agua.', top: '#3a6a9a', bottom: '#d8e0e0', g: '#c8b080' },
+  { key: 'chino', n: 9, mark: 'alas', name: 'El Barrio de los Farolillos', was: 'Barrio Chino', genre: 'Saga familiar', txt: 'Torres estrechas, palomares y redes contra el vuelo. Un festival prohibido llena el cielo de farolillos hasta el Ancla.', top: '#1a0a1a', bottom: '#8a2a3a', g: '#2a1418' },
+  { key: 'centro', n: 10, mark: 'defensa', name: 'La Torre', was: 'El Centro', genre: 'Asedio final', txt: 'Bajo la cúpula ámbar, la Torre de 520 m. Arriba, encadenada al Amplificador, la Defensa.', top: '#1a1020', bottom: '#5a3a20', g: '#2e2636' },
+];
+const LANDMARK = {
+  cero(c, t) { for (let i = 0; i < 4; i++) { const x = 14 + i * 22; R(c, x, 26, 1, 16, '#1b1b26'); R(c, x - 1, 24, 3, 2, Math.sin(t * 8 + i) > 0 ? '#9fd0ff' : '#2f8bff'); } for (let i = 0; i < 30; i++) R(c, (i * 13 + t * 40) % 96, (i * 7 + t * 90) % 54, 1, 2, '#6a7aa0'); },
+  industrial(c, t) { R(c, 62, 6, 6, 36, '#3a2a2a'); for (let i = 0; i < 4; i++) R(c, 63 + (i % 2), 4 - i * 2 + Math.sin(t * 10 + i), 3, 2, i % 2 ? '#ffd23a' : '#ff8a2a'); R(c, 20, 26, 18, 16, '#4a3a3a'); R(c, 22, 30, 14, 4, '#2ee6d6'); },
+  midtown(c, t) { for (let i = 0; i < 4; i++) { const x = 10 + i * 22; R(c, x, 4 + i % 2 * 6, 8, 40, '#2a2448'); } line(c, 18, 12, 32, 18, '#e9edf5'); line(c, 40, 16, 54, 10, '#e9edf5'); R(c, 24, 14, 6, 10, '#7a2a5a'); R(c, 66, 18, 6, 10, '#7a2a5a'); },
+  parque(c) { for (let i = 0; i < 6; i++) { const x = 6 + i * 16; R(c, x + 3, 28, 2, 14, '#3a2a1a'); R(c, x, 18, 9, 12, '#2a5a2a'); R(c, x + 2, 16, 5, 3, '#3a7a3a'); } R(c, 42, 20, 10, 22, '#6a6a62'); R(c, 44, 16, 6, 4, '#6a6a62'); },
+  bloques(c, t) { for (let i = 0; i < 5; i++) { const x = 4 + i * 19; R(c, x, 10, 15, 32, '#2a2638'); for (let y = 14; y < 40; y += 5) for (let k = 0; k < 3; k++) R(c, x + 2 + k * 4, y, 2, 2, Math.sin(t * 2 + i + y) > 0.6 ? '#ffcf7a' : '#1a1624'); } },
+  colinas(c) { R(c, 0, 34, 96, 8, '#5a4a2a'); for (let a = 0; a <= 12; a++) { const ang = Math.PI * a / 12; R(c, 66 + Math.cos(ang) * 10, 30 - Math.sin(ang) * 10, 2, 2, '#9fd8ff'); } R(c, 56, 30, 20, 6, '#6a5a4a'); R(c, 20, 22, 2, 14, '#3a3020'); R(c, 18, 20, 6, 3, '#d8e83a'); },
+  puerto(c, t) { R(c, 20, 6, 2, 36, '#6a4a2e'); R(c, 20, 6, 30, 2, '#6a4a2e'); line(c, 46, 8, 46, 22, '#8c949e'); R(c, 42, 22 + Math.sin(t * 2) * 2, 8, 6, '#6a5a7a'); for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) R(c, 58 + i * 10, 30 + j * 6, 9, 5, ['#b5544a', '#3e7cb1', '#c9a24a'][(i + j) % 3]); },
+  costa(c, t) { for (let a = 0; a < 12; a++) { const ang = a * Math.PI / 6 + t * 0.5; R(c, 70 + Math.cos(ang) * 12, 20 + Math.sin(ang) * 12, 2, 2, '#e9c46a'); } R(c, 69, 20, 2, 22, '#8a6a4a'); for (let x = 0; x < 96; x += 2) R(c, x, 40 + Math.round(Math.sin(x * 0.3 + t * 4)), 2, 14, '#4f6dff'); },
+  chino(c, t) { for (let i = 0; i < 5; i++) R(c, 6 + i * 18, 8 + (i % 2) * 6, 12, 36, '#2a1a24'); for (let i = 0; i < 10; i++) { const x = (i * 11 + 5) % 96, y = 10 + ((i * 17 + t * 6) % 26); R(c, x, y, 3, 3, '#ff6a4a'); R(c, x + 1, y + 3, 1, 1, '#ffd23a'); } },
+  centro(c, t) { R(c, 44, 0, 8, 42, '#3a3060'); R(c, 40, 14, 16, 28, '#2e2650'); for (let a = 0; a <= 24; a++) { const ang = Math.PI * a / 24; R(c, 48 + Math.cos(ang) * 40, 42 - Math.sin(ang) * 38, 1, 1, Math.sin(t * 3 + a) > 0 ? '#ffb547' : '#8a5a24'); } R(c, 47, 0, 2, 2, '#ffe0a8'); },
+};
+const regionCanvases = [];
+const regEl = document.getElementById('regions');
+for (const r of REGIONS) {
+  const m = MARKS[r.mark];
+  const card = document.createElement('article');
+  card.className = 'region';
+  card.style.setProperty('--mc', m.color);
+  const cv = document.createElement('canvas');
+  cv.width = 96; cv.height = 54;
+  cv.setAttribute('aria-label', `Viñeta de ${r.name}`);
+  card.append(cv);
+  const d = document.createElement('div');
+  d.className = 'txt';
+  d.innerHTML = `<span class="was">${r.n} · antes ${r.was} · ${r.genre}</span><h3>${r.name}</h3><p>${r.txt}</p><span class="gate">Marca: ${m.name}</span>`;
+  card.append(d);
+  regEl.append(card);
+  regionCanvases.push({ r, c: cv.getContext('2d') });
+}
+function drawRegion(c, r, t) {
+  sky(c, 96, 54, r.top, r.bottom, 5);
+  skyline(c, 96, 44, shade(r.bottom, 0.45), r.n * 5, 6, 18, 6, 12);
+  LANDMARK[r.key](c, t);
+  R(c, 0, 42, 96, 12, r.g);
+  R(c, 0, 42, 96, 1, shade(r.bottom, 0.8));
+  veil(c, 90, 4, 2, 42, t);
+  figure(c, 30, 42, { ...JON, marks: ['#f2c45a', MARKS[r.mark].color] }, 'idle', 1);
+}
+
+// ------------------------------------------------------------------ Enemigos
+const FOES = [
+  ['Paladín', 'El agente de la PDC: patrulla, avisa y dispara con ballesta de rayo.', { skin: '#c49a80', hair: '#2a2420', jacket: '#1f2a44', pants: '#1a1f2e', boots: '#0f0f11', gear: 'helmet' }],
+  ['Reforzado', 'Más vida y más rápido. Llega con la alarma, desde los carros de la PDC.', { skin: '#c49a80', hair: '#2a2420', jacket: '#2a3a5c', pants: '#1a1f2e', boots: '#0f0f11', gear: 'helmet', visor: '#ff8a3a', helmet: '#3a4a6a' }],
+  ['Blindado', 'Escudo de acero de la Forja. Se le ataca por detrás, desde arriba, o se le arranca el escudo con la Gravedad.', { skin: '#c49a80', hair: '#2a2420', jacket: '#2a3a5c', pants: '#1a1f2e', boots: '#0f0f11', gear: 'shield' }],
+  ['Ballestero', 'Desde las azoteas. Una línea roja avisa antes del disparo.', { skin: '#c49a80', hair: '#2a2420', jacket: '#1f2a44', pants: '#1a1f2e', boots: '#0f0f11', gear: 'bow' }],
+  ['Vigía de latón', 'Búho mecánico. Vuela, ve desde lejos y llama a los demás.', 'drone'],
+  ['Acólito', 'Poder prestado violeta. Ataca siempre y se apaga al usarlo demasiado.', { skin: '#b07a5c', hair: '#1b1511', jacket: '#3b2448', pants: '#231c2a', boots: '#15120f', gear: 'hood', hood: '#4b2d5c', marks: ['#b45cff'] }],
+];
+const foeEl = document.getElementById('foes');
+const droneCanvases = [];
+for (const [name, txt, spec] of FOES) {
+  const card = document.createElement('div');
+  card.className = 'foe px';
+  const cv = document.createElement('canvas');
+  cv.width = 24; cv.height = 28;
+  cv.setAttribute('aria-hidden', 'true');
+  const c = cv.getContext('2d');
+  if (spec === 'drone') droneCanvases.push(c);
+  else { R(c, 0, 24, 24, 4, '#2e2a48'); figure(c, 11, 25, spec, spec.gear === 'bow' ? 'cast' : 'idle', 1); }
+  card.append(cv);
+  const d = document.createElement('div');
+  d.innerHTML = `<b>${name}</b><p>${txt}</p>`;
+  card.append(d);
+  foeEl.append(card);
+}
+function drawDrone(c, t) {
+  R(c, 0, 0, 24, 28, '#25223d');
+  const y = 10 + Math.round(Math.sin(t * 3) * 2);
+  const f = Math.sin(t * 20) > 0;
+  R(c, 8, y, 8, 7, '#b08a4a'); R(c, 9, y + 1, 6, 5, '#c9a46a');
+  R(c, 10, y + 2, 4, 3, '#1a1a24'); R(c, 11, y + 3, 2, 1, '#3ac8ff');
+  line(c, 7, y + 2, 2, y + (f ? -2 : 4), '#8a6a3a', 1); line(c, 16, y + 2, 21, y + (f ? -2 : 4), '#8a6a3a', 1);
+  R(c, 9, y - 1, 1, 1, '#c9a46a'); R(c, 14, y - 1, 1, 1, '#c9a46a');
+  for (let i = 0; i < 4; i++) R(c, 12 + i * 2, y + 9 + i * 3, 1, 1, 'rgba(58,200,255,0.5)');
+}
+
+// ------------------------------------------------------------------ Paleta
+const SW = [
+  ['Destino', ['#6a4a10', '#f2c45a', '#ffe7a3']], ['Velos', ['#8a5a24', '#ffb547', '#ffe0a8']], ['PDC', ['#141a2a', '#1f2a44', '#3ac8ff']],
+  ['Acólitos', ['#231c2a', '#4b2d5c', '#b45cff']], ['Sangre', ['#3a0a12', '#d1162b', '#ff5a6a']], ['Noche', ['#12111f', '#2a2448', '#ffcf7a']],
+  ...Object.entries(MARKS).filter(([k]) => !['destino', 'sangre', 'defensa'].includes(k)).map(([k, m]) => [m.name, [shade(m.color, 0.45), m.color, m.glow]]),
+];
+document.getElementById('swatches').innerHTML = SW.map(([n, cs]) => `<div class="sw"><i>${cs.map((c) => `<s style="background:${c}"></s>`).join('')}</i>${n}</div>`).join('');
+
+// ------------------------------------------------------------------ Bucle
+const copyC = document.getElementById('copyScene').getContext('2d');
+const absorbC = document.getElementById('absorbScene').getContext('2d');
+const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+let last = performance.now();
+let time = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  time += dt;
+  drawHero(time, dt);
+  drawCopy(copyC, time);
+  drawAbsorb(absorbC, time);
+  DEMO[current](MC, time);
+  drawMap(time);
+  for (const { r, c } of regionCanvases) drawRegion(c, r, time);
+  for (const c of droneCanvases) drawDrone(c, time);
+  if (!reduce) requestAnimationFrame(frame);
+}
+// Primer fotograma completo (y quieto si se piden menos animaciones)
+for (let i = 0; i < 40; i++) stepHero(1 / 30, (heroScroll += SPEED / 30));
+frame(performance.now());
+if (reduce) {
+  // Sin animación: las demostraciones de marca avanzan al elegir otra
+  pick.addEventListener('click', () => { time += 1.7; frame(performance.now()); });
+}
+})();
+</script>
